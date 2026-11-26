@@ -31,6 +31,7 @@ from pathlib import Path
 import pandas as pd
 
 from lane_intel.export_viewer import VIEWER_SRC, ViewerVariant, build_bundle, variants_from_experiment, wrap_page
+from lane_intel.lanes import lanes_path
 
 
 def clip_variants(clip: dict, cfg: dict) -> list[ViewerVariant]:
@@ -51,7 +52,8 @@ def build_site(spec: dict, out: str | Path, only: set[str] | None = None) -> lis
         cdir = out / "clips" / clip["id"]
         if only is None or clip["id"] in only:
             print(f"== {clip['id']}")
-            build_bundle(cfg, clip_variants(clip, cfg), cdir, clip.get("start", 0.0), clip["dur"], write_page=False)
+            build_bundle(cfg, clip_variants(clip, cfg), cdir, clip.get("start", 0.0), clip["dur"], write_page=False,
+                         lanes_file=lanes_path(cfg, clip["cfg"]))
         elif not (cdir / "meta.json").exists():
             raise FileNotFoundError(f"clip {clip['id']} was never built; run without --only first")
         index.append({"id": clip["id"], "label": clip.get("label") or cfg.get("label") or clip["id"],

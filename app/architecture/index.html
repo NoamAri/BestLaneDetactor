@@ -658,6 +658,7 @@ make test</div>
       <div class="phase"><span class="st todo">In progress</span><div><b>Tracking step 3 · stitching.</b> <code>stitch.py</code> and <code>audit.py</code> built and tested. Joins cut breaks by 25–55%, but audits rejected the 5 s and loose settings (wrong joins under the trees and in queues). Next: audit the 2 s setting; if it fails, add a colour check. Not used yet.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Tracking steps 4–5.</b> Occlusion zones for the trees and gantry; removal of short junk tracks.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phase 0 · ground truth check.</b> <code>gt_mitra.py</code>: per-lane 60 s speed windows from the CSV, the fit test, choice of direction.</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Phase 2 · lanes.</b> <code>lanes.py</code>: lanes found from vehicle paths on both cameras (MiTra 4 + 4, matching ground truth; upload 6), lane per vehicle, shown in the viewer.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phases 2–3 · calibration.</b> <code>calibrate.py</code>, <code>stabilize.py</code>: pixels → metres (fills <code>x_w</code>, <code>y_w</code>), lane polygons (fills <code>lane_frame</code>), drone drift. Unlocks tracking step 6: IDF1 against MiTra's true IDs.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phases 5–8 · measurements.</b> <code>tracks.py</code> (km/h per track), <code>metrics.py</code>, <code>status.py</code>, <code>validate.py</code>, <code>persistence.py</code>.</div></div>
     </div>
@@ -913,6 +914,25 @@ make test</div>
       ],
       related: ["experiment", "quality", "viewer", "serve", "docs"], why: [] },
 
+    { id: "lanesmod", dir: "src/lane_intel/", name: "lanes.py", role: "module", lines: 330,
+      summary: "Finds each lane from where tracked vehicles drive, numbers it (lane 1 = leftmost in the direction of travel) and assigns every vehicle to a lane.",
+      what: [
+        "Lanes are one family of lines, chosen per camera by cross-validation: straight parallel (MiTra), curved parallel (the uploaded clip's road bends), or straight lines meeting at a vanishing point.",
+        "Every box gets a lateral coordinate (the height at the image centre of the lane line through it). Peaks of the per-direction histogram of track coordinates are the lanes; stopped cars vote in a second pass so a jammed lane is still found.",
+        "Output: <code>configs/lanes/&lt;camera&gt;.json</code> (editable) and <code>lane_frame</code> / <code>lane_track</code> in the points file, ready for per-lane measurements once speeds are in km/h.",
+      ],
+      inputs: ["tracked points of one camera window", "camera config"],
+      outputs: ["configs/lanes/&lt;camera&gt;.json", "lane columns in the points file (--write-points)"],
+      fns: [
+        ["Geometry", "The lane-line family: <code>c_of(x, y)</code> and <code>y_of(c, x)</code> convert between image position and lateral coordinate."],
+        ["estimate_geometry(…)", "Fits straight, curved (degree 2 and 3) and vanishing-point families and keeps the simplest within 2% of the best cross-validated error."],
+        ["estimate_lanes(points, width)", "Lane peaks per direction (two passes), numbered from the left of the direction of travel."],
+        ["assign_lanes(points, geo, lanes, width)", "Lane per box (nearest lane of the vehicle's direction, inside its band) and per track (most frequent)."],
+        ["lane_polygons(geo, lanes)", "Centreline and band edges for drawing in the viewer."],
+      ],
+      related: ["viewer", "export", "notes"],
+      why: ["Checked against MiTra's ground truth: 4 lanes in the jammed direction and 3 plus a ramp lane in the moving one, as found. Speeds per lane wait for calibration because pixels shrink with distance."] },
+
     { id: "site", dir: "src/lane_intel/", name: "viewer_site.py", role: "module", lines: 100,
       summary: "Builds the viewer for several videos at once, so you can choose which clip to look at.",
       what: [
@@ -942,6 +962,7 @@ make test</div>
     { id: "viewer", dir: "app/viewer/", name: "index.html", role: "ui", lines: 806,
       summary: "The inspector you use in the browser: plays the road strip and draws every vehicle's box, ID and trail on top, frame by frame, for whichever tracker you pick.",
       what: [
+        "<b>Lanes</b> layer (on by default): each lane band with its number and direction; the selected vehicle's lane is brighter. A Lanes panel counts vehicles per lane; the register has a Lane column.",
         "<b>Video selector</b> at the top when the site has more than one clip (<code>clips.json</code>): each clip loads its own video, trackers and tags from its folder.",
         "<b>Tracker switch</b> above the video, shown only when the bundle carries more than one tracker (<code>tracking.viewer_variants</code>; the default bundle has just the chosen one): one button per tracker with its ID count; <kbd>V</kbd> cycles; switching keeps the current frame.",
         "<b>Break markers</b>: a green + where a track starts mid-image and a red × where one ends, visible for 1.5 s. The timeline shows the same events as green and red ticks under the vehicle count.",

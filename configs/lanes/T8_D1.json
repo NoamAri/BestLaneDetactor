@@ -1,0 +1,127 @@
+{
+ "about": "Lanes estimated from vehicle paths (lane_intel.lanes). Each lane is the line through the geometry family (see geometry) whose height at x_ref is c, full-frame pixels. Lane 1 = leftmost in the direction of travel. Editable by hand.",
+ "created_utc": "2026-11-26T11:58:23+00:00",
+ "camera": "T8_D1",
+ "source_points": "/home/user/BestLaneDetactor/data/interim/T8_D1_0-30s_points.parquet",
+ "params": {
+  "min_obs": 6,
+  "min_dx_boxes": 3.0,
+  "still_px_s": 15.0,
+  "smooth_frac": 0.1,
+  "min_sep_frac": 0.6,
+  "min_tracks": 4,
+  "far_vp": 20.0
+ },
+ "geometry": {
+  "kind": "shape",
+  "x_ref": 1920.0,
+  "coef": [
+   0.0418426322300629
+  ],
+  "vp": null
+ },
+ "geometry_cv_residual_px": {
+  "straight": 3.572,
+  "curve2": 3.634,
+  "curve3": 3.556
+ },
+ "boxes_in_a_lane": 0.988,
+ "lanes": [
+  {
+   "id": "L1",
+   "number": 1,
+   "direction": "left",
+   "c": 1347.71,
+   "x_range": [
+    2.6,
+    3406.5
+   ],
+   "tracks": 25,
+   "vehicles": 32
+  },
+  {
+   "id": "L2",
+   "number": 2,
+   "direction": "left",
+   "c": 1318.71,
+   "x_range": [
+    24.9,
+    3566.5
+   ],
+   "tracks": 24,
+   "vehicles": 36
+  },
+  {
+   "id": "L3",
+   "number": 3,
+   "direction": "left",
+   "c": 1273.71,
+   "x_range": [
+    783.5,
+    3811.6
+   ],
+   "tracks": 18,
+   "vehicles": 31
+  },
+  {
+   "id": "L4",
+   "number": 4,
+   "direction": "left",
+   "c": 1246.71,
+   "x_range": [
+    3.7,
+    3787.9
+   ],
+   "tracks": 32,
+   "vehicles": 38
+  },
+  {
+   "id": "R1",
+   "number": 1,
+   "direction": "right",
+   "c": 1409.61,
+   "x_range": [
+    7.6,
+    3836.6
+   ],
+   "tracks": 45,
+   "vehicles": 47
+  },
+  {
+   "id": "R2",
+   "number": 2,
+   "direction": "right",
+   "c": 1451.61,
+   "x_range": [
+    6.2,
+    3836.8
+   ],
+   "tracks": 52,
+   "vehicles": 55
+  },
+  {
+   "id": "R3",
+   "number": 3,
+   "direction": "right",
+   "c": 1493.61,
+   "x_range": [
+    5.7,
+    3836.2
+   ],
+   "tracks": 53,
+   "vehicles": 65
+  },
+  {
+   "id": "R4",
+   "number": 4,
+   "direction": "right",
+   "c": 1524.61,
+   "x_range": [
+    551.7,
+    2743.4
+   ],
+   "tracks": 18,
+   "vehicles": 27
+  }
+ ]
+}

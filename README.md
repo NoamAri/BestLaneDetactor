@@ -15,6 +15,7 @@ python run.py clip       # 3-min 4K clip of drone D1, read straight out of the r
 python run.py detect     # YOLO once on the first 30 s (minutes on a GPU, ~12 min on CPU)
 python run.py tune       # every tracker variant on the saved detections + comparison report (seconds)
 python run.py track      # final tracks with the configured tracker
+python run.py lanes      # find the lanes from the tracks; lane per vehicle
 python run.py viewer     # build the viewer for every clip in configs/viewer.json
 python run.py serve      # opens http://localhost:8000
 ```
@@ -31,7 +32,7 @@ The viewer offers every clip listed in `configs/viewer.json` (a Video selector a
    (example: `configs/slowest_car_1943pm.json`): `video`, `native_fps`, `frame_size`, `band_y`
    (rows with road), `detector.imgsz` (larger than the width for small vehicles), `label`, `viewer.crop_y`/`width`.
 2. `python run.py detect --cfg configs/<camera>.json --start 0 --dur <seconds>`
-3. `python run.py tune --cfg configs/<camera>.json --start 0 --dur <seconds>`
+3. `python run.py tune --cfg configs/<camera>.json --start 0 --dur <seconds>`, then `track` and `lanes` with the same options
 4. Add the clip to `configs/viewer.json`, then `python run.py viewer` (or `--only <id>`) and `python run.py pages`.
 
 ## Pipeline
@@ -42,6 +43,7 @@ The viewer offers every clip listed in `configs/viewer.json` (a Video selector a
 | 1 · Detection | `lane_intel.detect` | `<tag>_detections.parquet`: every box with conf ≥ 0.05 + provenance `.meta.json` |
 | 2 · Tracking | `lane_intel.tracking` | `<tag>_points.parquet`: `t, frame_idx, track_id, cls, conf, x1..y2, x_px, y_px` |
 | Tracker experiment | `lane_intel.tracking.experiment` | `data/out/tracking/<tag>/report.md`, per-variant points and diagnostics |
+| Lanes | `lane_intel.lanes` | `configs/lanes/<camera>.json` (lane lines, lane 1 = leftmost in travel direction); `lane_frame`, `lane_track` in the points file |
 | Viewer bundle (one clip) | `lane_intel.export_viewer` | `video.mp4`, `tags_<variant>.json`, `meta.json` |
 | Viewer site (all clips) | `lane_intel.viewer_site` | `index.html`, `clips.json`, `clips/<id>/…` from `configs/viewer.json` |
 | Viewer | `app/viewer/index.html` | video selector, frame stepping, tracks with speed and direction, quality panel, register |

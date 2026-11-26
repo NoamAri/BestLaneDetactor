@@ -6,6 +6,7 @@
     python run.py tune       try every tracker variant on those detections, pick one by the
                              fixed rule -> data/out/tracking/<tag>/report.md (seconds)
     python run.py track      track with the configured variant -> data/interim/<tag>_points.parquet
+    python run.py lanes      find the lanes from the tracks -> configs/lanes/<camera>.json, lane per box
     python run.py extract    detect + track in one go
     python run.py viewer     build the viewer for every clip in configs/viewer.json -> data/out/viewer/
     python run.py serve      start the viewer at http://localhost:8000 and open the browser
@@ -189,6 +190,15 @@ def track(a) -> None:
     sh(cmd)
 
 
+def lanes(a) -> None:
+    """Find the lanes from the window's tracks; fill lane columns in the points file."""
+    need_venv()
+    if not _points(a).exists():
+        sys.exit("No tracks for this window yet. Run:  python run.py track")
+    sh([PY, "-W", "ignore", "-m", "lane_intel.lanes", "--cfg", _cfg_for_clip(a), "--points", _points(a),
+        "--write-points"])
+
+
 def extract(a) -> None:
     detect(a)
     track(a)
@@ -259,13 +269,14 @@ def test(a) -> None:
 
 
 def all_steps(a) -> None:
-    for step in (setup, clip, detect, tune, track, viewer, serve):
+    for step in (setup, clip, detect, tune, track, lanes, viewer, serve):
         step(a)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    steps = {"setup": setup, "clip": clip, "detect": detect, "tune": tune, "track": track, "extract": extract,
+    steps = {"setup": setup, "clip": clip, "detect": detect, "tune": tune, "track": track, "lanes": lanes,
+             "extract": extract,
              "viewer": viewer, "serve": serve, "pages": pages, "test": test, "all": all_steps}
     ap.add_argument("step", choices=list(steps))
     ap.add_argument("--start", type=float, default=0.0, help="detection window start, s into the clip")

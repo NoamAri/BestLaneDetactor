@@ -33,6 +33,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from lane_intel.lanes import assign_lanes, lane_polygons, lanes_path, load_lanes
 from lane_intel.tracking.quality import QualityParams, track_table
 
 VIEWER_SRC = Path(__file__).resolve().parents[2] / "app" / "viewer" / "index.html"
@@ -107,7 +108,7 @@ def wrap_page(fragment: str) -> str:
 
 def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, start: float,
                  duration: float, crop_y: tuple[int, int] | None = None, width: int | None = None,
-                 crf: int = 32, write_page: bool = True) -> dict:
+                 crf: int = 32, write_page: bool = True, lanes_file: str | Path | None = None) -> dict:
     """Write video.mp4, tags_<variant>.json, meta.json (and index.html); return meta.
 
     The first variant is the one the viewer opens with. crop_y / width default to the camera
@@ -135,15 +136,22 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
     classes = sorted(set().union(*(set(p.cls.unique()) for p in windowed.values())))
     cidx = {c: i for i, c in enumerate(classes)}
 
+    geo = lanes = None
+    if lanes_file and Path(lanes_file).exists():
+        geo, lanes = load_lanes(lanes_file)
     meta_variants = []
     for v in variants:
         df = windowed[v.name]
         fname = f"tags_{v.name}.json"
         write_tags(df, out / fname, cidx)
+        tracks = track_summary(df, fps, (f0, f1 - 1), W)
+        if lanes:
+            lane_of = assign_lanes(df, geo, lanes, W).groupby("track_id").lane_track.first()
+            for t in tracks:
+                t["lane"] = int(lane_of.get(t["track_id"], -1))
         meta_variants.append({
             "name": v.name, "label": v.label or v.name, "note": v.note, "file": fname,
-            "quality": v.quality, "tags": int(len(df)),
-            "tracks": track_summary(df, fps, (f0, f1 - 1), W),
+            "quality": v.quality, "tags": int(len(df)), "tracks": tracks,
         })
         print(f"  {v.name}: {len(df)} tags, {df.track_id.nunique()} tracks -> {fname}")
 
@@ -161,6 +169,7 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
         "model": Path(det.get("model", "?")).name, "imgsz": det.get("imgsz"),
         "edge_px": QualityParams.scaled(W).edge_px,
         "variants": meta_variants,
+        "lanes": lane_polygons(geo, lanes) if lanes else [],
     }
     (out / "meta.json").write_text(json.dumps(meta))
 

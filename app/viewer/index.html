@@ -20,6 +20,9 @@
   --sel: #ffffff;
   --tag-bg: rgba(8, 12, 16, .78);
   --tag-fg: #ffffff;
+  --lane-fill-a: rgba(255, 255, 255, 0.10);   /* lane bands on video, alternating */
+  --lane-fill-b: rgba(120, 200, 255, 0.10);
+  --lane-edge: rgba(255, 255, 255, 0.45);
   --start: #3ee08f;           /* overlay: track starts mid-image (drawn on video, same in both themes) */
   --end: #ff5d5d;             /* overlay: track ends mid-image */
   --good: #12804f;            /* UI: change in the right direction */
@@ -221,6 +224,7 @@ footer a { color: inherit; }
           <dt>Mean confidence</dt><dd id="sConf">–</dd>
           <dt>Speed</dt><dd id="sSpd">–</dd>
           <dt>Direction</dt><dd id="sDir">–</dd>
+          <dt>Lane</dt><dd id="sLane">–</dd>
           <dt>Box here</dt><dd id="sBox">–</dd>
         </dl>
         <div class="spark-label">Distance travelled since first seen</div>
@@ -238,6 +242,7 @@ footer a { color: inherit; }
     <section class="panel" aria-labelledby="hLayers">
       <h2 id="hLayers">Layers</h2>
       <div class="layers">
+        <label><input type="checkbox" id="lLanes" checked> Lanes</label>
         <label><input type="checkbox" id="lBoxes" checked> Boxes and anchor points</label>
         <label><input type="checkbox" id="lIds" checked> Track IDs</label>
         <label><input type="checkbox" id="lCls"> Class names</label>
@@ -261,6 +266,13 @@ footer a { color: inherit; }
       <p class="note" id="qualNote">Change against the first tracker in the list. A mid-image start or end is a break:
         on this road, vehicles only enter and leave at the image edges.</p>
     </section>
+
+    <section class="panel" aria-labelledby="hLanesP">
+      <h2 id="hLanesP">Lanes</h2>
+      <table class="qual" id="lanesTbl"></table>
+      <p class="note" id="lanesNote">Lane 1 is the leftmost lane in the direction of travel. Found from where vehicles drive
+        (configs/lanes/). Speeds per lane come after calibration: pixels shrink with distance from the camera.</p>
+    </section>
   </div>
 
   <section class="panel" aria-labelledby="hReg">
@@ -269,7 +281,7 @@ footer a { color: inherit; }
       <table>
         <thead><tr>
           <th data-k="track_id">ID</th><th data-k="cls">Class</th><th data-k="first">First (s)</th>
-          <th data-k="span_s">Duration (s)</th><th data-k="n">Obs.</th><th data-k="conf">Conf.</th><th data-k="dirn">Direction</th><th data-k="speed">Speed (px/s)</th><th data-k="brk">Mid-image</th>
+          <th data-k="span_s">Duration (s)</th><th data-k="n">Obs.</th><th data-k="conf">Conf.</th><th data-k="laneSort">Lane</th><th data-k="dirn">Direction</th><th data-k="speed">Speed (px/s)</th><th data-k="brk">Mid-image</th>
         </tr></thead>
         <tbody id="regBody"></tbody>
       </table>
@@ -289,7 +301,7 @@ footer a { color: inherit; }
   const S = {
     meta: null, byFrame: [], tracks: new Map(), info: new Map(), counts: [], frame: 0, sel: null,
     zoom: 1, follow: false, playing: false, sortK: "track_id", sortDir: 1, colors: {},
-    layers: { boxes: true, ids: true, cls: false, conf: false, trails: true, breaks: false },
+    layers: { lanes: true, boxes: true, ids: true, cls: false, conf: false, trails: true, breaks: false },
     variant: null, cache: new Map(), births: [], deaths: [], videoReady: false,
     clips: null, clipId: null, base: "", loadToken: 0, blobUrl: null,
   };
@@ -300,7 +312,7 @@ footer a { color: inherit; }
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
     for (const k of ["car", "truck", "bus", "motorcycle", "sel", "tag-bg", "tag-fg", "accent", "muted", "line", "fg",
-                    "start", "end", "good", "bad"])
+                    "start", "end", "good", "bad", "lane-fill-a", "lane-fill-b", "lane-edge"])
       S.colors[k] = cs.getPropertyValue("--" + k).trim();
   }
   const clsColor = (c) => S.colors[c] || S.colors.car;
@@ -308,6 +320,8 @@ footer a { color: inherit; }
   // Direction of travel in the image, from the vehicle's net motion over its track.
   const directionOf = (v) => (v < 0 ? -1 : 1);
   const DIRECTION = { "1": ["→", "right"], "-1": ["←", "left"] };
+  const laneOf = (i) => (S.meta && S.meta.lanes && i >= 0 ? S.meta.lanes[i] : null);
+  const laneText = (i) => { const l = laneOf(i); return l ? `${l.number} ${l.direction === "left" ? "←" : "→"}` : "—"; };
 
   const fmtT = (s) => {
     const m = Math.floor(s / 60), r = s - 60 * m;
@@ -600,6 +614,31 @@ footer a { color: inherit; }
     const L = S.layers, sel = S.sel;
     const dim = (id) => (sel !== null && id !== sel ? 0.45 : 1);
 
+    if (L.lanes && S.meta.lanes) {
+      const selLane = sel !== null && S.info.get(sel) ? S.info.get(sel).lane : -1;
+      S.meta.lanes.forEach((ln, i) => {
+        ctx.beginPath();
+        ln.upper.forEach(([x, y], j) => (j ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
+        [...ln.lower].reverse().forEach(([x, y]) => ctx.lineTo(X(x), Y(y)));
+        ctx.closePath();
+        ctx.fillStyle = ln.number % 2 ? S.colors["lane-fill-a"] : S.colors["lane-fill-b"];
+        ctx.fill();
+        if (i === selLane) ctx.fill();                  // the selected vehicle's lane is brighter
+        ctx.strokeStyle = S.colors["lane-edge"]; ctx.lineWidth = 1 * dpr; ctx.setLineDash([6 * dpr, 6 * dpr]);
+        ctx.beginPath();
+        ln.centre.forEach(([x, y], j) => (j ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
+        ctx.stroke(); ctx.setLineDash([]);
+        const [lx, ly] = ln.direction === "left" ? ln.centre[ln.centre.length - 1] : ln.centre[0];
+        const txt = `${ln.number} ${ln.direction === "left" ? "←" : "→"}`;
+        const fs = Math.max(10, Math.min(14, 11 * S.zoom)) * dpr;
+        ctx.font = `600 ${fs}px ${getComputedStyle(document.body).getPropertyValue("--font-sans") || "sans-serif"}`;
+        const tw = ctx.measureText(txt).width, pad = 3 * dpr;
+        const tx = Math.min(Math.max(X(lx) - (ln.direction === "left" ? tw + 2 * pad : 0), 2), ov.width - tw - 2 * pad - 2);
+        ctx.fillStyle = S.colors["tag-bg"]; ctx.fillRect(tx, Y(ly) - fs / 2 - pad, tw + 2 * pad, fs + 2 * pad);
+        ctx.fillStyle = S.colors["tag-fg"]; ctx.textBaseline = "middle"; ctx.fillText(txt, tx + pad, Y(ly));
+      });
+    }
+
     if (L.trails) {
       ctx.lineWidth = 1.5 * dpr;
       for (const d of dets) {
@@ -753,6 +792,7 @@ footer a { color: inherit; }
     const [arrow, word] = DIRECTION[directionOf(info.px_per_s)];
     $("sSpd").textContent = `${Math.abs(info.px_per_s).toFixed(0)} px/s`;
     $("sDir").textContent = `${arrow} ${word}`;
+    $("sLane").textContent = laneOf(info.lane ?? -1) ? `Lane ${laneText(info.lane)}` : "not in a lane";
     const here = pts.find((p) => p.f === S.frame);
     $("sBox").textContent = here ? `${here.x2 - here.x1}×${here.y2 - here.y1} px` : "not in this frame";
     // sparkline: distance travelled in the direction of travel since the first observation,
@@ -775,10 +815,21 @@ footer a { color: inherit; }
       .map((c) => `<span class="chip"><span class="sw" style="background:${clsColor(c)}"></span>${c}</span>`).join("");
   }
 
+  function renderLanes(rows) {
+    const lanes = S.meta.lanes || [];
+    if (!lanes.length) { $("lanesTbl").innerHTML = ""; $("lanesNote").textContent = "No lanes defined for this video yet (python run.py lanes)."; return; }
+    const count = lanes.map((_, i) => rows.filter((t) => t.lane === i).length);
+    const none = rows.filter((t) => !(t.lane >= 0)).length;
+    $("lanesTbl").innerHTML = lanes.map((l, i) =>
+      `<tr><th scope="row">Lane ${l.number} ${l.direction === "left" ? "←" : "→"}</th><td>${count[i]}</td><td class="d">vehicles</td></tr>`).join("") +
+      `<tr><th scope="row">Not in a lane</th><td>${none}</td><td class="d"></td></tr>`;
+  }
+
   function buildRegister() {
     const rows = variantOf(S.variant).tracks.map((t) => ({
       ...t, brk: (t.born_mid ? 1 : 0) + (t.died_mid ? 2 : 0),
       speed: Math.abs(t.px_per_s), dirn: directionOf(t.px_per_s),
+      laneSort: laneOf(t.lane ?? -1) ? (laneOf(t.lane).direction === "left" ? 0 : 100) + laneOf(t.lane).number : 999,
     }));
     const k = S.sortK, dir = S.sortDir;
     const brkTxt = ["—", "start", "end", "start + end"];
@@ -790,9 +841,11 @@ footer a { color: inherit; }
       `<td><span class="sw" style="background:${clsColor(t.cls)}"></span> ${t.cls}</td>` +
       `<td>${((t.first - S.meta.frame_first) / fps).toFixed(2)}</td><td>${t.span_s.toFixed(2)}</td>` +
       `<td>${t.n}</td><td>${Math.round(t.conf * 100)}%</td>` +
+      `<td class="dir">${laneText(t.lane ?? -1)}</td>` +
       `<td class="dir"><span class="arw">${DIRECTION[t.dirn][0]}</span> ${DIRECTION[t.dirn][1]}</td><td>${t.speed.toFixed(0)}</td>` +
       `<td class="brk ${t.brk ? "bad" : ""}">${brkTxt[t.brk]}</td></tr>`).join("");
     $("regCount").textContent = `· ${rows.length}`;
+    renderLanes(rows);
   }
   $("regBody").addEventListener("click", (e) => {
     const tr = e.target.closest("tr"); if (!tr) return;
@@ -852,7 +905,7 @@ footer a { color: inherit; }
 
   // layers + zoom
   const bindLayer = (id, key) => $(id).addEventListener("change", (e) => { S.layers[key] = e.target.checked; draw(); });
-  bindLayer("lBoxes", "boxes"); bindLayer("lIds", "ids"); bindLayer("lCls", "cls"); bindLayer("lConf", "conf"); bindLayer("lTrails", "trails");
+  bindLayer("lLanes", "lanes"); bindLayer("lBoxes", "boxes"); bindLayer("lIds", "ids"); bindLayer("lCls", "cls"); bindLayer("lConf", "conf"); bindLayer("lTrails", "trails");
   $("lBreaks").addEventListener("change", (e) => { S.layers.breaks = e.target.checked; draw(); drawTimeline(); });
 
   function setZoom(z) {
