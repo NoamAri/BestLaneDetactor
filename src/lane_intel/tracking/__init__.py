@@ -11,12 +11,18 @@ Modules
                 identity jumps, coverage)
     experiment  run many variants on the same detections, compare, apply the selection rule
     crosscheck  compare the tuning window with a held-out window; the held-out decides
+    stitch      step 3: join a track that ends mid-image to the track that continues it
+    audit       visual audit of stitch joins (cards + verdict CSV + score)
     __main__    ``python -m lane_intel.tracking`` runs the configured variant for one window
 
 Method and results: notes/tracking.md
 """
-from lane_intel.tracking.config import TrackerConfig, build_tracker, load_variants
-from lane_intel.tracking.quality import QualityParams, evaluate
-from lane_intel.tracking.runner import run_tracker
+import warnings
+
+warnings.filterwarnings("ignore", category=FutureWarning, module="supervision")  # noisy on import
+
+from lane_intel.tracking.config import TrackerConfig, build_tracker, load_variants  # noqa: E402
+from lane_intel.tracking.quality import QualityParams, evaluate  # noqa: E402
+from lane_intel.tracking.runner import run_tracker  # noqa: E402
 
 __all__ = ["TrackerConfig", "build_tracker", "load_variants", "QualityParams", "evaluate", "run_tracker"]

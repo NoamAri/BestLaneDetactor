@@ -21,6 +21,12 @@ identity_jumps      times a track's box jumps to a different vehicle: between tw
                     (plus ``jump_slack_px_per_s`` per second of gap). Requiring both edges ignores
                     a box that grows or shrinks when a vehicle is partly hidden. A guard metric:
                     settings that join tracks more eagerly must not raise it.
+                    Split into identity_jumps_within (both observations belong to the same
+                    tracker piece, i.e. the same raw_track_id) and junction_jumps (the step
+                    crosses a stitch junction). The guard uses identity_jumps_within: the check
+                    was validated on tracker swaps, and audits showed it misreads correct stitch
+                    junctions (a car reappearing from behind a pole grows from half a box to a
+                    whole box). Stitch junctions are judged by a visual audit (audit.py).
 coverage_clear      share of clearly detected boxes (conf >= 0.5) that end up with a track ID
                     (from runner stats). A guard metric against "improving" by dropping boxes.
 """
@@ -121,6 +127,7 @@ def identity_jumps(points: pd.DataFrame, fps: float, params: QualityParams = Qua
             continue
         f = g.frame_idx.to_numpy()
         t = g.t.to_numpy()
+        raw = g.raw_track_id.to_numpy() if "raw_track_id" in g else np.full(len(g), tid)
         x1, x2, y1, y2 = (g[c].to_numpy() for c in ("x1", "x2", "y1", "y2"))
         cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
         starts = np.searchsorted(t, t - params.velocity_window_s)
@@ -139,10 +146,10 @@ def identity_jumps(points: pd.DataFrame, fps: float, params: QualityParams = Qua
             jy = np.sign(ey1) == np.sign(ey2) and min(abs(ey1), abs(ey2)) > tol_y
             if jx or jy:
                 events.append({"track_id": int(tid), "frame_idx": int(f[i]), "gap_frames": int(f[i] - f[i - 1]),
-                               "axis": "x" if jx else "y", "dx_err_px": round(float((ex1 + ex2) / 2), 1),
+                               "junction": bool(raw[i] != raw[i - 1]), "axis": "x" if jx else "y", "dx_err_px": round(float((ex1 + ex2) / 2), 1),
                                "dy_err_px": round(float((ey1 + ey2) / 2), 1),
                                "x": round(float(cx[i]), 0), "y": round(float(y2[i]), 0)})
-    return pd.DataFrame(events, columns=["track_id", "frame_idx", "gap_frames", "axis",
+    return pd.DataFrame(events, columns=["track_id", "frame_idx", "gap_frames", "junction", "axis",
                                          "dx_err_px", "dy_err_px", "x", "y"])
 
 
@@ -164,6 +171,8 @@ def evaluate(points: pd.DataFrame, fps: float, frame_range: tuple[int, int], wid
             "fragmentation": int(tracks.born_mid.sum() + tracks.died_mid.sum()),
             "restart_pairs": int(len(restarts)),
             "identity_jumps": int(len(jumps)),
+            "identity_jumps_within": int((~jumps.junction.astype(bool)).sum()) if len(jumps) else 0,
+            "junction_jumps": int(jumps.junction.astype(bool).sum()) if len(jumps) else 0,
             "tracks_with_jumps": int(jumps.track_id.nunique()) if len(jumps) else 0,
             "median_span_s": round(float(tracks.span_s.median()), 2),
             "mean_span_s": round(float(tracks.span_s.mean()), 2),

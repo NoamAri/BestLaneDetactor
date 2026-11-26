@@ -179,3 +179,21 @@ def test_crosscheck_takes_the_heldout_selection():
                               report("b", {"baseline": 100, "a": 90, "b": 70}))
     assert final == "b"
     assert "`b` **(final)**" in table and "50 (-50%)" in table and "70 (-30%)" in table
+
+
+def test_jumps_at_stitch_junctions_are_counted_separately():
+    smooth = [(f, 1000 + 2 * f, 300) for f in range(30)]
+    jumped = smooth[:15] + [(f, 1000 + 2 * f, 345) for f in range(15, 30)]
+    p = points({2: jumped})
+    p["raw_track_id"] = np.where(p.frame_idx < 15, 20, 21)                    # two pieces stitched at f15
+    s, tb = evaluate(p, FPS, (0, 29), 3840)
+    assert s["identity_jumps"] == 1 and s["junction_jumps"] == 1 and s["identity_jumps_within"] == 0
+    assert bool(tb["jumps"].junction.iloc[0])
+
+
+def test_guard_uses_jumps_within_pieces():
+    base = {"ids": 300, "fragmentation": 400, "short_lt_1s": 90, "identity_jumps": 10,
+            "identity_jumps_within": 10, "junction_jumps": 0, "coverage_clear": 0.95}
+    stitched = {**base, "fragmentation": 250, "identity_jumps": 50, "junction_jumps": 40}
+    selected, failures = judge({"ref": base, "stitched": stitched}, "ref")
+    assert selected == "stitched" and failures["stitched"] == []

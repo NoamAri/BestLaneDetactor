@@ -13,10 +13,11 @@ Writes into --out-dir
     report.json                  configs, metrics, guard verdicts, selected variant, provenance
     report.md                    the comparison table in Markdown
 
-Selection rule (fixed before the first run, see notes/tracking.md):
+Selection rule (fixed before the first run, see notes/tracking.md; amendment A1 of section 6.4:
+the jump guard counts jumps inside tracker pieces, identity_jumps_within):
     1. Guards, relative to the reference variant (--reference; the camera config's
        tracking.reference, default "baseline"):
-       identity_jumps <= baseline * (1 + JUMP_TOLERANCE) + JUMP_SLACK
+       identity_jumps_within <= reference * (1 + JUMP_TOLERANCE) + JUMP_SLACK
        coverage_clear >= baseline - COVERAGE_TOLERANCE
     2. Among variants passing both guards: lowest fragmentation,
        then fewest ids, then fewest short tracks.
@@ -43,7 +44,8 @@ COVERAGE_TOLERANCE = 0.01  # clear-box coverage may fall at most 1 percentage po
 TABLE_COLUMNS = [
     ("ids", "IDs"), ("fragmentation", "Mid-image starts+ends"), ("born_mid", "Starts"),
     ("died_mid", "Ends"), ("short_lt_1s", "< 1 s"), ("restart_pairs", "Restart pairs"),
-    ("median_span_s", "Median life (s)"), ("identity_jumps", "Identity jumps"),
+    ("median_span_s", "Median life (s)"), ("identity_jumps_within", "Identity jumps (in pieces)"),
+    ("junction_jumps", "Flags at stitches"),
     ("coverage_clear", "Clear-box coverage"), ("stitch_links", "Stitches"),
 ]
 
@@ -53,13 +55,14 @@ def judge(results: dict[str, dict], baseline: str = BASELINE) -> tuple[str | Non
     if baseline not in results:
         raise KeyError(f"the selection rule needs the '{baseline}' variant in the run")
     b = results[baseline]
-    max_jumps = b["identity_jumps"] * (1 + JUMP_TOLERANCE) + JUMP_SLACK
+    jumps = lambda r: r.get("identity_jumps_within", r["identity_jumps"])  # noqa: E731  (A1)
+    max_jumps = jumps(b) * (1 + JUMP_TOLERANCE) + JUMP_SLACK
     min_cov = b["coverage_clear"] - COVERAGE_TOLERANCE
     failures: dict[str, list[str]] = {}
     for name, s in results.items():
         why = []
-        if s["identity_jumps"] > max_jumps:
-            why.append(f"identity jumps {s['identity_jumps']} > limit {max_jumps:.0f}")
+        if jumps(s) > max_jumps:
+            why.append(f"identity jumps {jumps(s)} > limit {max_jumps:.0f}")
         if s["coverage_clear"] < min_cov:
             why.append(f"coverage {s['coverage_clear']:.3f} < limit {min_cov:.3f}")
         failures[name] = why
@@ -121,7 +124,7 @@ def run(cfg: dict, dets_path: str | Path, out_dir: str | Path, names: list[str] 
             table.to_csv(vdir / f"{tname}.csv", index=False)
         print(f"{name:26s} ids={summary['ids']:4d}  fragmentation={summary['fragmentation']:4d}  "
               f"short={summary['short_lt_1s']:4d}  restarts={summary['restart_pairs']:4d}  "
-              f"jumps={summary['identity_jumps']:3d}  coverage={summary['coverage_clear']:.3f}  "
+              f"jumps={summary['identity_jumps_within']:3d}+{summary['junction_jumps']:<3d} coverage={summary['coverage_clear']:.3f}  "
               f"links={summary['stitch_links']:3d}  "
               f"({stats['seconds']:.1f}s)", flush=True)
 

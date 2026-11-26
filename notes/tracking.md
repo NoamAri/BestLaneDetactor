@@ -259,3 +259,33 @@ of `r2_botsort_first005`.
    held-out window, rendered before/after from the video and judged same vehicle / different
    vehicle. Accepted if at least 18 of 20 are correct (90%). Otherwise the next eligible variant
    in rank order is audited the same way; if none passes, no stitching is used.
+
+### 6.4 First result and protocol amendment A1 (written before the re-run and the fresh audit)
+
+**Result under the rule as written.** On both windows every stitching variant failed the
+identity-jump guard (held-out: 45 / 54 / 93 jumps for 2 s / 5 s / loose, limit 14), so the rule
+as written selects no stitching. Reports: `notes/runs/step3_*`.
+
+**Audit of the guard on stitch junctions.** 20 joins of `s3_stitch_5s` on the held-out window,
+drawn with seed 0, were judged at full resolution (`notes/audits/T8_D1_30-30s_s3_stitch_5s_seed0.*`):
+18 the same vehicle, 2 different (a silver car joined to a red one after 4.9 s, a dark car joined
+to a white van under the trees after 4.5 s). The guard flagged 13 of the 20 junctions: 12 of them
+were correct joins (mostly cars reappearing from behind the gantry pole, whose box grows from the
+visible half to the whole car, which the jump check reads as a jump), and it missed one of the
+two wrong joins. **At stitch junctions the jump check does not measure what it is meant to
+measure.** Inside tracker pieces it remains valid (8 of 8 audited events were real swaps, 3.2).
+
+**Amendment A1.**
+1. The jump guard counts only jumps inside tracker pieces (`identity_jumps_within`: both
+   observations share `raw_track_id`). Jumps at stitch junctions are still reported
+   (`junction_jumps`) but not used for the decision. For variants without stitching nothing
+   changes, so all step 0–2 results stand.
+2. Join quality is measured directly: the top-ranked eligible variant on the held-out window is
+   audited on a **fresh** sample of 20 joins (seed 1; seed 0 has been seen). Accepted if at least
+   18 are the same vehicle. Otherwise the next eligible variant is audited the same way (seed 1);
+   if none passes, no stitching.
+3. The audit tool is `lane_intel.tracking.audit`; samples, cards and verdicts are committed under
+   `notes/audits/`.
+
+Because A1 was written after seeing the step-3 guard results, the decision rests on the fresh
+audit, not on the guard numbers.
