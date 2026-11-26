@@ -87,6 +87,11 @@ def compare(ours: dict, ref: dict, gap: float) -> dict:
     roll = j[j.window != "all"]
     # shares of distance and time per lane (whole span)
     w = j[j.window == "all"].copy()
+    if w.empty:
+        w = j.groupby(["direction", "lane"], as_index=False).agg(
+            auxiliary=("auxiliary", "first"), v_kmh=("v_kmh", "median"), v_kmh_gt=("v_kmh_gt", "median"),
+            abs_err_kmh=("abs_err_kmh", "median"), rel_err=("rel_err", "median"),
+            D_m=("D_m", "sum"), D_m_gt=("D_m_gt", "sum"), tau_s=("tau_s", "sum"), tau_s_gt=("tau_s_gt", "sum"))
     for c in ("D_m", "tau_s"):
         for suf in ("", "_gt"):
             w[f"{c}{suf}_share"] = w[f"{c}{suf}"] / w.groupby("direction")[f"{c}{suf}"].transform("sum")
@@ -139,6 +144,15 @@ def compare(ours: dict, ref: dict, gap: float) -> dict:
     }
 
 
+def subset(res: dict, keep) -> dict:
+    """The same results restricted to the windows for which keep(t0, t1) is true (plus none of "all")."""
+    out = dict(res)
+    for k in ("lanes_tab", "ann"):
+        d = res[k]
+        out[k] = d[(d.window != "all") & keep(d.t0, d.t1)]
+    return out
+
+
 def run(cfg_path: str | Path, interim: str | Path = "data/interim", out_root: str | Path = "data/out/lane_speed",
         settings: str | Path = "configs/lane_speed.json", ablations: bool = True) -> dict:
     from lane_intel.calibrate import load_gt
@@ -153,6 +167,13 @@ def run(cfg_path: str | Path, interim: str | Path = "data/interim", out_root: st
            "merged_for_comparison": ours["merged"],
            "lane_assignment_agreement": ours["aux_info"]["agreement"], "stretches": ours["stretches"],
            "main": compare(ours, ref, gap)}
+    split = cfg["lane_speed"].get("held_out_from_s")
+    if split is not None:
+        res["held_out_from_s"] = split
+        res["development_windows"] = compare(subset(ours, lambda a, b: b <= split + 1e-6),
+                                             subset(ref, lambda a, b: b <= split + 1e-6), gap)
+        res["held_out_windows"] = compare(subset(ours, lambda a, b: a >= split - 1e-6),
+                                          subset(ref, lambda a, b: a >= split - 1e-6), gap)
     if ablations:
         variants = {
             "no occlusion filter": {**ls, "occlusion_height_frac": 0.0},
@@ -184,6 +205,12 @@ def main() -> None:
     r = run(a.cfg, a.interim, ablations=not a.no_ablation)
     m = r["main"]
     print(json.dumps({k: m[k] for k in ("speed", "ratios", "ranking", "announcement_precision")}, indent=1))
+    for part in ("development_windows", "held_out_windows"):
+        if part in r:
+            x = r[part]
+            print(f"{part}: {x['speed']['lane_windows']} lane-windows, median rel err {x['speed']['median_rel_err']:.2%}, "
+                  f"bias {x['speed']['bias_rel']:+.2%}, within 10% {x['speed']['share_within_10pct']:.0%}, "
+                  f"ratio err {x['ratios']['median_rel_err']}, ranking {json.dumps(x['ranking'])}, precision {x['announcement_precision']}")
     print("whole span per lane:")
     for x in m["speed_by_lane_whole_span"]:
         print(f"  {x['lane']:3s}{' aux' if x['auxiliary'] else '    '} ours {x['v_kmh']:6.1f}  gt {x['v_kmh_gt']:6.1f} km/h "

@@ -60,6 +60,8 @@
   },
   "lane_speed": {
     "windows": [[0, 30], [30, 30], [60, 30], [90, 30], [120, 30], [150, 30]],
+    "held_out_from_s": 120,
+    "held_out_note": "Amendments A5/A6 were decided on 0-120 s; rolling windows inside 120-180 s are the held-out confirmation.",
     "auxiliary_lanes": {"from_ground_truth_lanes": [10]},
     "speed_limit_kmh": null
   }
