@@ -222,3 +222,40 @@ OC-SORT (wrong re-associations after long gaps, 5% of clear boxes untracked), a 
 * OC-SORT's coverage loss was not investigated further (it was rejected on both guards).
 * Round 2 was designed after seeing round 1; the held-out window, not the tuning window, carries
   the evidence for the final choice.
+
+## 6. Step 3: offline stitching (fixed before the step-3 results)
+
+### 6.1 Why
+
+With the chosen tracker, about 60% of the mid-image track ends have a plausible continuation:
+a later track that starts in the same lane band where the vehicle should be. By gap length
+(0–30 s / 30–60 s): under 0.5 s 23 / 31 (the visible "ID changes while driving"), 0.5–2 s
+38 / 47, 2–5 s 46 / 51. An online tracker cannot bridge a fully hidden vehicle; on recorded video
+we can look forward and join the pieces afterwards.
+
+### 6.2 Method
+
+`src/lane_intel/tracking/stitch.py`, enabled per variant with a `stitch` block. A link A → B needs:
+A ends and B starts mid-image; 0 < gap ≤ `max_gap_s`; B starts within `x_base_frac` × A's width
++ `x_per_s` × gap of where A's end speed predicts; the top edge of the box (not the bottom: trees
+and nearer trucks hide the lower part of a car) within `y_px` + `y_per_s` × gap; width ratio ≤
+`width_ratio_max`; not moving in opposite directions. Pairs are chosen together, one-to-one,
+by an optimal assignment; chains (A → B → C) become one vehicle with A's ID; the tracker's own
+ID is kept in `raw_track_id`. No boxes are invented for the hidden stretch.
+
+Variants (configs/tracking.json): `s3_stitch_2s`, `s3_stitch_5s`, `s3_stitch_5s_loose`, all on top
+of `r2_botsort_first005`.
+
+### 6.3 Acceptance rule (fixed before the results)
+
+1. **Guards relative to the incumbent** `r2_botsort_first005` (no longer the original baseline: a
+   new step must not make identity errors worse than the current best). Configured as
+   `tracking.reference` in the camera config. Identity jumps ≤ incumbent × 1.2 + 2; clear-box
+   coverage ≥ incumbent − 1 point. The jump check also inspects every stitch junction: a join
+   whose restart is more than half a box off the motion prediction (+15 px per second of gap)
+   counts as an identity jump.
+2. Among variants that pass, lowest fragmentation on the **held-out window (30–60 s)**.
+3. **Visual audit** of the selected variant: 20 stitches drawn at random (fixed seed) from the
+   held-out window, rendered before/after from the video and judged same vehicle / different
+   vehicle. Accepted if at least 18 of 20 are correct (90%). Otherwise the next eligible variant
+   in rank order is audited the same way; if none passes, no stitching is used.

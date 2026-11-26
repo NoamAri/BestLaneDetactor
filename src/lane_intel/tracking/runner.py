@@ -3,8 +3,10 @@
 Input   detections DataFrame from lane_intel.detect (t, frame_idx, cls, cls_id, conf, x1..y2)
 Output  points DataFrame, one row per box that carries a confirmed track ID:
         t, frame_idx, track_id, cls, cls_id, conf, x1, y1, x2, y2, x_px, y_px, x_w, y_w, lane_frame
-        (same schema the viewer and later stages already read)
-        plus a stats dict (boxes in, boxes fed, boxes tracked, coverage).
+        (same schema the viewer and later stages already read) + raw_track_id
+        (the tracker's own ID; differs from track_id only where stitching joined pieces),
+        a stats dict (boxes in, boxes fed, boxes tracked, coverage, stitch links), and the
+        stitch links table (empty when the variant does not stitch).
 
 The tracker is updated on every frame of the window, including frames where no box passes
 ``min_conf``, so a lost vehicle's memory ages at the true rate.
@@ -18,9 +20,10 @@ import pandas as pd
 import supervision as sv
 
 from lane_intel.tracking.config import TrackerConfig, build_tracker
+from lane_intel.tracking.stitch import LINK_COLUMNS, StitchParams, stitch
 
 POINT_COLUMNS = ["t", "frame_idx", "track_id", "cls", "cls_id", "conf",
-                 "x1", "y1", "x2", "y2", "x_px", "y_px", "x_w", "y_w", "lane_frame"]
+                 "x1", "y1", "x2", "y2", "x_px", "y_px", "x_w", "y_w", "lane_frame", "raw_track_id"]
 
 # Boxes at or above this confidence are "clearly detected"; a good tracker should give
 # almost all of them an ID. Used for the coverage guard in quality.evaluate.
@@ -28,11 +31,13 @@ COVERAGE_CONF = 0.5
 
 
 def run_tracker(dets: pd.DataFrame, cfg: TrackerConfig, fps: float,
-                frame_range: tuple[int, int] | None = None) -> tuple[pd.DataFrame, dict]:
-    """Track ``dets`` with variant ``cfg``.
+                frame_range: tuple[int, int] | None = None,
+                width: int = 3840) -> tuple[pd.DataFrame, dict, pd.DataFrame]:
+    """Track ``dets`` with variant ``cfg`` (and stitch, if the variant says so).
 
     frame_range: inclusive (first, last) frame of the window. Defaults to the span of the
     detections; pass it explicitly when the window may start or end with empty frames.
+    width: image width in pixels (stitching needs it to tell image edges from mid-image).
     """
     t0 = time.perf_counter()
     dets = dets.reset_index(drop=True)
@@ -73,6 +78,10 @@ def run_tracker(dets: pd.DataFrame, cfg: TrackerConfig, fps: float,
     pts["x_w"] = np.nan                         # filled by calibration (phase 2)
     pts["y_w"] = np.nan
     pts["lane_frame"] = -1                      # filled by lane polygons (phase 2)
+    pts["raw_track_id"] = pts.track_id
+    links = pd.DataFrame(columns=LINK_COLUMNS)
+    if cfg.stitch:
+        pts, links = stitch(pts, fps, (f_first, f_last), width, StitchParams(**cfg.stitch))
     pts = pts[POINT_COLUMNS].sort_values(["frame_idx", "track_id"]).reset_index(drop=True)
 
     clear = dets.conf >= COVERAGE_CONF
@@ -84,6 +93,7 @@ def run_tracker(dets: pd.DataFrame, cfg: TrackerConfig, fps: float,
         "boxes_tracked": int(len(pts)),
         "clear_boxes": int(clear.sum()),
         "coverage_clear": round(float(clear_tracked / max(1, clear.sum())), 4),
+        "stitch_links": int(len(links)),
         "seconds": round(time.perf_counter() - t0, 2),
     }
-    return pts, stats
+    return pts, stats, links

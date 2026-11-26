@@ -109,6 +109,22 @@
       "extends": "s2_bt_buf4s", "step": "2b", "label": "ByteTrack, faint floor 0.15, 4 s memory",
       "note": "Round 2. Middle ground between baseline (0.25) and step 1 (0.10): fewer faint junk boxes reach the tracker.",
       "min_conf": 0.15
+    },
+
+    "s3_stitch_2s": {
+      "extends": "r2_botsort_first005", "step": "3", "label": "Tracker + stitching (gaps up to 2 s)",
+      "note": "Step 3. The chosen tracker, then offline stitching of pieces up to 2 s apart (stitch.py defaults otherwise).",
+      "stitch": { "max_gap_s": 2.0 }
+    },
+    "s3_stitch_5s": {
+      "extends": "r2_botsort_first005", "step": "3", "label": "Tracker + stitching (gaps up to 5 s)",
+      "note": "Step 3. The chosen tracker, then offline stitching of pieces up to 5 s apart: same lane band (top edge within 15 px + 3 px/s), restart within 0.6 car widths + 25 px/s of the predicted position, width ratio <= 1.6, same direction.",
+      "stitch": { "max_gap_s": 5.0 }
+    },
+    "s3_stitch_5s_loose": {
+      "extends": "r2_botsort_first005", "step": "3", "label": "Tracker + loose stitching (5 s)",
+      "note": "Step 3. As s3_stitch_5s with wider tolerances: 1.0 car widths + 40 px/s, top edge within 20 px, width ratio <= 2.0.",
+      "stitch": { "max_gap_s": 5.0, "x_base_frac": 1.0, "x_per_s": 40.0, "y_px": 20.0, "width_ratio_max": 2.0 }
     }
   }
 }

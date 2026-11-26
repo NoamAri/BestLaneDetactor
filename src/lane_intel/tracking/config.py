@@ -4,7 +4,8 @@ A variant file (configs/tracking.json) holds ``{"variants": {name: spec}}``. A s
 ``"extends": "<parent>"``; it then inherits every field of the parent and overrides only what
 it states. ``params`` (the tracker constructor arguments) merge key by key when the tracker
 type is unchanged and are replaced when the tracker type changes, because different
-trackers accept different arguments.
+trackers accept different arguments. ``stitch`` (step 3, see stitch.py) is optional; a
+non-empty dict turns offline stitching on, with those StitchParams overrides.
 """
 from __future__ import annotations
 
@@ -34,6 +35,7 @@ class TrackerConfig:
     min_conf: float
     lost_buffer_s: float
     params: dict = field(default_factory=dict)
+    stitch: dict = field(default_factory=dict)   # StitchParams overrides; empty = no stitching
     label: str = ""
     note: str = ""
     step: str = ""
@@ -76,6 +78,10 @@ def _validate(cfg: TrackerConfig) -> None:
         raise ValueError(f"{cfg.name}: {cfg.tracker} does not accept {sorted(unknown)}")
     if clash:
         raise ValueError(f"{cfg.name}: set {sorted(clash)} through lost_buffer_s / the video fps, not params")
+    from lane_intel.tracking.stitch import StitchParams
+    bad = set(cfg.stitch) - StitchParams.keys()
+    if bad:
+        raise ValueError(f"{cfg.name}: unknown stitch settings {sorted(bad)}")
 
 
 def parse_variants(raw: dict) -> dict[str, TrackerConfig]:
@@ -86,6 +92,7 @@ def parse_variants(raw: dict) -> dict[str, TrackerConfig]:
         r = _resolve(name, specs)
         cfg = TrackerConfig(name=name, tracker=r["tracker"], min_conf=float(r["min_conf"]),
                             lost_buffer_s=float(r["lost_buffer_s"]), params=dict(r.get("params", {})),
+                            stitch=dict(r.get("stitch", {})),
                             label=r.get("label", name), note=r.get("note", ""), step=str(r.get("step", "")))
         _validate(cfg)
         out[name] = cfg

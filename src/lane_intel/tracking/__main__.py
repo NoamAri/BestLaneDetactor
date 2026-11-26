@@ -38,11 +38,13 @@ def main() -> None:
     first = prov.get("frame_first", int(dets.frame_idx.min()))
     last = first + prov["frames"] - 1 if "frames" in prov else int(dets.frame_idx.max())
 
-    pts, stats = run_tracker(dets, vc, cfg["native_fps"], (first, last))
+    pts, stats, links = run_tracker(dets, vc, cfg["native_fps"], (first, last), cfg["frame_size"][0])
     summary, _ = evaluate(pts, cfg["native_fps"], (first, last), cfg["frame_size"][0], stats)
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     pts.to_parquet(out, index=False)
+    if len(links):
+        links.to_csv(out.with_name(out.stem + ".links.csv"), index=False)
     meta_path(out).write_text(json.dumps({"variant": vc.to_dict(), "detections": a.dets,
                                           "stats": stats, "quality": summary}, indent=2))
     print(f"{name}: {summary['ids']} IDs, fragmentation {summary['fragmentation']}, "

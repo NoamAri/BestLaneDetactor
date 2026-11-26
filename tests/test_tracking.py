@@ -81,7 +81,7 @@ def test_repo_variants_file_resolves():
 
 # ------------------------------------------------------------------ runner
 def ids_of(dets, cfg):
-    pts, stats = run_tracker(dets, cfg, FPS, (0, int(dets.frame_idx.max())))
+    pts, stats, _ = run_tracker(dets, cfg, FPS, (0, int(dets.frame_idx.max())))
     return pts.track_id.nunique(), pts, stats
 
 

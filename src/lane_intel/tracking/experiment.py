@@ -14,7 +14,8 @@ Writes into --out-dir
     report.md                    the comparison table in Markdown
 
 Selection rule (fixed before the first run, see notes/tracking.md):
-    1. Guards, relative to the baseline variant:
+    1. Guards, relative to the reference variant (--reference; the camera config's
+       tracking.reference, default "baseline"):
        identity_jumps <= baseline * (1 + JUMP_TOLERANCE) + JUMP_SLACK
        coverage_clear >= baseline - COVERAGE_TOLERANCE
     2. Among variants passing both guards: lowest fragmentation,
@@ -43,7 +44,7 @@ TABLE_COLUMNS = [
     ("ids", "IDs"), ("fragmentation", "Mid-image starts+ends"), ("born_mid", "Starts"),
     ("died_mid", "Ends"), ("short_lt_1s", "< 1 s"), ("restart_pairs", "Restart pairs"),
     ("median_span_s", "Median life (s)"), ("identity_jumps", "Identity jumps"),
-    ("coverage_clear", "Clear-box coverage"),
+    ("coverage_clear", "Clear-box coverage"), ("stitch_links", "Stitches"),
 ]
 
 
@@ -86,13 +87,15 @@ def markdown_table(results: dict[str, dict], configs: dict[str, TrackerConfig],
 
 
 def run(cfg: dict, dets_path: str | Path, out_dir: str | Path, names: list[str] | None = None,
-        params: QualityParams = QualityParams()) -> dict:
+        params: QualityParams = QualityParams(), reference: str | None = None) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     variants = load_variants(cfg["tracking"]["variants_file"])
+    reference = reference or cfg["tracking"].get("reference", BASELINE)
     names = names or list(variants)
-    if BASELINE not in names:
-        names = [BASELINE] + names
+    for must in (reference, BASELINE):
+        if must not in names:
+            names = [must] + names
 
     dets = pd.read_parquet(dets_path)
     prov_file = meta_path(dets_path)
@@ -106,26 +109,29 @@ def run(cfg: dict, dets_path: str | Path, out_dir: str | Path, names: list[str] 
     results: dict[str, dict] = {}
     for name in names:
         vc = variants[name]
-        pts, stats = run_tracker(dets, vc, fps, frame_range)
+        pts, stats, links = run_tracker(dets, vc, fps, frame_range, width)
         summary, tables = evaluate(pts, fps, frame_range, width, stats, params)
+        summary["stitch_links"] = stats["stitch_links"]
+        tables["links"] = links
         results[name] = summary
         pts.to_parquet(out_dir / f"points_{name}.parquet", index=False)
         vdir = out_dir / name
         vdir.mkdir(exist_ok=True)
         for tname, table in tables.items():
             table.to_csv(vdir / f"{tname}.csv", index=False)
-        print(f"{name:22s} ids={summary['ids']:4d}  fragmentation={summary['fragmentation']:4d}  "
+        print(f"{name:26s} ids={summary['ids']:4d}  fragmentation={summary['fragmentation']:4d}  "
               f"short={summary['short_lt_1s']:4d}  restarts={summary['restart_pairs']:4d}  "
               f"jumps={summary['identity_jumps']:3d}  coverage={summary['coverage_clear']:.3f}  "
+              f"links={summary['stitch_links']:3d}  "
               f"({stats['seconds']:.1f}s)", flush=True)
 
-    selected, failures = judge(results)
+    selected, failures = judge(results, reference)
     report = {
         "created_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "detections": str(dets_path), "detections_provenance": prov,
         "frame_range": list(frame_range), "fps": fps, "image_width": width,
         "quality_params": params.to_dict(),
-        "selection_rule": {"baseline": BASELINE, "jump_tolerance": JUMP_TOLERANCE, "jump_slack": JUMP_SLACK,
+        "selection_rule": {"reference": reference, "jump_tolerance": JUMP_TOLERANCE, "jump_slack": JUMP_SLACK,
                            "coverage_tolerance": COVERAGE_TOLERANCE,
                            "order": ["fragmentation", "ids", "short_lt_1s"]},
         "variants": {n: {"config": variants[n].to_dict(), "summary": results[n], "guard_failures": failures[n]}
@@ -135,7 +141,8 @@ def run(cfg: dict, dets_path: str | Path, out_dir: str | Path, names: list[str] 
     (out_dir / "report.json").write_text(json.dumps(report, indent=2))
     md = markdown_table(results, variants, failures, selected)
     (out_dir / "report.md").write_text(f"# Tracking experiment\n\nDetections: `{dets_path}`  \n"
-                                       f"Frames {frame_range[0]}-{frame_range[1]}\n\n{md}\n\n"
+                                       f"Frames {frame_range[0]}-{frame_range[1]}  \n"
+                                       f"Guards relative to: `{reference}`\n\n{md}\n\n"
                                        f"Selected: `{selected}`\n")
     print(f"\nselected: {selected}\nreport -> {out_dir / 'report.md'}")
     return report
@@ -147,9 +154,10 @@ def main() -> None:
     ap.add_argument("--dets", required=True)
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--variants", default="", help="comma-separated names; default: all in the variants file")
+    ap.add_argument("--reference", default=None, help="variant the guards compare against (default: config)")
     a = ap.parse_args()
     names = [n.strip() for n in a.variants.split(",") if n.strip()] or None
-    run(json.load(open(a.cfg)), a.dets, a.out_dir, names)
+    run(json.load(open(a.cfg)), a.dets, a.out_dir, names, reference=a.reference)
 
 
 if __name__ == "__main__":
