@@ -1,0 +1,675 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lane Intel Inspector</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+</head><body>
+<style>
+/* Layout: instrument strip. Video stage across the full width, transport + count timeline under it,
+   then inspector panels (frame / selected vehicle / layers) and the track register. */
+:root {
+  --bg: #eef1f3;
+  --surface: #ffffff;
+  --fg: #15202b;
+  --muted: #5b6875;
+  --line: #d3dae0;
+  --accent: #0b7a4b;          /* motorway-sign green */
+  --accent-fg: #ffffff;
+  --stage: #0b0f12;
+  --car: #4cc3ff;
+  --truck: #ffb020;
+  --bus: #ff5fa2;
+  --motorcycle: #7dff9a;
+  --sel: #ffffff;
+  --tag-bg: rgba(8, 12, 16, .78);
+  --tag-fg: #ffffff;
+  --warn-bg: #fff4dc;
+  --warn-fg: #5c3d00;
+  --warn-line: #f0d28a;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --r: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1418; --surface: #161d23; --fg: #e4eaee; --muted: #8c99a5; --line: #26313a;
+    --accent: #34b27a; --accent-fg: #06140d; --warn-bg: #2e2410; --warn-fg: #f5d48e; --warn-line: #5a4519;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1418; --surface: #161d23; --fg: #e4eaee; --muted: #8c99a5; --line: #26313a;
+  --accent: #34b27a; --accent-fg: #06140d; --warn-bg: #2e2410; --warn-fg: #f5d48e; --warn-line: #5a4519;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font-sans); font-size: 14px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 16px 32px;
+}
+.app { display: grid; gap: 14px; max-width: 1600px; margin: 0 auto; }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px; }
+h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
+.sub { color: var(--muted); font-size: 13px; }
+.mono, .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+.stage-wrap { background: var(--stage); border-radius: var(--r); overflow-x: auto; overflow-y: hidden; position: relative; }
+.stage { position: relative; width: 100%; line-height: 0; }
+.stage video { width: 100%; height: auto; display: block; }
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; cursor: crosshair; }
+.status { position: absolute; inset: 0; display: grid; place-items: center; color: #c9d3db; font-size: 14px; line-height: 1.5;
+  text-align: center; padding: 24px; min-height: 160px; }
+.status[hidden] { display: none !important; }
+.status code { font-family: var(--font-mono); background: rgba(255,255,255,.08); padding: 1px 5px; border-radius: 4px; }
+
+.transport { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+.btns { display: flex; gap: 4px; flex-wrap: wrap; }
+button, select {
+  font: inherit; font-size: 13px; color: var(--fg); background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 6px 10px; cursor: pointer; min-height: 32px;
+}
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); min-width: 72px; font-weight: 500; }
+button:focus-visible, select:focus-visible, input:focus-visible, canvas:focus-visible, tr:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.readout { display: flex; gap: 18px; flex-wrap: wrap; margin-left: auto; }
+.readout div { display: grid; }
+.readout span:first-child { font-size: 10.5px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.readout span:last-child { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 15px; font-weight: 500; }
+
+.timeline { position: relative; height: 54px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); }
+.timeline canvas { width: 100%; height: 100%; display: block; cursor: pointer; touch-action: none; }
+.tl-label { position: absolute; left: 8px; top: 4px; font-size: 10.5px; color: var(--muted); pointer-events: none;
+  text-transform: uppercase; letter-spacing: .08em; }
+
+.panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; align-items: start; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; min-width: 0; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px 2px 8px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; flex: none; }
+.empty { color: var(--muted); }
+.note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+.spark { width: 100%; height: 64px; display: block; margin-top: 10px; }
+.row-btns { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+.layers { display: grid; gap: 6px; }
+.layers label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+.layers input { width: 16px; height: 16px; accent-color: var(--accent); }
+.zoom { display: flex; gap: 4px; margin-top: 12px; flex-wrap: wrap; align-items: center; }
+.zoom span { color: var(--muted); margin-right: 4px; }
+
+.register { overflow: auto; max-height: 360px; border-top: 1px solid var(--line); margin: 0 -14px -14px; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 6px 12px; text-align: right; white-space: nowrap; }
+th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+thead th { position: sticky; top: 0; background: var(--surface); color: var(--muted); font-weight: 500; font-size: 11.5px;
+  border-bottom: 1px solid var(--line); cursor: pointer; user-select: none; }
+tbody td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; border-bottom: 1px solid var(--line); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+tbody tr.on { background: color-mix(in srgb, var(--accent) 18%, transparent); }
+.keys { color: var(--muted); font-size: 12px; }
+kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--surface); }
+.warn { margin: 0; padding: 10px 14px; border-radius: var(--r); background: var(--warn-bg); color: var(--warn-fg);
+  border: 1px solid var(--warn-line); font-size: 13px; }
+.warn code { font-family: var(--font-mono); }
+@media (max-width: 640px) { .readout { margin-left: 0; } }
+</style>
+
+<div class="app">
+  <header>
+    <div>
+      <h1>Lane Intel Inspector</h1>
+      <div class="sub" id="subtitle">Loading clip…</div>
+    </div>
+    <div class="keys"><kbd>←</kbd> <kbd>→</kbd> step · <kbd>Shift</kbd> ×10 · <kbd>Space</kbd> play · <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>Esc</kbd> clear</div>
+  </header>
+
+  <section class="stage-wrap" id="stageWrap" aria-label="Video with vehicle tags">
+    <div class="stage" id="stage">
+      <video id="vid" muted playsinline preload="auto"></video>
+      <canvas id="ov" tabindex="0" aria-label="Click a vehicle to inspect it"></canvas>
+    </div>
+    <div class="status" id="status">Loading video and vehicle tags…</div>
+  </section>
+
+  <div class="transport">
+    <div class="btns">
+      <button id="bBack10" title="Back 10 frames (Shift+←)">−10</button>
+      <button id="bBack1" title="Back 1 frame (←)">−1</button>
+      <button id="bPlay" class="primary" title="Play / pause (Space)">Play</button>
+      <button id="bFwd1" title="Forward 1 frame (→)">+1</button>
+      <button id="bFwd10" title="Forward 10 frames (Shift+→)">+10</button>
+    </div>
+    <label class="sub" for="rate">Speed
+      <select id="rate">
+        <option value="0.1">0.1×</option>
+        <option value="0.25">0.25×</option>
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+      </select>
+    </label>
+    <div class="readout">
+      <div><span>Frame</span><span id="rFrame">–</span></div>
+      <div><span>Clip time</span><span id="rClip">–</span></div>
+      <div><span>Flight time</span><span id="rFlight">–</span></div>
+      <div><span>In view</span><span id="rCount">–</span></div>
+    </div>
+  </div>
+
+  <p class="warn" id="seekWarn" hidden>
+    The video could not jump to the requested frame, so the server is probably not sending byte ranges.
+    Serve this folder with <code>make serve</code> (or <code>python -m lane_intel.serve data/out/viewer</code>) instead of <code>python -m http.server</code>.
+  </p>
+
+  <div class="timeline">
+    <canvas id="tl" tabindex="0" aria-label="Vehicles detected per frame; click or drag to seek"></canvas>
+    <div class="tl-label">Tagged vehicles per frame</div>
+  </div>
+
+  <div class="panels">
+    <section class="panel" aria-labelledby="hFrame">
+      <h2 id="hFrame">This frame</h2>
+      <dl class="kv">
+        <dt>Tagged vehicles</dt><dd id="fN">–</dd>
+        <dt>Median confidence</dt><dd id="fConf">–</dd>
+        <dt>New tracks this frame</dt><dd id="fNew">–</dd>
+      </dl>
+      <div class="chips" id="fClasses"></div>
+      <p class="note">Box colour = class. The dot under each box is the bottom-centre point used for position and speed.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="hSel">
+      <h2 id="hSel">Selected vehicle</h2>
+      <div id="selEmpty" class="empty">Click a box on the video, or a row in the track register.</div>
+      <div id="selBody" hidden>
+        <dl class="kv">
+          <dt>Track</dt><dd id="sId">–</dd>
+          <dt>Class</dt><dd id="sCls">–</dd>
+          <dt>Seen</dt><dd id="sSpan">–</dd>
+          <dt>Observations</dt><dd id="sN">–</dd>
+          <dt>Mean confidence</dt><dd id="sConf">–</dd>
+          <dt>Image motion</dt><dd id="sPx">–</dd>
+          <dt>Box here</dt><dd id="sBox">–</dd>
+        </dl>
+        <svg class="spark" id="sSpark" viewBox="0 0 300 64" preserveAspectRatio="none" aria-label="Horizontal image position over time"></svg>
+        <div class="row-btns">
+          <button id="sFirst">First frame</button>
+          <button id="sLast">Last frame</button>
+          <button id="sFollow" aria-pressed="false" title="Keep the selected vehicle centred when zoomed">Follow</button>
+        </div>
+        <p class="note">Speed is in image pixels per second until the camera is calibrated to metres.</p>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="hLayers">
+      <h2 id="hLayers">Layers</h2>
+      <div class="layers">
+        <label><input type="checkbox" id="lBoxes" checked> Boxes and anchor points</label>
+        <label><input type="checkbox" id="lIds" checked> Track IDs</label>
+        <label><input type="checkbox" id="lCls"> Class names</label>
+        <label><input type="checkbox" id="lConf"> Confidence</label>
+        <label><input type="checkbox" id="lTrails" checked> Trails (last 1 s)</label>
+      </div>
+      <div class="zoom" role="group" aria-label="Zoom">
+        <span>Zoom</span>
+        <button data-z="1" aria-pressed="true">1×</button>
+        <button data-z="2" aria-pressed="false">2×</button>
+        <button data-z="3" aria-pressed="false">3×</button>
+        <button data-z="4" aria-pressed="false">4×</button>
+      </div>
+      <div class="chips" id="legend"></div>
+    </section>
+  </div>
+
+  <section class="panel" aria-labelledby="hReg">
+    <h2 id="hReg">Track register <span id="regCount" class="mono"></span></h2>
+    <div class="register">
+      <table>
+        <thead><tr>
+          <th data-k="track_id">ID</th><th data-k="cls">Class</th><th data-k="first">First (s)</th>
+          <th data-k="span_s">Duration (s)</th><th data-k="n">Obs.</th><th data-k="conf">Conf.</th><th data-k="px_per_s">px/s</th>
+        </tr></thead>
+        <tbody id="regBody"></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const vid = $("vid"), ov = $("ov"), stage = $("stage"), wrap = $("stageWrap"), tl = $("tl");
+  const S = {
+    meta: null, byFrame: [], tracks: new Map(), info: new Map(), counts: [], frame: 0, sel: null,
+    zoom: 1, follow: false, playing: false, sortK: "track_id", sortDir: 1, colors: {},
+    layers: { boxes: true, ids: true, cls: false, conf: false, trails: true },
+  };
+  const TRAIL = 30;
+
+  function readColors() {
+    const cs = getComputedStyle(document.documentElement);
+    for (const k of ["car", "truck", "bus", "motorcycle", "sel", "tag-bg", "tag-fg", "accent", "muted", "line", "fg"])
+      S.colors[k] = cs.getPropertyValue("--" + k).trim();
+  }
+  const clsColor = (c) => S.colors[c] || S.colors.car;
+
+  const fmtT = (s) => {
+    const m = Math.floor(s / 60), r = s - 60 * m;
+    return `${m}:${r.toFixed(3).padStart(6, "0")}`;
+  };
+
+  async function getJSON(url) {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+    return r.json();
+  }
+
+  async function load() {
+    readColors();
+    try {
+      const [meta, dets] = await Promise.all([getJSON("meta.json"), getJSON("detections.json")]);
+      S.meta = meta;
+      const n = meta.frame_count;
+      S.byFrame = Array.from({ length: n }, () => []);
+      for (const d of dets) {
+        const f = d[0] - meta.frame_first;
+        if (f < 0 || f >= n) continue;
+        const rec = { f, id: d[1], cls: meta.classes[d[2]], conf: d[3] / 100, x1: d[4], y1: d[5], x2: d[6], y2: d[7] };
+        S.byFrame[f].push(rec);
+        let t = S.tracks.get(rec.id);
+        if (!t) S.tracks.set(rec.id, (t = []));
+        t.push(rec);
+      }
+      S.counts = S.byFrame.map((a) => a.length);
+      for (const t of meta.tracks) S.info.set(t.track_id, t);
+      $("subtitle").textContent =
+        `Flight ${meta.flight} · drone ${meta.drone} · ${n} frames at ${meta.fps.toFixed(2)} fps · ` +
+        `${meta.model} at ${meta.imgsz}px · ${S.tracks.size} tracks`;
+      buildLegend();
+      buildRegister();
+      await loadVideo();
+    } catch (e) {
+      fail(`Could not load the clip data: ${e.message}.<br>When running locally, serve this folder with ` +
+        `<code>make serve</code> and open <code>http://localhost:8000</code>.`);
+    }
+  }
+
+  function setStatus(msg) { $("status").hidden = false; $("status").innerHTML = msg; }
+  function fail(msg) { setStatus(msg); console.error(msg.replace(/<[^>]+>/g, "")); }
+
+  // Download the whole video into memory and play it from a blob: URL. Seeking a blob never
+  // depends on the web server supporting byte ranges (Safari and in-app browsers need that).
+  // If blob playback is refused, fall back to streaming the file directly.
+  let triedDirect = false;
+  async function loadVideo() {
+    const r = await fetch("video.mp4");
+    if (!r.ok) throw new Error(`video.mp4: HTTP ${r.status}`);
+    const total = +r.headers.get("Content-Length") || 0;
+    const parts = [];
+    let got = 0;
+    if (r.body && r.body.getReader) {
+      const rd = r.body.getReader();
+      for (;;) {
+        const { done, value } = await rd.read();
+        if (done) break;
+        parts.push(value); got += value.length;
+        setStatus(`Loading video… ${(got / 1e6).toFixed(1)}${total ? " / " + (total / 1e6).toFixed(1) : ""} MB`);
+      }
+    } else {
+      parts.push(new Uint8Array(await r.arrayBuffer()));
+    }
+    setStatus("Preparing video…");
+    vid.src = URL.createObjectURL(new Blob(parts, { type: "video/mp4" }));
+  }
+
+  vid.addEventListener("loadeddata", () => {
+    $("status").hidden = true;
+    setFrame(0, true);
+  });
+  vid.addEventListener("error", () => {
+    const codes = { 1: "aborted", 2: "network error", 3: "decode error", 4: "format or source not supported" };
+    const why = vid.error ? codes[vid.error.code] || "code " + vid.error.code : "unknown";
+    if (!triedDirect && vid.src.startsWith("blob:")) {
+      triedDirect = true;
+      setStatus("Retrying video as a direct stream…");
+      vid.src = "video.mp4";
+      return;
+    }
+    fail(`The video could not be played here (${why}). Try Chrome, Edge or Firefox on a computer.`);
+  });
+
+  // ---------- frame sync ----------
+  const fps = () => S.meta.fps;
+  let pendingSeek = null;
+  function setFrame(f, seek) {
+    if (!S.meta) return;
+    f = Math.max(0, Math.min(S.meta.frame_count - 1, f));
+    S.frame = f;
+    if (seek) { pendingSeek = f; vid.currentTime = (f + 0.5) / fps(); }
+    refresh();
+  }
+  // Trust the video, not the request: after a seek, read back which frame is really shown.
+  vid.addEventListener("seeked", () => {
+    if (!S.meta) return;
+    const actual = Math.max(0, Math.min(S.meta.frame_count - 1, Math.floor(vid.currentTime * fps() + 1e-6)));
+    if (pendingSeek !== null && Math.abs(actual - pendingSeek) > 1) $("seekWarn").hidden = false;
+    pendingSeek = null;
+    if (actual !== S.frame) { S.frame = actual; refresh(); }
+  });
+  if ("requestVideoFrameCallback" in HTMLVideoElement.prototype) {
+    const cb = (_now, md) => {
+      if (S.meta) {
+        const f = Math.round(md.mediaTime * fps());
+        if (f !== S.frame) { S.frame = Math.max(0, Math.min(S.meta.frame_count - 1, f)); refresh(); }
+      }
+      vid.requestVideoFrameCallback(cb);
+    };
+    vid.requestVideoFrameCallback(cb);
+  } else {
+    const loop = () => {
+      if (S.meta && !vid.paused) {
+        const f = Math.floor(vid.currentTime * fps() + 1e-3);
+        if (f !== S.frame) { S.frame = f; refresh(); }
+      }
+      requestAnimationFrame(loop);
+    };
+    requestAnimationFrame(loop);
+  }
+
+  function play(on) {
+    if (on) { vid.play().catch(() => {}); } else { vid.pause(); }
+  }
+  vid.addEventListener("play", () => { S.playing = true; $("bPlay").textContent = "Pause"; });
+  vid.addEventListener("pause", () => { S.playing = false; $("bPlay").textContent = "Play"; });
+  vid.addEventListener("ended", () => { S.playing = false; $("bPlay").textContent = "Play"; });
+
+  const step = (d) => { play(false); setFrame(S.frame + d, true); };
+  $("bBack10").onclick = () => step(-10);
+  $("bBack1").onclick = () => step(-1);
+  $("bFwd1").onclick = () => step(1);
+  $("bFwd10").onclick = () => step(10);
+  $("bPlay").onclick = () => play(vid.paused);
+  $("rate").onchange = (e) => { vid.playbackRate = parseFloat(e.target.value); };
+
+  document.addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest("select, input")) return;
+    if (e.key === "ArrowRight") { step(e.shiftKey ? 10 : 1); e.preventDefault(); }
+    else if (e.key === "ArrowLeft") { step(e.shiftKey ? -10 : -1); e.preventDefault(); }
+    else if (e.key === " ") { play(vid.paused); e.preventDefault(); }
+    else if (e.key === "Escape") { select(null); }
+    else if (e.key === "+" || e.key === "=") { setZoom(Math.min(4, S.zoom + 1)); }
+    else if (e.key === "-") { setZoom(Math.max(1, S.zoom - 1)); }
+  });
+
+  // ---------- drawing ----------
+  function toCanvas() {
+    const r = stage.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (ov.width !== w || ov.height !== h) { ov.width = w; ov.height = h; }
+    const k = w / S.meta.crop.w;
+    return { k, dpr, X: (x) => (x - S.meta.crop.x) * k, Y: (y) => (y - S.meta.crop.y) * k };
+  }
+
+  function draw() {
+    if (!S.meta) return;
+    const ctx = ov.getContext("2d");
+    const { k, dpr, X, Y } = toCanvas();
+    ctx.clearRect(0, 0, ov.width, ov.height);
+    const dets = S.byFrame[S.frame] || [];
+    const L = S.layers, sel = S.sel;
+    const dim = (id) => (sel !== null && id !== sel ? 0.45 : 1);
+
+    if (L.trails) {
+      ctx.lineWidth = 1.5 * dpr;
+      for (const d of dets) {
+        const pts = S.tracks.get(d.id);
+        const lo = d.id === sel ? 0 : S.frame - TRAIL;
+        ctx.beginPath();
+        let first = true;
+        for (const p of pts) {
+          if (p.f < lo || p.f > S.frame) continue;
+          const x = X((p.x1 + p.x2) / 2), y = Y(p.y2);
+          if (first) { ctx.moveTo(x, y); first = false; } else ctx.lineTo(x, y);
+        }
+        ctx.globalAlpha = 0.85 * dim(d.id);
+        ctx.strokeStyle = d.id === sel ? S.colors.sel : clsColor(d.cls);
+        ctx.lineWidth = (d.id === sel ? 2.5 : 1.5) * dpr;
+        ctx.stroke();
+      }
+    }
+    if (L.boxes) {
+      for (const d of dets) {
+        const on = d.id === sel;
+        ctx.globalAlpha = dim(d.id);
+        ctx.strokeStyle = on ? S.colors.sel : clsColor(d.cls);
+        ctx.lineWidth = (on ? 3 : 1.6) * dpr;
+        ctx.strokeRect(X(d.x1), Y(d.y1), (d.x2 - d.x1) * k, (d.y2 - d.y1) * k);
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.beginPath();
+        ctx.arc(X((d.x1 + d.x2) / 2), Y(d.y2), (on ? 3.5 : 2.4) * dpr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    if (L.ids || L.cls || L.conf) {
+      const fs = Math.max(9, Math.min(13, 10 * S.zoom)) * dpr;
+      ctx.font = `500 ${fs}px ${getComputedStyle(document.body).getPropertyValue("--font-mono") || "monospace"}`;
+      ctx.textBaseline = "bottom";
+      for (const d of dets) {
+        const parts = [];
+        if (L.ids) parts.push("#" + d.id);
+        if (L.cls) parts.push(d.cls);
+        if (L.conf) parts.push(Math.round(d.conf * 100) + "%");
+        const txt = parts.join(" ");
+        const tw = ctx.measureText(txt).width, pad = 3 * dpr;
+        const x = X(d.x1), y = Y(d.y1) - 1 * dpr;
+        ctx.globalAlpha = dim(d.id);
+        ctx.fillStyle = S.colors["tag-bg"];
+        ctx.fillRect(x, y - fs - pad, tw + 2 * pad, fs + pad);
+        ctx.fillStyle = d.id === sel ? S.colors.sel : S.colors["tag-fg"];
+        ctx.fillText(txt, x + pad, y - pad / 2);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function drawTimeline() {
+    if (!S.meta) return;
+    const r = tl.getBoundingClientRect(), dpr = window.devicePixelRatio || 1;
+    const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+    if (tl.width !== w || tl.height !== h) { tl.width = w; tl.height = h; }
+    const ctx = tl.getContext("2d");
+    ctx.clearRect(0, 0, w, h);
+    const n = S.counts.length, max = Math.max(1, ...S.counts);
+    const top = 18 * dpr, bh = h - top - 4 * dpr;
+    const fx = (f) => (f / (n - 1)) * (w - 1);
+    if (S.sel !== null) {
+      const pts = S.tracks.get(S.sel);
+      ctx.fillStyle = S.colors.accent; ctx.globalAlpha = 0.18;
+      ctx.fillRect(fx(pts[0].f), 0, Math.max(2, fx(pts[pts.length - 1].f) - fx(pts[0].f)), h);
+      ctx.globalAlpha = 1;
+    }
+    ctx.strokeStyle = S.colors.line; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, top + bh + 0.5); ctx.lineTo(w, top + bh + 0.5); ctx.stroke();
+    ctx.fillStyle = S.colors.muted;
+    ctx.beginPath();
+    ctx.moveTo(0, top + bh);
+    for (let f = 0; f < n; f++) ctx.lineTo(fx(f), top + bh - (S.counts[f] / max) * bh);
+    ctx.lineTo(w, top + bh); ctx.closePath();
+    ctx.globalAlpha = 0.35; ctx.fill(); ctx.globalAlpha = 1;
+    const px = fx(S.frame);
+    ctx.fillStyle = S.colors.accent;
+    ctx.fillRect(px - dpr, 0, 2 * dpr, h);
+  }
+
+  // ---------- panels ----------
+  function refresh() {
+    draw();
+    drawTimeline();
+    const m = S.meta, t = S.frame / m.fps, dets = S.byFrame[S.frame] || [];
+    $("rFrame").textContent = `${S.frame} / ${m.frame_count - 1}`;
+    $("rClip").textContent = t.toFixed(3) + " s";
+    $("rFlight").textContent = fmtT(m.clip_offset_s + t);
+    $("rCount").textContent = dets.length;
+    $("fN").textContent = dets.length;
+    const confs = dets.map((d) => d.conf).sort((a, b) => a - b);
+    $("fConf").textContent = confs.length ? Math.round(confs[confs.length >> 1] * 100) + "%" : "–";
+    $("fNew").textContent = dets.filter((d) => S.tracks.get(d.id)[0].f === S.frame).length;
+    const byCls = {};
+    for (const d of dets) byCls[d.cls] = (byCls[d.cls] || 0) + 1;
+    $("fClasses").innerHTML = Object.entries(byCls).sort((a, b) => b[1] - a[1])
+      .map(([c, n]) => `<span class="chip"><span class="sw" style="background:${clsColor(c)}"></span>${c} <span class="num">${n}</span></span>`).join("");
+    updateSelPanel();
+    if (S.follow && S.sel !== null && S.zoom > 1) followSel();
+  }
+
+  function select(id) {
+    S.sel = id;
+    for (const tr of $("regBody").children) tr.classList.toggle("on", +tr.dataset.id === id);
+    if (id !== null) {
+      const row = $("regBody").querySelector(`tr[data-id="${id}"]`);
+      if (row) row.scrollIntoView({ block: "nearest" });
+    }
+    refresh();
+  }
+
+  function updateSelPanel() {
+    const id = S.sel;
+    $("selEmpty").hidden = id !== null;
+    $("selBody").hidden = id === null;
+    if (id === null) return;
+    const info = S.info.get(id), pts = S.tracks.get(id), m = S.meta;
+    $("sId").textContent = "#" + id;
+    $("sCls").textContent = info.cls;
+    const t0 = pts[0].f / m.fps, t1 = pts[pts.length - 1].f / m.fps;
+    $("sSpan").textContent = `${t0.toFixed(2)}–${t1.toFixed(2)} s (${(t1 - t0).toFixed(2)} s)`;
+    $("sN").textContent = pts.length;
+    $("sConf").textContent = Math.round(info.conf * 100) + "%";
+    $("sPx").textContent = `${info.px_per_s >= 0 ? "→" : "←"} ${Math.abs(info.px_per_s).toFixed(0)} px/s`;
+    const here = pts.find((p) => p.f === S.frame);
+    $("sBox").textContent = here ? `${here.x2 - here.x1}×${here.y2 - here.y1} px` : "not in this frame";
+    // sparkline: x (bottom-centre) over frames
+    const xs = pts.map((p) => (p.x1 + p.x2) / 2);
+    const lo = Math.min(...xs), hi = Math.max(...xs), span = Math.max(1, hi - lo);
+    const f0 = pts[0].f, f1 = Math.max(f0 + 1, pts[pts.length - 1].f);
+    const sx = (f) => ((f - f0) / (f1 - f0)) * 296 + 2, sy = (x) => 60 - ((x - lo) / span) * 56;
+    const d = pts.map((p, i) => `${i ? "L" : "M"}${sx(p.f).toFixed(1)},${sy((p.x1 + p.x2) / 2).toFixed(1)}`).join("");
+    const cur = S.frame >= f0 && S.frame <= f1 ? `<line x1="${sx(S.frame)}" x2="${sx(S.frame)}" y1="0" y2="64" stroke="${S.colors.accent}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>` : "";
+    $("sSpark").innerHTML =
+      `<line x1="0" x2="300" y1="62" y2="62" stroke="${S.colors.line}" vector-effect="non-scaling-stroke"/>` + cur +
+      `<path d="${d}" fill="none" stroke="${S.colors.fg}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`;
+  }
+
+  function buildLegend() {
+    $("legend").innerHTML = S.meta.classes
+      .map((c) => `<span class="chip"><span class="sw" style="background:${clsColor(c)}"></span>${c}</span>`).join("");
+  }
+
+  function buildRegister() {
+    const rows = [...S.meta.tracks];
+    const k = S.sortK, dir = S.sortDir;
+    rows.sort((a, b) => (a[k] < b[k] ? -dir : a[k] > b[k] ? dir : 0));
+    const fps = S.meta.fps;
+    $("regBody").innerHTML = rows.map((t) =>
+      `<tr data-id="${t.track_id}" tabindex="0" class="${t.track_id === S.sel ? "on" : ""}">` +
+      `<td>#${t.track_id}</td>` +
+      `<td><span class="sw" style="background:${clsColor(t.cls)}"></span> ${t.cls}</td>` +
+      `<td>${((t.first - S.meta.frame_first) / fps).toFixed(2)}</td><td>${t.span_s.toFixed(2)}</td>` +
+      `<td>${t.n}</td><td>${Math.round(t.conf * 100)}%</td><td>${t.px_per_s.toFixed(0)}</td></tr>`).join("");
+    $("regCount").textContent = `· ${rows.length}`;
+  }
+  $("regBody").addEventListener("click", (e) => {
+    const tr = e.target.closest("tr"); if (!tr) return;
+    jumpTo(+tr.dataset.id);
+  });
+  $("regBody").addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const tr = e.target.closest("tr"); if (tr) jumpTo(+tr.dataset.id);
+  });
+  document.querySelector("thead").addEventListener("click", (e) => {
+    const th = e.target.closest("th"); if (!th) return;
+    const k = th.dataset.k;
+    S.sortDir = S.sortK === k ? -S.sortDir : 1; S.sortK = k;
+    buildRegister();
+  });
+
+  function jumpTo(id) {
+    const pts = S.tracks.get(id);
+    play(false);
+    if (!pts.some((p) => p.f === S.frame)) setFrame(pts[Math.floor(pts.length / 2)].f, true);
+    select(id);
+  }
+  $("sFirst").onclick = () => { const p = S.tracks.get(S.sel); step(p[0].f - S.frame); };
+  $("sLast").onclick = () => { const p = S.tracks.get(S.sel); step(p[p.length - 1].f - S.frame); };
+  $("sFollow").onclick = (e) => {
+    S.follow = !S.follow; e.currentTarget.setAttribute("aria-pressed", S.follow);
+    if (S.follow) followSel();
+  };
+
+  // click on video -> pick smallest box under cursor
+  ov.addEventListener("click", (e) => {
+    if (!S.meta) return;
+    const r = ov.getBoundingClientRect();
+    const fx = S.meta.crop.x + ((e.clientX - r.left) / r.width) * S.meta.crop.w;
+    const fy = S.meta.crop.y + ((e.clientY - r.top) / r.width) * S.meta.crop.w;
+    let best = null, bestA = Infinity;
+    for (const d of S.byFrame[S.frame] || []) {
+      const m = 6;
+      if (fx >= d.x1 - m && fx <= d.x2 + m && fy >= d.y1 - m && fy <= d.y2 + m) {
+        const a = (d.x2 - d.x1) * (d.y2 - d.y1);
+        if (a < bestA) { bestA = a; best = d.id; }
+      }
+    }
+    select(best);
+  });
+
+  // timeline scrubbing
+  let scrubbing = false;
+  const scrubAt = (e) => {
+    const r = tl.getBoundingClientRect();
+    const f = Math.round(((e.clientX - r.left) / r.width) * (S.meta.frame_count - 1));
+    play(false); setFrame(f, true);
+  };
+  tl.addEventListener("pointerdown", (e) => { if (!S.meta) return; scrubbing = true; tl.setPointerCapture(e.pointerId); scrubAt(e); });
+  tl.addEventListener("pointermove", (e) => { if (scrubbing) scrubAt(e); });
+  tl.addEventListener("pointerup", () => { scrubbing = false; });
+
+  // layers + zoom
+  const bindLayer = (id, key) => $(id).addEventListener("change", (e) => { S.layers[key] = e.target.checked; draw(); });
+  bindLayer("lBoxes", "boxes"); bindLayer("lIds", "ids"); bindLayer("lCls", "cls"); bindLayer("lConf", "conf"); bindLayer("lTrails", "trails");
+
+  function setZoom(z) {
+    const cx = (wrap.scrollLeft + wrap.clientWidth / 2) / stage.offsetWidth;
+    S.zoom = z;
+    stage.style.width = z * 100 + "%";
+    for (const b of document.querySelectorAll("[data-z]")) b.setAttribute("aria-pressed", +b.dataset.z === z);
+    wrap.scrollLeft = cx * stage.offsetWidth - wrap.clientWidth / 2;
+    if (S.follow) followSel();
+    draw();
+  }
+  for (const b of document.querySelectorAll("[data-z]")) b.onclick = () => setZoom(+b.dataset.z);
+
+  function followSel() {
+    const here = (S.tracks.get(S.sel) || []).find((p) => p.f === S.frame);
+    if (!here) return;
+    const cx = ((here.x1 + here.x2) / 2 - S.meta.crop.x) / S.meta.crop.w * stage.offsetWidth;
+    wrap.scrollLeft = cx - wrap.clientWidth / 2;
+  }
+
+  new ResizeObserver(() => { draw(); drawTimeline(); }).observe(stage);
+  new ResizeObserver(() => drawTimeline()).observe(tl);
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readColors(); if (S.meta) refresh(); });
+  new MutationObserver(() => { readColors(); if (S.meta) refresh(); })
+    .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  load();
+})();
+</script>
+
+</body></html>

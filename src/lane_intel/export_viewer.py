@@ -94,11 +94,12 @@ def build_bundle(cfg: dict, df: pd.DataFrame, out_dir: str | Path, start: float,
     json.dump(meta, open(out / "meta.json", "w"))
 
     if VIEWER_SRC.exists():
-        body = VIEWER_SRC.read_text()
+        src = VIEWER_SRC.read_text()
+        head, sep, rest = src.partition("<style>")  # title/meta/font links go into <head>
         (out / "index.html").write_text(
-            "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">"
-            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">"
-            "</head><body>\n" + body + "\n</body></html>\n")
+            "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\n"
+            "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">\n"
+            + head.strip() + "\n</head><body>\n" + sep + rest + "\n</body></html>\n")
     print(f"viewer bundle -> {out}  ({len(df)} tags, {df.track_id.nunique()} tracks, video {vw}x{vh})")
     return meta
 

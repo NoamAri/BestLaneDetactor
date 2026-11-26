@@ -5,6 +5,7 @@
     python run.py extract    detect + track  -> data/interim/<tag>_points.parquet
     python run.py viewer     bundle video + tags for the browser -> data/out/viewer/
     python run.py serve      start the viewer at http://localhost:8000 and open the browser
+    python run.py pages      copy the viewer into docs/ for GitHub Pages
     python run.py test       run the tests
     python run.py all        setup, clip, extract, viewer, serve
 
@@ -162,6 +163,18 @@ def serve(a) -> None:
         pass
 
 
+def pages(a) -> None:
+    """Copy the viewer bundle into docs/ so GitHub Pages can host it (Settings -> Pages -> /docs)."""
+    if not (VIEWER / "index.html").exists():
+        sys.exit("No viewer bundle yet. Run:  python run.py viewer")
+    docs = ROOT / "docs"
+    docs.mkdir(exist_ok=True)
+    for name in ("index.html", "video.mp4", "detections.json", "meta.json"):
+        shutil.copy2(VIEWER / name, docs / name)
+    (docs / ".nojekyll").write_text("")
+    print(f"GitHub Pages site written to {docs}. Commit and push it to update the site.")
+
+
 def test(a) -> None:
     need_venv(); need_ffmpeg()
     sh([PY, "-m", "pytest", "-q"])
@@ -174,7 +187,7 @@ def all_steps(a) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("step", choices=["setup", "clip", "extract", "viewer", "serve", "test", "all"])
+    ap.add_argument("step", choices=["setup", "clip", "extract", "viewer", "serve", "pages", "test", "all"])
     ap.add_argument("--start", type=float, default=0.0, help="detection window start, s into the clip")
     ap.add_argument("--dur", type=float, default=30.0, help="detection window length, s")
     ap.add_argument("--clip-ss", type=float, default=300.0, help="clip start in the full flight video, s")
@@ -183,7 +196,7 @@ def main() -> None:
     ap.add_argument("--force", action="store_true", help="redo detection even if the output exists")
     a = ap.parse_args()
     {"setup": setup, "clip": clip, "extract": extract, "viewer": viewer,
-     "serve": serve, "test": test, "all": all_steps}[a.step](a)
+     "serve": serve, "pages": pages, "test": test, "all": all_steps}[a.step](a)
 
 
 if __name__ == "__main__":
