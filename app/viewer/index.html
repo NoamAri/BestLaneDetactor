@@ -20,6 +20,10 @@
   --sel: #ffffff;
   --tag-bg: rgba(8, 12, 16, .78);
   --tag-fg: #ffffff;
+  --start: #3ee08f;           /* overlay: track starts mid-image (drawn on video, same in both themes) */
+  --end: #ff5d5d;             /* overlay: track ends mid-image */
+  --good: #12804f;            /* UI: change in the right direction */
+  --bad: #c03030;             /* UI: change in the wrong direction */
   --warn-bg: #fff4dc;
   --warn-fg: #5c3d00;
   --warn-line: #f0d28a;
@@ -31,12 +35,14 @@
   :root:not([data-theme="light"]) {
     --bg: #0f1418; --surface: #161d23; --fg: #e4eaee; --muted: #8c99a5; --line: #26313a;
     --accent: #34b27a; --accent-fg: #06140d; --warn-bg: #2e2410; --warn-fg: #f5d48e; --warn-line: #5a4519;
+    --good: #4fd394; --bad: #ff7b7b;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0f1418; --surface: #161d23; --fg: #e4eaee; --muted: #8c99a5; --line: #26313a;
   --accent: #34b27a; --accent-fg: #06140d; --warn-bg: #2e2410; --warn-fg: #f5d48e; --warn-line: #5a4519;
+    --good: #4fd394; --bad: #ff7b7b;
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
@@ -82,6 +88,19 @@ button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-co
 .tl-label { position: absolute; left: 8px; top: 4px; font-size: 10.5px; color: var(--muted); pointer-events: none;
   text-transform: uppercase; letter-spacing: .08em; }
 
+.vbar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.vbar > span { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-right: 4px; }
+.vbar button { display: inline-flex; gap: 8px; align-items: baseline; }
+.vbar button small { font-family: var(--font-mono); font-size: 11.5px; opacity: .75; }
+.vbar button[aria-pressed="true"] small { opacity: .9; }
+.vnote { margin: -6px 0 0; color: var(--muted); font-size: 13px; }
+.qual { width: 100%; border-collapse: collapse; font-size: 13px; }
+.qual th { text-align: left; font-weight: 400; color: var(--muted); padding: 3px 0; }
+.qual td { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; padding: 3px 0 3px 10px; white-space: nowrap; }
+.qual td.d { font-size: 12px; }
+.good { color: var(--good); }
+.bad { color: var(--bad); }
+.brk { font-family: var(--font-sans); font-size: 12px; }
 .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; align-items: start; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; min-width: 0; }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
@@ -125,8 +144,11 @@ footer a { color: inherit; }
       <h1>Lane Intel Inspector</h1>
       <div class="sub" id="subtitle">Loading clip…</div>
     </div>
-    <div class="keys"><kbd>←</kbd> <kbd>→</kbd> step · <kbd>Shift</kbd> ×10 · <kbd>Space</kbd> play · <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>Esc</kbd> clear</div>
+    <div class="keys"><kbd>←</kbd> <kbd>→</kbd> step · <kbd>Shift</kbd> ×10 · <kbd>Space</kbd> play · <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>V</kbd> tracker · <kbd>Esc</kbd> clear</div>
   </header>
+
+  <div class="vbar" id="vbar" role="group" aria-label="Tracker variant"><span>Tracker</span></div>
+  <p class="vnote" id="vnote"></p>
 
   <section class="stage-wrap" id="stageWrap" aria-label="Video with vehicle tags">
     <div class="stage" id="stage">
@@ -167,7 +189,7 @@ footer a { color: inherit; }
 
   <div class="timeline">
     <canvas id="tl" tabindex="0" aria-label="Vehicles detected per frame; click or drag to seek"></canvas>
-    <div class="tl-label">Tagged vehicles per frame</div>
+    <div class="tl-label">Tagged vehicles per frame · ticks: tracks starting (green) / ending (red) mid-image</div>
   </div>
 
   <div class="panels">
@@ -213,6 +235,7 @@ footer a { color: inherit; }
         <label><input type="checkbox" id="lCls"> Class names</label>
         <label><input type="checkbox" id="lConf"> Confidence</label>
         <label><input type="checkbox" id="lTrails" checked> Trails (last 1 s)</label>
+        <label><input type="checkbox" id="lBreaks" checked> Mid-image starts (+) and ends (×)</label>
       </div>
       <div class="zoom" role="group" aria-label="Zoom">
         <span>Zoom</span>
@@ -223,6 +246,13 @@ footer a { color: inherit; }
       </div>
       <div class="chips" id="legend"></div>
     </section>
+
+    <section class="panel" aria-labelledby="hQual">
+      <h2 id="hQual">Tracking quality</h2>
+      <table class="qual" id="qual"></table>
+      <p class="note" id="qualNote">Change against the first tracker in the list. A mid-image start or end is a break:
+        on this road, vehicles only enter and leave at the image edges.</p>
+    </section>
   </div>
 
   <section class="panel" aria-labelledby="hReg">
@@ -231,7 +261,7 @@ footer a { color: inherit; }
       <table>
         <thead><tr>
           <th data-k="track_id">ID</th><th data-k="cls">Class</th><th data-k="first">First (s)</th>
-          <th data-k="span_s">Duration (s)</th><th data-k="n">Obs.</th><th data-k="conf">Conf.</th><th data-k="px_per_s">px/s</th>
+          <th data-k="span_s">Duration (s)</th><th data-k="n">Obs.</th><th data-k="conf">Conf.</th><th data-k="px_per_s">px/s</th><th data-k="brk">Mid-image</th>
         </tr></thead>
         <tbody id="regBody"></tbody>
       </table>
@@ -240,7 +270,7 @@ footer a { color: inherit; }
 
   <footer class="note">
     Video and ground truth: <a href="https://opara.zih.tu-dresden.de/items/68482417-ddc5-40ac-885a-83124bd459e8">MiTra dataset</a>
-    (A50 motorway, Milan), CC BY 4.0. Vehicle tags: YOLO26s + ByteTrack, computed by this project.
+    (A50 motorway, Milan), CC BY 4.0. Vehicle tags: YOLO26s detections linked by the tracker chosen above, computed by this project.
   </footer>
 </div>
 
@@ -251,13 +281,16 @@ footer a { color: inherit; }
   const S = {
     meta: null, byFrame: [], tracks: new Map(), info: new Map(), counts: [], frame: 0, sel: null,
     zoom: 1, follow: false, playing: false, sortK: "track_id", sortDir: 1, colors: {},
-    layers: { boxes: true, ids: true, cls: false, conf: false, trails: true },
+    layers: { boxes: true, ids: true, cls: false, conf: false, trails: true, breaks: true },
+    variant: null, cache: new Map(), births: [], deaths: [], videoReady: false,
   };
-  const TRAIL = 30;
+  const TRAIL = 30;          // trail length in frames (1 s)
+  const BREAK_SHOW = 45;     // a start/end marker stays visible for 1.5 s
 
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
-    for (const k of ["car", "truck", "bus", "motorcycle", "sel", "tag-bg", "tag-fg", "accent", "muted", "line", "fg"])
+    for (const k of ["car", "truck", "bus", "motorcycle", "sel", "tag-bg", "tag-fg", "accent", "muted", "line", "fg",
+                    "start", "end", "good", "bad"])
       S.colors[k] = cs.getPropertyValue("--" + k).trim();
   }
   const clsColor = (c) => S.colors[c] || S.colors.car;
@@ -276,31 +309,99 @@ footer a { color: inherit; }
   async function load() {
     readColors();
     try {
-      const [meta, dets] = await Promise.all([getJSON("meta.json"), getJSON("detections.json")]);
-      S.meta = meta;
-      const n = meta.frame_count;
-      S.byFrame = Array.from({ length: n }, () => []);
-      for (const d of dets) {
-        const f = d[0] - meta.frame_first;
-        if (f < 0 || f >= n) continue;
-        const rec = { f, id: d[1], cls: meta.classes[d[2]], conf: d[3] / 100, x1: d[4], y1: d[5], x2: d[6], y2: d[7] };
-        S.byFrame[f].push(rec);
-        let t = S.tracks.get(rec.id);
-        if (!t) S.tracks.set(rec.id, (t = []));
-        t.push(rec);
-      }
-      S.counts = S.byFrame.map((a) => a.length);
-      for (const t of meta.tracks) S.info.set(t.track_id, t);
-      $("subtitle").textContent =
-        `Flight ${meta.flight} · drone ${meta.drone} · ${n} frames at ${meta.fps.toFixed(2)} fps · ` +
-        `${meta.model} at ${meta.imgsz}px · ${S.tracks.size} tracks`;
-      buildLegend();
-      buildRegister();
+      S.meta = await getJSON("meta.json");
+      buildVariantBar();
+      await loadVariant(S.meta.variants[0].name);
       await loadVideo();
     } catch (e) {
       fail(`Could not load the clip data: ${e.message}.<br>When running locally, serve this folder with ` +
         `<code>make serve</code> and open <code>http://localhost:8000</code>.`);
     }
+  }
+
+  // ---------- tracker variants ----------
+  const variantOf = (name) => S.meta.variants.find((v) => v.name === name);
+
+  function buildVariantBar() {
+    const bar = $("vbar");
+    for (const v of S.meta.variants) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.v = v.name;
+      b.setAttribute("aria-pressed", "false");
+      b.title = v.note || v.label;
+      const ids = v.quality && v.quality.ids != null ? v.quality.ids : v.tracks.length;
+      b.innerHTML = `${v.label}${v.quality && v.quality.selected ? " ✓" : ""} <small>${ids} IDs</small>`;
+      b.onclick = () => loadVariant(v.name);
+      bar.appendChild(b);
+    }
+  }
+
+  // Fetch (once) and index one variant's tags; keeps the current frame, clears the selection.
+  async function loadVariant(name) {
+    const v = variantOf(name);
+    if (!S.cache.has(name)) {
+      setStatus(`Loading tags for “${v.label}”…`);
+      S.cache.set(name, await getJSON(v.file));
+    }
+    const tags = S.cache.get(name), m = S.meta, n = m.frame_count;
+    S.variant = name;
+    S.byFrame = Array.from({ length: n }, () => []);
+    S.tracks = new Map();
+    for (const d of tags) {
+      const f = d[0] - m.frame_first;
+      if (f < 0 || f >= n) continue;
+      const rec = { f, id: d[1], cls: m.classes[d[2]], conf: d[3] / 100, x1: d[4], y1: d[5], x2: d[6], y2: d[7] };
+      S.byFrame[f].push(rec);
+      let t = S.tracks.get(rec.id);
+      if (!t) S.tracks.set(rec.id, (t = []));
+      t.push(rec);
+    }
+    S.counts = S.byFrame.map((a) => a.length);
+    S.info = new Map(v.tracks.map((t) => [t.track_id, t]));
+    S.births = v.tracks.filter((t) => t.born_mid).map((t) => ({ f: t.first - m.frame_first, x: t.x_first, y: t.y_first }));
+    S.deaths = v.tracks.filter((t) => t.died_mid).map((t) => ({ f: t.last - m.frame_first, x: t.x_last, y: t.y_last }));
+    S.sel = null;
+    for (const b of $("vbar").querySelectorAll("button")) b.setAttribute("aria-pressed", b.dataset.v === name);
+    $("vnote").textContent = v.note || "";
+    $("subtitle").textContent =
+      `Flight ${m.flight} · drone ${m.drone} · ${n} frames at ${m.fps.toFixed(2)} fps · ` +
+      `${m.model} at ${m.imgsz}px · ${v.label}: ${S.tracks.size} tracks`;
+    buildLegend();
+    buildRegister();
+    renderQuality();
+    if (S.videoReady) { $("status").hidden = true; refresh(); }
+  }
+
+  // Quality numbers for the shown variant, with the change against the first variant.
+  const QUAL_ROWS = [
+    ["IDs", "ids", -1], ["Mid-image starts", "born_mid", -1], ["Mid-image ends", "died_mid", -1],
+    ["Tracks under 1 s", "short_lt_1s", -1], ["Restart pairs left", "restart_pairs", -1],
+    ["Identity jumps", "identity_jumps", -1], ["Clear boxes tracked", "coverage_clear", 1],
+  ];
+  function qualityOf(v) {
+    if (v.quality && v.quality.ids != null) return v.quality;
+    return {                                                     // single points file: what can be counted here
+      ids: v.tracks.length, born_mid: v.tracks.filter((t) => t.born_mid).length,
+      died_mid: v.tracks.filter((t) => t.died_mid).length,
+      short_lt_1s: v.tracks.filter((t) => t.span_s < 1).length,
+    };
+  }
+  function renderQuality() {
+    const cur = qualityOf(variantOf(S.variant)), base = qualityOf(S.meta.variants[0]);
+    const isBase = S.variant === S.meta.variants[0].name;
+    const fmt = (k, x) => (k === "coverage_clear" ? (x * 100).toFixed(1) + "%" : String(x));
+    $("qual").innerHTML = QUAL_ROWS.filter(([, k]) => cur[k] != null).map(([label, k, better]) => {
+      let delta = "";
+      if (!isBase && base[k] != null) {
+        const d = cur[k] - base[k];
+        const txt = d === 0 ? "same" : k === "coverage_clear" ? `${d >= 0 ? "+" : "−"}${Math.abs(d * 100).toFixed(1)} pt`
+          : `${d >= 0 ? "+" : "−"}${Math.abs(d)}${base[k] ? ` (${d >= 0 ? "+" : "−"}${Math.abs(Math.round((d / base[k]) * 100))}%)` : ""}`;
+        const cls = d === 0 ? "" : (Math.sign(d) === better ? "good" : "bad");
+        delta = `<td class="d ${cls}">${txt}</td>`;
+      } else delta = `<td class="d"></td>`;
+      return `<tr><th scope="row">${label}</th><td>${fmt(k, cur[k])}</td>${delta}</tr>`;
+    }).join("");
   }
 
   function setStatus(msg) { $("status").hidden = false; $("status").innerHTML = msg; }
@@ -332,6 +433,7 @@ footer a { color: inherit; }
   }
 
   vid.addEventListener("loadeddata", () => {
+    S.videoReady = true;
     $("status").hidden = true;
     setFrame(0, true);
   });
@@ -408,6 +510,10 @@ footer a { color: inherit; }
     else if (e.key === "Escape") { select(null); }
     else if (e.key === "+" || e.key === "=") { setZoom(Math.min(4, S.zoom + 1)); }
     else if (e.key === "-") { setZoom(Math.max(1, S.zoom - 1)); }
+    else if (e.key === "v" || e.key === "V") {
+      const names = S.meta.variants.map((v) => v.name);
+      loadVariant(names[(names.indexOf(S.variant) + 1) % names.length]);
+    }
   });
 
   // ---------- drawing ----------
@@ -478,6 +584,24 @@ footer a { color: inherit; }
         ctx.fillText(txt, x + pad, y - pad / 2);
       }
     }
+    if (L.breaks) {
+      const r = Math.max(7, 6 * S.zoom) * dpr;
+      const mark = (b, color, cross) => {
+        const age = S.frame - b.f;
+        if (age < 0 || age > BREAK_SHOW) return;
+        const x = X(b.x), y = Y(b.y);
+        ctx.globalAlpha = 1 - (age / BREAK_SHOW) * 0.75;
+        ctx.strokeStyle = color; ctx.lineWidth = 2 * dpr;
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
+        const q = r * 0.5;
+        ctx.beginPath();
+        if (cross) { ctx.moveTo(x - q, y - q); ctx.lineTo(x + q, y + q); ctx.moveTo(x + q, y - q); ctx.lineTo(x - q, y + q); }
+        else { ctx.moveTo(x - q, y); ctx.lineTo(x + q, y); ctx.moveTo(x, y - q); ctx.lineTo(x, y + q); }
+        ctx.stroke();
+      };
+      for (const b of S.births) mark(b, S.colors.start, false);
+      for (const d of S.deaths) mark(d, S.colors.end, true);
+    }
     ctx.globalAlpha = 1;
   }
 
@@ -505,6 +629,11 @@ footer a { color: inherit; }
     for (let f = 0; f < n; f++) ctx.lineTo(fx(f), top + bh - (S.counts[f] / max) * bh);
     ctx.lineTo(w, top + bh); ctx.closePath();
     ctx.globalAlpha = 0.35; ctx.fill(); ctx.globalAlpha = 1;
+    const tick = 5 * dpr;
+    ctx.fillStyle = S.colors.good;
+    for (const b of S.births) ctx.fillRect(fx(b.f), h - tick, Math.max(1, dpr), tick);
+    ctx.fillStyle = S.colors.bad;
+    for (const d of S.deaths) ctx.fillRect(fx(d.f), h - 2 * tick - dpr, Math.max(1, dpr), tick);
     const px = fx(S.frame);
     ctx.fillStyle = S.colors.accent;
     ctx.fillRect(px - dpr, 0, 2 * dpr, h);
@@ -574,8 +703,9 @@ footer a { color: inherit; }
   }
 
   function buildRegister() {
-    const rows = [...S.meta.tracks];
+    const rows = variantOf(S.variant).tracks.map((t) => ({ ...t, brk: (t.born_mid ? 1 : 0) + (t.died_mid ? 2 : 0) }));
     const k = S.sortK, dir = S.sortDir;
+    const brkTxt = ["—", "start", "end", "start + end"];
     rows.sort((a, b) => (a[k] < b[k] ? -dir : a[k] > b[k] ? dir : 0));
     const fps = S.meta.fps;
     $("regBody").innerHTML = rows.map((t) =>
@@ -583,7 +713,8 @@ footer a { color: inherit; }
       `<td>#${t.track_id}</td>` +
       `<td><span class="sw" style="background:${clsColor(t.cls)}"></span> ${t.cls}</td>` +
       `<td>${((t.first - S.meta.frame_first) / fps).toFixed(2)}</td><td>${t.span_s.toFixed(2)}</td>` +
-      `<td>${t.n}</td><td>${Math.round(t.conf * 100)}%</td><td>${t.px_per_s.toFixed(0)}</td></tr>`).join("");
+      `<td>${t.n}</td><td>${Math.round(t.conf * 100)}%</td><td>${t.px_per_s.toFixed(0)}</td>` +
+      `<td class="brk ${t.brk ? "bad" : ""}">${brkTxt[t.brk]}</td></tr>`).join("");
     $("regCount").textContent = `· ${rows.length}`;
   }
   $("regBody").addEventListener("click", (e) => {
