@@ -3,3 +3,7 @@ data/
 __pycache__/
 .venv/
 *.egg-info/
+
+# local test uploads (lane_intel.upload --id test-...)
+configs/uploads/test-*
+configs/calib/test-*
