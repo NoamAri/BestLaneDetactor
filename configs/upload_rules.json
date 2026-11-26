@@ -40,7 +40,9 @@
     "min_boxes_in_lanes": 0.85,
     "min_stretch_m": 40.0,
     "min_ranked_lanes_with_evidence": 2,
-    "max_lane_kmh": 200.0
+    "max_lane_kmh": 200.0,
+    "min_lane_kmh": -2.0,
+    "_min_lane_note": "A standing lane can read slightly below 0 from position jitter (MiTra jammed lane: -0.09 km/h); below -2 km/h is a measuring error."
   },
 
   "site": {

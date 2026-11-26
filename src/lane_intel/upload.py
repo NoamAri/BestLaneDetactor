@@ -268,7 +268,7 @@ def check_result(paths: dict, rules: dict, fps: float) -> dict:
         raise NotGood("C", "C3", "Not enough of the road is visible in every lane to compare them.",
                       "Film a longer stretch of road, with all lanes in view.")
     v = [r["v_kmh"] for r in ws if r["v_kmh"] is not None and r["v_kmh"] == r["v_kmh"]]
-    if not v or max(v) > rr["max_lane_kmh"] or min(v) < 0:
+    if not v or max(v) > rr["max_lane_kmh"] or min(v) < rr.get("min_lane_kmh", 0.0):
         raise NotGood("C", "C4", "The distances could not be measured reliably.", "Film the road from higher up, at a steadier angle.")
     return {"tracks": n_tracks, "median_track_s": round(med, 1), "lanes": int(len(lanes["lanes"])), "summary": summ}
 
@@ -285,7 +285,7 @@ def answer_lines(summ: dict) -> list[str]:
             if not r:
                 return None
             close = "" if isinstance(a.get(t), str) else " (close call)"
-            return f"lane {r['number']} ({r['v_kmh']:.0f} km/h){close}"
+            return f"lane {r['number']} ({max(0.0, r['v_kmh']):.0f} km/h){close}"
         f, s = pick("fastest"), pick("slowest")
         out.append(f"{'→ Right-moving' if d == 'right' else '← Left-moving'} traffic: fastest {f or '–'}, slowest {s or '–'}")
     return out
