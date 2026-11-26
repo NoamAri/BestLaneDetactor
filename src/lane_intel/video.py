@@ -36,3 +36,30 @@ def iter_frames(path: str, crop_y: tuple[int, int], width: int,
     finally:
         proc.stdout.close()
         proc.wait()
+
+
+def iter_gray(path: str, size: tuple[int, int], out_width: int,
+              start_s: float = 0.0, duration_s: float | None = None) -> Iterator[tuple[int, np.ndarray]]:
+    """Yield (i, grey full frame scaled to out_width) for every decoded frame; i counts from start_s."""
+    w, h = size
+    out_h = int(round(h * out_width / w / 2)) * 2
+    cmd = ["ffmpeg", "-v", "error", "-nostdin"]
+    if start_s:
+        cmd += ["-ss", f"{start_s:.6f}"]
+    cmd += ["-i", path]
+    if duration_s is not None:
+        cmd += ["-t", f"{duration_s:.6f}"]
+    cmd += ["-vf", f"scale={out_width}:{out_h}", "-f", "rawvideo", "-pix_fmt", "gray", "-"]
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, bufsize=out_width * out_h * 4)
+    nbytes = out_width * out_h
+    i = 0
+    try:
+        while True:
+            buf = proc.stdout.read(nbytes)
+            if len(buf) < nbytes:
+                break
+            yield i, np.frombuffer(buf, np.uint8).reshape(out_h, out_width)
+            i += 1
+    finally:
+        proc.stdout.close()
+        proc.wait()

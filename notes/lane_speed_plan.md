@@ -246,3 +246,19 @@ Stretch: the common covered range of all ranked lanes of a direction, 5% margins
 lane's detection coverage falls below 50% of its median, at least 40 m.
 MiTra uses 0–180 s of the clip (six 30 s detection windows tracked separately and joined; Edie sums do
 not care that IDs restart between windows).
+
+### Amendment A2: ground point = box centre (recorded before any lane speed was computed)
+
+Section 2.1 pre-registered the box bottom shifted by half the vehicle width. The ground-truth check
+(notes/lane_speed.md §1.3) contradicts it: with the box centre, 98.1% of car boxes, 95.9% of truck boxes
+and 98.7% of bus boxes fall in the lane the ground truth gives; with the bottom-shift, 86.8%, 84.6% and
+46.6%. Trucks and cars of the same ground-truth lane sit at the same box-centre height. The lanes are
+also estimated from box centres. So the ground point is the box centre (in the stabilised frame); the
+shift stays in the code (`world.ground_point(mode="bottom_shift")`) for the ablation table.
+`ground_point.class_width_m` in configs/lane_speed.json is therefore unused.
+
+### Amendment A3: stabilisation, per-camera analysis windows
+
+Added before any lane speed: camera motion is removed (section 1 named a drift check; the check found
+up to 19 px of motion across the road, half a lane), and lanes are re-estimated on stabilised points
+from all analysis windows of a camera (`lane_speed.windows` in the camera config).

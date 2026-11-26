@@ -1,0 +1,44 @@
+{
+ "kind": "vehicle_size",
+ "info": {
+  "method": "vehicle_size",
+  "lane_width_m": 3.6,
+  "car_length_m": 4.5,
+  "car_boxes": 6331,
+  "position_bins": 16,
+  "model": {
+   "coef": [
+    -2.3166781956218334,
+    0.7400070824093662,
+    -0.11341010897491892
+   ],
+   "x_mid": 525.0,
+   "x_scale": 1050,
+   "c_mid": 169.06,
+   "c_scale": 80.0
+  },
+  "scale_m_per_px_at_centre": 0.0986,
+  "scale_ratio_right_vs_left_edge": 2.096,
+  "scale_ratio_lowest_vs_highest_lane": 0.893
+ },
+ "camera": "slowest_car_1943pm",
+ "created_utc": "2026-11-26T12:42:07+00:00",
+ "lanes_file": "configs/lanes/slowest_car_1943pm.json",
+ "frame_width": 1050,
+ "frame": "stabilised reference frame (first video frame), full-resolution pixels",
+ "lane_centre_d_m": {
+  "L1": 18.0,
+  "L2": 14.4,
+  "L3": 10.8,
+  "L4": 7.2,
+  "L5": 3.6,
+  "L6": 0.0
+ },
+ "lane_spacing_m": {
+  "L6-L5": 3.6,
+  "L5-L4": 3.6,
+  "L4-L3": 3.6,
+  "L3-L2": 3.6,
+  "L2-L1": 3.6
+ }
+}

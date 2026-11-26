@@ -6,7 +6,11 @@
     python run.py tune       try every tracker variant on those detections, pick one by the
                              fixed rule -> data/out/tracking/<tag>/report.md (seconds)
     python run.py track      track with the configured variant -> data/interim/<tag>_points.parquet
-    python run.py lanes      find the lanes from the tracks -> configs/lanes/<camera>.json, lane per box
+    python run.py stabilize  camera motion in the window vs the first frame -> data/interim/<tag>_stab.parquet
+    python run.py ground     all analysis windows of a camera (lane_speed.windows), stabilised, in one
+                             table -> data/interim/<camera>_ground.parquet
+    python run.py lanes      find the lanes from the camera's tracks -> configs/lanes/<camera>.json
+    python run.py calibrate  pixels -> metres along/across the road -> configs/calib/<camera>.json
     python run.py extract    detect + track in one go
     python run.py viewer     build the viewer for every clip in configs/viewer.json -> data/out/viewer/
     python run.py serve      start the viewer at http://localhost:8000 and open the browser
@@ -190,13 +194,40 @@ def track(a) -> None:
     sh(cmd)
 
 
-def lanes(a) -> None:
-    """Find the lanes from the window's tracks; fill lane columns in the points file."""
+def stabilize(a) -> None:
+    """Measure the camera's motion in this window against the video's first frame."""
+    need_venv(); need_ffmpeg()
+    import json
+    cfg = json.loads(_cfg_path(a).read_text())
+    first = ROOT / "data" / "interim" / f"{_cfg_path(a).stem}_{cfg['lane_speed']['windows'][0][0]:g}-" \
+                                        f"{cfg['lane_speed']['windows'][0][1]:g}s_detections.parquet"
+    out = ROOT / "data" / "interim" / f"{_tag(a)}_stab.parquet"
+    if out.exists() and not a.force:
+        print(f"Already stabilised: {out}  (use --force to redo)")
+        return
+    sh([PY, "-W", "ignore", "-m", "lane_intel.stabilize", "--cfg", _cfg_for_clip(a), "--start", a.start,
+        "--dur", a.dur, "--ref-detections", first, "--out", out])
+
+
+def ground(a) -> None:
+    """Join the camera's analysis windows into one table of stabilised ground points."""
     need_venv()
-    if not _points(a).exists():
-        sys.exit("No tracks for this window yet. Run:  python run.py track")
-    sh([PY, "-W", "ignore", "-m", "lane_intel.lanes", "--cfg", _cfg_for_clip(a), "--points", _points(a),
-        "--write-points"])
+    sh([PY, "-W", "ignore", "-m", "lane_intel.world", "--cfg", _cfg_path(a)])
+
+
+def lanes(a) -> None:
+    """Find the lanes from all of the camera's tracks (stabilised); lane per box in the ground table."""
+    need_venv()
+    g = ROOT / "data" / "interim" / f"{_cfg_path(a).stem}_ground.parquet"
+    if not g.exists():
+        ground(a)
+    sh([PY, "-W", "ignore", "-m", "lane_intel.lanes", "--cfg", _cfg_path(a), "--points", g, "--write-points"])
+
+
+def calibrate(a) -> None:
+    """Pixels -> metres along/across the road -> configs/calib/<camera>.json."""
+    need_venv()
+    sh([PY, "-W", "ignore", "-m", "lane_intel.calibrate", "--cfg", _cfg_path(a)])
 
 
 def extract(a) -> None:
@@ -275,7 +306,8 @@ def all_steps(a) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    steps = {"setup": setup, "clip": clip, "detect": detect, "tune": tune, "track": track, "lanes": lanes,
+    steps = {"setup": setup, "clip": clip, "detect": detect, "tune": tune, "track": track,
+             "stabilize": stabilize, "ground": ground, "lanes": lanes, "calibrate": calibrate,
              "extract": extract,
              "viewer": viewer, "serve": serve, "pages": pages, "test": test, "all": all_steps}
     ap.add_argument("step", choices=list(steps))

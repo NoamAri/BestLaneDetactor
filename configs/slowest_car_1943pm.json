@@ -57,6 +57,7 @@
     "note": "No ground truth. Lateral scale from lane spacing (lane width ASSUMED 3.6 m: confirm); along-road scale from the median car length (4.5 m). Validated on MiTra against the ground-truth homography."
   },
   "lane_speed": {
+    "windows": [[0, 64.25]],
     "auxiliary_lanes": [],
     "speed_limit_kmh": null
   }

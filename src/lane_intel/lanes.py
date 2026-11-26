@@ -317,13 +317,16 @@ def lanes_path(cfg: dict, cfg_path: str | Path) -> Path:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--cfg", required=True)
-    ap.add_argument("--points", required=True, help="tracked points of this camera (the chosen tracker)")
+    ap.add_argument("--points", required=True, nargs="+",
+                    help="tracked points of this camera (one or more windows; track ids must be unique across them)")
     ap.add_argument("--write-points", action="store_true",
-                    help="also fill lane_frame (and add lane_track) in the points file")
+                    help="also fill lane_frame (and add lane_track) in the points file (single file only)")
     a = ap.parse_args()
     cfg = json.loads(Path(a.cfg).read_text())
     width = cfg["frame_size"][0]
-    pts = pd.read_parquet(a.points)
+    pts = pd.concat([pd.read_parquet(f) for f in a.points], ignore_index=True)
+    if a.write_points and len(a.points) > 1:
+        ap.error("--write-points needs a single points file")
     p = LaneParams()
     geo, lanes, scores = estimate_lanes(pts, width, p)
     assigned = assign_lanes(pts, geo, lanes, width, p)
@@ -341,7 +344,7 @@ def main() -> None:
         "camera": Path(a.cfg).stem, "source_points": a.points, "params": p.to_dict(),
         "geometry": geo.to_dict(), "geometry_cv_residual_px": scores, "boxes_in_a_lane": round(float(share), 3), "lanes": lanes}, indent=1))
     if a.write_points:
-        assigned.to_parquet(a.points, index=False)
+        assigned.to_parquet(a.points[0], index=False)
     print(f"{len(lanes)} lanes, {geo.describe()} (cross-validated residual px: {scores}) -> {out}  "
           f"({share:.0%} of tracked boxes fall inside a lane)")
     for l in lanes:

@@ -1,8 +1,10 @@
 {
  "about": "Lanes estimated from vehicle paths (lane_intel.lanes). Each lane is the line through the geometry family (see geometry) whose height at x_ref is c, full-frame pixels. Lane 1 = leftmost in the direction of travel. Editable by hand.",
- "created_utc": "2026-11-26T11:58:24+00:00",
+ "created_utc": "2026-11-26T12:42:06+00:00",
  "camera": "slowest_car_1943pm",
- "source_points": "/home/user/BestLaneDetactor/data/interim/slowest_car_1943pm_0-64.25s_points.parquet",
+ "source_points": [
+  "/home/user/BestLaneDetactor/data/interim/slowest_car_1943pm_ground.parquet"
+ ],
  "params": {
   "min_obs": 6,
   "min_dx_boxes": 3.0,
@@ -16,39 +18,39 @@
   "kind": "shape",
   "x_ref": 525.0,
   "coef": [
-   -0.17670553260929045,
-   -4.943111245890255e-05
+   -0.1775959025731564,
+   -4.961961738948823e-05
   ],
   "vp": null
  },
  "geometry_cv_residual_px": {
-  "straight": 4.014,
-  "curve2": 2.466,
-  "curve3": 2.424,
-  "vp": 6.059
+  "straight": 3.961,
+  "curve2": 2.382,
+  "curve3": 2.415,
+  "vp": 6.31
  },
- "boxes_in_a_lane": 0.987,
+ "boxes_in_a_lane": 0.989,
  "lanes": [
   {
    "id": "L1",
    "number": 1,
    "direction": "left",
-   "c": 212.02,
+   "c": 212.56,
    "x_range": [
-    7.7,
-    1012.3
+    10.8,
+    1020.4
    ],
-   "tracks": 30,
+   "tracks": 32,
    "vehicles": 34
   },
   {
    "id": "L2",
    "number": 2,
    "direction": "left",
-   "c": 194.02,
+   "c": 194.56,
    "x_range": [
-    4.5,
-    973.2
+    6.4,
+    975.9
    ],
    "tracks": 26,
    "vehicles": 26
@@ -57,22 +59,22 @@
    "id": "L3",
    "number": 3,
    "direction": "left",
-   "c": 177.02,
+   "c": 176.56,
    "x_range": [
-    6.4,
-    962.9
+    8.3,
+    963.9
    ],
-   "tracks": 19,
+   "tracks": 20,
    "vehicles": 22
   },
   {
    "id": "L4",
    "number": 4,
    "direction": "left",
-   "c": 162.02,
+   "c": 161.56,
    "x_range": [
-    5.3,
-    937.1
+    7.5,
+    940.4
    ],
    "tracks": 17,
    "vehicles": 20
@@ -81,22 +83,22 @@
    "id": "L5",
    "number": 5,
    "direction": "left",
-   "c": 146.02,
+   "c": 145.56,
    "x_range": [
-    2.3,
-    948.8
+    2.7,
+    951.7
    ],
-   "tracks": 17,
+   "tracks": 16,
    "vehicles": 17
   },
   {
    "id": "L6",
    "number": 6,
    "direction": "left",
-   "c": 133.02,
+   "c": 132.56,
    "x_range": [
-    2.1,
-    937.8
+    4.6,
+    939.7
    ],
    "tracks": 24,
    "vehicles": 25
