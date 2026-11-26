@@ -336,7 +336,7 @@ footer a { color: inherit; }
       <h2 id="hLayers">Layers</h2>
       <div class="layers">
         <label><input type="checkbox" id="lLanes" checked> Lanes</label>
-        <label><input type="checkbox" id="lLaneSpeeds" checked> Lane speeds on the video</label>
+        <label><input type="checkbox" id="lLaneSpeeds"> Lane speeds on the video</label>
         <label><input type="checkbox" id="lBoxes" checked> Boxes and anchor points</label>
         <label><input type="checkbox" id="lIds" checked> Track IDs</label>
         <label><input type="checkbox" id="lCls"> Class names</label>
@@ -410,7 +410,7 @@ footer a { color: inherit; }
   const S = {
     meta: null, byFrame: [], tracks: new Map(), info: new Map(), counts: [], frame: 0, sel: null,
     zoom: 1, follow: false, playing: false, sortK: "track_id", sortDir: 1, colors: {},
-    layers: { lanes: true, laneSpeeds: true, boxes: true, ids: true, cls: false, conf: false, trails: true, breaks: false },
+    layers: { lanes: true, laneSpeeds: false, boxes: true, ids: true, cls: false, conf: false, trails: true, breaks: false },
     variant: null, cache: new Map(), births: [], deaths: [], videoReady: false,
     clips: null, clipId: null, base: "", loadToken: 0, blobUrl: null,
   };
