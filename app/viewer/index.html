@@ -966,7 +966,8 @@ footer a { color: inherit; }
       const vmax = Math.max(...ranked.map((l) => l.v_kmh), 1);
       const st = L.stretches[d];
       const stat = (t) => {
-        const id = a[t], l = id && L.lanes.find((x) => x.lane === id);
+        const sure = !!a[t];                                  // passed the 10% / 90% rule
+        const id = a[t] || a[`${t}_candidate`], l = id && L.lanes.find((x) => x.lane === id);
         const label = t === "fastest" ? "Fastest lane" : "Slowest lane";
         if (!l) {
           const c = L.lanes.find((x) => x.lane === a[`${t}_candidate`]);
@@ -984,7 +985,7 @@ footer a { color: inherit; }
         return `<div class="vd-stat${t === "fastest" ? " best" : ""}"><div class="vd-k">${label}${t === "fastest" ? " · best choice" : ""}</div>
           <div class="vd-lane"><span class="ic">${t === "fastest" ? "▲" : "▼"}</span>Lane ${l.number}</div>
           <div class="vd-v">${l.v_kmh.toFixed(1)}<small>km/h</small></div>
-          <div class="vd-d">${pct}% ${t === "fastest" ? "faster" : "slower"} than lane ${other ? other.number : "?"} · ${Math.round(a[`${t}_p`] * 100)}% sure${a[`${t}_calibration_sensitive`] ? " · sensitive to calibration" : ""}</div></div>`;
+          <div class="vd-d">${pct}% ${t === "fastest" ? "faster" : "slower"} than lane ${other ? other.number : "?"} · ${Math.round(a[`${t}_p`] * 100)}% sure${sure ? "" : " · close call"}${a[`${t}_calibration_sensitive`] ? " · sensitive to calibration" : ""}</div></div>`;
       };
       const rows = ranked.map((l) => `<div class="vd-row${l.auxiliary ? " aux" : ""}${l.evidence_ok ? "" : " low"}">
           <div class="nm">Lane ${l.number}${l.auxiliary ? " <small>ramp</small>" : !l.evidence_ok ? " <small>few cars</small>" : a.fastest === l.lane ? " ▲" : a.slowest === l.lane ? " ▼" : ""}</div>
