@@ -324,6 +324,11 @@ footer a { color: inherit; }
 
   function buildVariantBar() {
     const bar = $("vbar");
+    if (S.meta.variants.length < 2) {                // one tracker: nothing to switch between
+      bar.hidden = true;
+      $("vnote").hidden = true;
+      return;
+    }
     for (const v of S.meta.variants) {
       const b = document.createElement("button");
       b.type = "button";
@@ -388,6 +393,8 @@ footer a { color: inherit; }
     };
   }
   function renderQuality() {
+    if (S.meta.variants.length < 2)
+      $("qualNote").textContent = "A mid-image start or end is a break: on this road, vehicles only enter and leave at the image edges.";
     const cur = qualityOf(variantOf(S.variant)), base = qualityOf(S.meta.variants[0]);
     const isBase = S.variant === S.meta.variants[0].name;
     const fmt = (k, x) => (k === "coverage_clear" ? (x * 100).toFixed(1) + "%" : String(x));

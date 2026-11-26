@@ -926,7 +926,7 @@ make test</div>
     { id: "viewer", dir: "app/viewer/", name: "index.html", role: "ui", lines: 806,
       summary: "The inspector you use in the browser: plays the road strip and draws every vehicle's box, ID and trail on top, frame by frame, for whichever tracker you pick.",
       what: [
-        "<b>Tracker switch</b> above the video: one button per bundled tracker with its ID count; <kbd>V</kbd> cycles. Switching keeps the current frame, so the same moment can be compared across trackers.",
+        "<b>Tracker switch</b> above the video, shown only when the bundle carries more than one tracker (<code>tracking.viewer_variants</code>; the default bundle has just the chosen one): one button per tracker with its ID count; <kbd>V</kbd> cycles; switching keeps the current frame.",
         "<b>Break markers</b>: a green + where a track starts mid-image and a red × where one ends, visible for 1.5 s. The timeline shows the same events as green and red ticks under the vehicle count.",
         "<b>Tracking quality panel</b>: IDs, mid-image starts and ends, short tracks, restart pairs, identity jumps and clear-box coverage, each with its change against the first tracker (green = better, red = worse).",
         "<b>Track register</b>: sortable table of every track, including a Mid-image column (start / end / both).",

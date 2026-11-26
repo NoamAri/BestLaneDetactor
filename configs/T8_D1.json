@@ -21,7 +21,7 @@
     "variants_file": "configs/tracking.json",
     "variant": "r2_botsort_first005",
     "reference": "r2_botsort_first005",
-    "viewer_variants": ["baseline", "s1_lowconf", "s2_ocsort_buf4s", "@selected"]
+    "viewer_variants": ["@selected"]
   },
 
   "direction": null,
