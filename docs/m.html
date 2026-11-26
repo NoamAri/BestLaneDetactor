@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lane Intel</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0f1418">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+</head><body>
+<style>
+/* Lane Intel for phones: video first, the answer on the video, everything under the thumb.
+   Same data as the desktop Inspector (clips.json, clips/<id>/meta.json, tags, video). */
+:root {
+  --bg: #eef1f3; --surface: #ffffff; --fg: #15202b; --muted: #5b6875; --line: #d3dae0;
+  --accent: #0b7a4b; --accent-fg: #fff; --stage: #0b0f12;
+  --s1: #257de0; --s2: #f47230; --s3: #00b894; --s4: #f2a600; --s5: #ee7fac;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --r: 14px; --bar: 62px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0f1418; --surface: #161d23; --fg: #e4eaee; --muted: #8c99a5; --line: #26313a;
+    --accent: #34b27a; --accent-fg: #06140d;
+    --s1: #338ced; --s2: #e76624; --s3: #00a888; --s4: #d28e05; --s5: #e24d8b;
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 var(--font-sans); }
+body { padding-bottom: calc(var(--bar) + env(safe-area-inset-bottom)); overscroll-behavior-y: none; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* top */
+.top { display: flex; align-items: center; justify-content: space-between; padding: calc(8px + env(safe-area-inset-top)) 16px 6px; }
+.brand { font-weight: 600; letter-spacing: .01em; }
+.brand span { color: var(--accent); }
+.linkbtn { font-size: 12.5px; color: var(--muted); text-decoration: underline; padding: 8px 0; }
+.clips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 16px 10px; scrollbar-width: none; scroll-snap-type: x mandatory; }
+.clips::-webkit-scrollbar { display: none; }
+.clip { flex: none; scroll-snap-align: start; border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
+  padding: 7px 14px; font-size: 13px; white-space: nowrap; min-height: 36px; }
+.clip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+
+/* road map + video */
+.mini { position: relative; margin: 0 16px 8px; border-radius: 8px; overflow: hidden; background: var(--stage); touch-action: none; }
+.mini canvas { display: block; width: 100%; }
+.view { position: relative; height: min(46svh, 440px); background: var(--stage); overflow: hidden; touch-action: none; user-select: none; }
+.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+.world video { display: block; width: 100%; height: 100%; }
+#ov { position: absolute; inset: 0; width: 100%; height: 100%; }
+.bigplay { position: absolute; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; border-radius: 50%;
+  background: rgba(255,255,255,.92); color: #0b0f12; font-size: 28px; box-shadow: 0 6px 24px rgba(0,0,0,.35); padding-left: 6px; }
+.chip { position: absolute; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px;
+  background: rgba(10,14,18,.78); color: #fff; font-size: 13px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.answer { left: 10px; top: 10px; font-weight: 600; max-width: calc(100% - 20px); }
+.answer .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.answer small { font-weight: 400; opacity: .75; }
+.follow { left: 10px; bottom: 10px; font-size: 12.5px; max-width: calc(100% - 76px); }
+.follow button { color: #fff; font-weight: 600; text-decoration: underline; padding: 0 2px; }
+.rotate { left: 10px; top: 50px; font-size: 12px; transition: opacity .6s; }
+.rotate.gone { opacity: 0; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; color: #cfd6dc; font-size: 14px; background: var(--stage); }
+
+/* transport */
+.controls { display: grid; grid-template-columns: 52px 1fr 52px; gap: 10px; align-items: center; padding: 10px 16px 4px; }
+.cbtn { width: 52px; height: 52px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); font-size: 18px; }
+.cbtn.play { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-size: 20px; }
+.scrub { position: relative; height: 52px; touch-action: none; }
+.scrub canvas { display: block; width: 100%; height: 100%; }
+.time { display: flex; justify-content: space-between; padding: 0 16px; font-size: 11.5px; color: var(--muted); }
+
+/* answer cards */
+.sect { padding: 14px 16px 4px; }
+.sect h2 { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.vcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; margin-bottom: 10px; width: 100%; text-align: left; display: block; }
+.vcard .dir { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.vcard .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.vcard .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.vcard .ln { font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+.vcard .ln .dot { width: 11px; height: 11px; border-radius: 50%; }
+.vcard .v { font-size: 13px; color: var(--muted); }
+.tag { font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; margin-left: 4px; color: var(--muted); }
+.hint { color: var(--muted); font-size: 12.5px; padding: 0 16px; margin: 6px 0 14px; }
+
+/* lanes race */
+.race { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; margin-bottom: 12px; }
+.race h3 { margin: 0 0 2px; font-size: 15px; }
+.race .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 10px; }
+.rrow { display: grid; grid-template-columns: 70px 1fr 58px; gap: 8px; align-items: center; margin: 7px 0; font-size: 13.5px; }
+.rrow .track { height: 14px; border-radius: 7px; background: color-mix(in srgb, var(--fg) 7%, transparent); overflow: hidden; }
+.rrow .fill { height: 100%; border-radius: 7px; transition: width .45s ease; }
+.rrow .val { text-align: right; }
+.rrow.lead .nm::after { content: " ▲"; font-size: 11px; }
+.rrow.aux { opacity: .6; }
+.sentence { font-size: 13.5px; margin: 10px 0 0; }
+
+/* about cards */
+.cards { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 16px 12px; scrollbar-width: none; }
+.cards::-webkit-scrollbar { display: none; }
+.card { flex: 0 0 82%; scroll-snap-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.card .n { font-size: 12px; color: var(--accent); font-weight: 600; }
+.card h3 { margin: 4px 0 6px; font-size: 17px; }
+.card p { margin: 0; color: var(--muted); font-size: 14px; }
+
+/* bottom sheet */
+.sheet { position: fixed; left: 0; right: 0; bottom: calc(var(--bar) + env(safe-area-inset-bottom)); z-index: 20; background: var(--surface);
+  border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.25); padding: 8px 18px 18px; max-height: 62svh; overflow: auto;
+  transform: translateY(0); transition: transform .22s ease; touch-action: pan-y; }
+.sheet.closing { transform: translateY(110%); }
+.grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 2px auto 10px; }
+.sheet .x { position: absolute; right: 10px; top: 8px; width: 40px; height: 40px; color: var(--muted); font-size: 18px; }
+.sheet h3 { margin: 0 0 2px; font-size: 18px; display: flex; align-items: center; gap: 8px; }
+.sheet .big { font-size: 34px; font-weight: 600; margin: 6px 0 2px; }
+.sheet .big small { font-size: 15px; color: var(--muted); font-weight: 400; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 12px 0; font-size: 14px; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; }
+.sbtn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-fg); font-weight: 600; margin-right: 8px; }
+.sbtn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
+.ci { position: relative; height: 10px; background: color-mix(in srgb, var(--fg) 7%, transparent); border-radius: 5px; margin: 8px 0 2px; }
+.ci .bar { position: absolute; top: 0; height: 10px; border-radius: 5px; opacity: .45; }
+.ci .pt { position: absolute; top: -3px; width: 4px; height: 16px; border-radius: 2px; background: var(--fg); }
+
+/* tab bar */
+.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(3, 1fr);
+  height: calc(var(--bar) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
+  background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--line); }
+.tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11.5px; color: var(--muted); }
+.tabbar button .ic { font-size: 19px; line-height: 1; }
+.tabbar button[aria-current="page"] { color: var(--accent); font-weight: 600; }
+
+/* landscape: the whole road, full screen */
+@media (orientation: landscape) and (max-height: 520px) {
+  body { padding-bottom: 0; }
+  .top, .clips, .mini, .tabbar, .tab:not(#tabWatch), #tabWatch > :not(.view):not(.controls) { display: none !important; }
+  .view { position: fixed; inset: 0; height: auto; z-index: 10; }
+  .controls { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; padding: 10px calc(16px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    background: linear-gradient(transparent, rgba(0,0,0,.55)); transition: opacity .3s; }
+  .controls.faded { opacity: 0; pointer-events: none; }
+  .rotate { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div id="app">
+  <header class="top">
+    <div class="brand">Lane <span>Intel</span></div>
+    <button class="linkbtn" id="toDesktop">Desktop view</button>
+  </header>
+  <nav class="clips" id="clips" aria-label="Videos"></nav>
+
+  <main>
+    <section class="tab" id="tabWatch">
+      <div class="mini" id="miniWrap" aria-label="The whole road; drag to move the view"><canvas id="mini"></canvas></div>
+      <div class="view" id="view">
+        <div class="world" id="world"><video id="vid" playsinline muted preload="auto"></video></div>
+        <canvas id="ov" aria-label="Video with vehicles and lanes; tap a car or a lane"></canvas>
+        <div class="chip answer" id="answer" hidden></div>
+        <div class="chip follow" id="follow" hidden></div>
+        <div class="chip rotate" id="rotateHint" hidden>↻ Turn your phone for the whole road</div>
+        <button class="bigplay" id="bigPlay" aria-label="Play" hidden>▶</button>
+        <div class="loading" id="loading">Loading the video…</div>
+      </div>
+      <div class="controls" id="controls">
+        <button class="cbtn play" id="play" aria-label="Play">▶</button>
+        <div class="scrub" id="scrub" aria-label="Timeline, coloured by the fastest lane; drag to seek"><canvas id="scrubCv"></canvas></div>
+        <button class="cbtn mono" id="rate" aria-label="Playback speed">1×</button>
+      </div>
+      <div class="time mono"><span id="tNow">0.0 s</span><span id="tTxt">colour = fastest lane at that moment</span><span id="tDur"></span></div>
+      <div class="sect"><h2>Which lane is faster</h2><div id="verdict"></div></div>
+      <p class="hint">Tap a car to follow it, tap a lane to see its speed. Drag the video to look around; turn your phone for the whole road.</p>
+    </section>
+
+    <section class="tab" id="tabLanes" hidden>
+      <div class="sect"><h2>Lane race · live with the video</h2><div id="race"></div></div>
+      <p class="hint" id="raceNote"></p>
+    </section>
+
+    <section class="tab" id="tabAbout" hidden>
+      <div class="sect"><h2>How it works</h2></div>
+      <div class="cards">
+        <div class="card"><div class="n">1 · Spot</div><h3>Every vehicle, every frame</h3><p>A neural network (YOLO) finds the cars, trucks and buses in each video frame. No training on this road was needed.</p></div>
+        <div class="card"><div class="n">2 · Track</div><h3>The same car over time</h3><p>A tracker links the boxes into one path per vehicle, even when it hides behind a tree or a truck for a moment.</p></div>
+        <div class="card"><div class="n">3 · Lanes</div><h3>Lanes from where cars drive</h3><p>Cars keep to their lanes, so their paths reveal the lanes. Lane 1 is the leftmost in the direction of travel.</p></div>
+        <div class="card"><div class="n">4 · Metres</div><h3>From pixels to km/h</h3><p>The drone's wobble is removed, and pixels are turned into metres, so a far lane is not mistaken for a slow one.</p></div>
+        <div class="card"><div class="n">5 · Verdict</div><h3>Fastest only when it's real</h3><p>A lane's speed is total distance ÷ total time of all its cars. A lane is called clearly fastest only with a 10% lead in 90% of resamples; otherwise it is a "close call". On MiTra this matches the official ground truth within about 3%.</p></div>
+      </div>
+      <p class="hint"><button class="linkbtn" id="toDesktop2">Full explanation and every detail: desktop view</button></p>
+    </section>
+  </main>
+
+  <div class="sheet" id="sheet" role="dialog" aria-modal="false" hidden>
+    <div class="grab"></div>
+    <button class="x" id="sheetX" aria-label="Close">✕</button>
+    <div id="sheetBody"></div>
+  </div>
+
+  <nav class="tabbar" aria-label="Sections">
+    <button data-tab="tabWatch" aria-current="page"><span class="ic">▶</span>Watch</button>
+    <button data-tab="tabLanes"><span class="ic">≡</span>Lanes</button>
+    <button data-tab="tabAbout"><span class="ic">?</span>About</button>
+  </nav>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const vid = $("vid"), view = $("view"), world = $("world"), ov = $("ov"), mini = $("mini");
+  const PALETTE = ["--s1", "--s2", "--s3", "--s4", "--s5"];
+  const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+  const laneCol = (num) => css(PALETTE[(num - 1) % PALETTE.length]);
+  const DIRW = { right: "→ Right-moving traffic", left: "← Left-moving traffic" };
+  const store = { get: (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } },
+                  set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } } };
+
+  const S = { clips: [], clip: null, base: "", meta: null, byFrame: [], tracks: new Map(), info: new Map(),
+              n: 0, fps: 30, f: 0, k: 1, worldW: 0, worldH: 0, camX: 0, camY: 0, pano: false, userPano: null,
+              mode: "auto", followId: null, followLane: null, lostFrames: 0, lastT: 0, rateIdx: 1, token: 0 };
+  const RATES = [0.5, 1, 2];
+
+  // ---------------------------------------------------------------- data
+  const getJSON = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error(`${u}: HTTP ${r.status}`); return r.json(); };
+  const ls = () => S.meta && S.meta.lane_speed;
+  const laneById = (id) => (S.meta.lanes || []).find((l) => l.id === id);
+  const laneIdx = (id) => (S.meta.lanes || []).findIndex((l) => l.id === id);
+  const speedOf = (id) => ls() ? ls().lanes.find((l) => l.lane === id) : null;
+  function verdictLane(dir, t) { const a = ls().announcement[dir]; return a ? (a[t] || a[`${t}_candidate`]) : null; }
+  function closeCall(dir, t) { const a = ls().announcement[dir]; return a && !a[t]; }
+  function mainDirection() {
+    // the direction whose fastest lane is fastest: the most interesting ride
+    let best = null, v = -1;
+    for (const d of Object.keys(ls().announcement)) { const l = speedOf(verdictLane(d, "fastest")); if (l && l.v_kmh > v) { v = l.v_kmh; best = d; } }
+    return best;
+  }
+
+  async function init() {
+    try { S.clips = await getJSON("clips.json"); } catch (_) { S.clips = [{ id: "clip", label: "Video", dir: "" }]; }
+    $("clips").innerHTML = S.clips.map((c) => `<button class="clip" data-c="${c.id}">${c.label}</button>`).join("");
+    for (const b of $("clips").querySelectorAll(".clip")) b.onclick = () => loadClip(b.dataset.c);
+    const want = new URLSearchParams(location.hash.slice(1)).get("clip");
+    await loadClip(S.clips.some((c) => c.id === want) ? want : S.clips[0].id);
+  }
+
+  async function loadClip(id) {
+    const token = ++S.token;
+    const c = S.clips.find((x) => x.id === id);
+    S.clip = id; S.base = c.dir || "";
+    for (const b of $("clips").querySelectorAll(".clip")) b.setAttribute("aria-pressed", b.dataset.c === id);
+    $("loading").hidden = false; $("loading").textContent = "Loading the video…"; $("bigPlay").hidden = true;
+    closeSheet(true);
+    vid.pause();
+    const meta = await getJSON(S.base + "meta.json");
+    if (token !== S.token) return;
+    const v = meta.variants[0];
+    const tags = await getJSON(S.base + v.file);
+    if (token !== S.token) return;
+    S.meta = meta; S.fps = meta.fps; S.n = meta.frame_count;
+    S.byFrame = Array.from({ length: S.n }, () => []); S.tracks = new Map(); S.info = new Map();
+    for (const t of v.tracks) S.info.set(t.track_id, t);
+    for (const d of tags) {
+      const f = d[0] - meta.frame_first; if (f < 0 || f >= S.n) continue;
+      const r = { f, id: d[1], cls: meta.classes[d[2]], x1: d[4], y1: d[5], x2: d[6], y2: d[7] };
+      S.byFrame[f].push(r);
+      let tr = S.tracks.get(r.id); if (!tr) S.tracks.set(r.id, (tr = [])); tr.push(r);
+    }
+    S.mode = "auto"; S.followId = null; S.followLane = null; S.f = 0;
+    vid.src = S.base + "video.mp4";
+    vid.playbackRate = RATES[S.rateIdx];
+    vid.load();
+    history.replaceState(null, "", "#clip=" + id);
+    renderVerdict(); renderRace(); layout();
+    $("tDur").textContent = (S.n / S.fps).toFixed(0) + " s";
+  }
+  vid.addEventListener("loadeddata", () => { $("loading").hidden = true; $("bigPlay").hidden = !vid.paused; layout(); });
+  vid.addEventListener("error", () => { $("loading").textContent = "The video could not be loaded."; });
+
+  // ---------------------------------------------------------------- camera
+  const landscape = () => matchMedia("(orientation: landscape) and (max-height: 520px)").matches;
+  function layout() {
+    if (!S.meta) return;
+    const c = S.meta.crop, W = view.clientWidth, H = view.clientHeight;
+    S.pano = S.userPano !== null ? S.userPano : landscape();
+    const fill = Math.max(H / c.h, W / c.w), fit = Math.min(W / c.w, H / c.h);
+    S.k = S.pano ? fit : fill;
+    S.worldW = c.w * S.k; S.worldH = c.h * S.k;
+    world.style.width = S.worldW + "px"; world.style.height = S.worldH + "px";
+    const dpr = devicePixelRatio || 1;
+    ov.width = Math.round(W * dpr); ov.height = Math.round(H * dpr);
+    const mh = Math.round(Math.max(30, Math.min(70, (view.clientWidth - 32) * c.h / c.w)));
+    mini.style.height = mh + "px"; mini.width = Math.round(mini.clientWidth * dpr); mini.height = Math.round(mh * dpr);
+    const sc = $("scrubCv"); sc.width = Math.round(sc.clientWidth * dpr); sc.height = Math.round(sc.clientHeight * dpr);
+    $("rotateHint").hidden = landscape() || S.worldW <= W * 1.6 || store.get("li-rotated") === "1";
+    clampCam(); applyCam(); drawScrub();
+  }
+  function clampCam() {
+    const W = view.clientWidth, H = view.clientHeight;
+    S.camX = S.worldW <= W ? (S.worldW - W) / 2 : Math.max(0, Math.min(S.worldW - W, S.camX));
+    S.camY = S.worldH <= H ? (S.worldH - H) / 2 : Math.max(0, Math.min(S.worldH - H, S.camY));
+  }
+  const applyCam = () => { world.style.transform = `translate(${-S.camX}px, ${-S.camY}px)`; };
+  const toScreen = (x, y) => [(x - S.meta.crop.x) * S.k - S.camX, (y - S.meta.crop.y) * S.k - S.camY];
+  const toFrame = (sx, sy) => [(sx + S.camX) / S.k + S.meta.crop.x, (sy + S.camY) / S.k + S.meta.crop.y];
+
+  function boxAt(id, f) {
+    const tr = S.tracks.get(id); if (!tr) return null;
+    let lo = 0, hi = tr.length - 1;                      // last box at or before f
+    if (tr[0].f > f) return null;
+    while (lo < hi) { const m = (lo + hi + 1) >> 1; if (tr[m].f <= f) lo = m; else hi = m - 1; }
+    return f - tr[lo].f <= Math.round(S.fps * 0.6) ? tr[lo] : null;
+  }
+
+  // auto mode: ride along with a car in the fastest lane of the busiest-moving direction
+  function pickCar(laneId) {
+    const li = laneIdx(laneId), f = S.f;
+    let best = null, score = -1;
+    for (const d of S.byFrame[f] || []) {
+      const t = S.info.get(d.id); if (!t || t.lane !== li) continue;
+      const left = t.last - S.meta.frame_first - f;       // frames still to come
+      if (left > score) { score = left; best = d.id; }
+    }
+    return best;
+  }
+  function updateFollow() {
+    if (!ls()) return;
+    if (S.mode === "auto" && !S.followLane) S.followLane = verdictLane(mainDirection(), "fastest");
+    if (S.mode === "free") return;
+    const b = S.followId != null ? boxAt(S.followId, S.f) : null;
+    if (!b) {
+      S.lostFrames++;
+      if (S.followId == null || S.lostFrames > S.fps * 0.4) {
+        const lane = S.mode === "car" ? laneById((S.meta.lanes || [])[S.info.get(S.followId)?.lane]?.id)?.id : S.followLane;
+        S.followId = pickCar(S.followLane || lane);
+        if (S.mode === "car") S.mode = S.followLane ? "lane" : "auto";
+        S.lostFrames = 0;
+      }
+    } else S.lostFrames = 0;
+    renderFollowChip();
+  }
+  function steerCamera(dt) {
+    if (S.mode === "free" || S.pano) return;
+    const b = S.followId != null ? boxAt(S.followId, S.f) : null;
+    if (!b) return;
+    const W = view.clientWidth, H = view.clientHeight;
+    const t = S.info.get(b.id), dir = t && t.px_per_s < 0 ? -1 : 1;
+    const [sx] = toScreen((b.x1 + b.x2) / 2, 0);
+    const want = S.camX + sx - W * (dir > 0 ? 0.38 : 0.62);   // a little room ahead of the car
+    const [, sy] = toScreen(0, (b.y1 + b.y2) / 2);
+    const wantY = S.camY + sy - H / 2;
+    const a = 1 - Math.exp(-dt / 0.35);
+    S.camX += (want - S.camX) * a; S.camY += (wantY - S.camY) * a;
+    clampCam(); applyCam();
+  }
+
+  // ---------------------------------------------------------------- drawing
+  function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+  function draw() {
+    const ctx = ov.getContext("2d"), dpr = devicePixelRatio || 1, W = view.clientWidth, H = view.clientHeight;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+    if (!S.meta) return;
+    const L = ls(), lanes = S.meta.lanes || [];
+    const fastest = new Set(), slowest = new Set();
+    if (L) for (const d of Object.keys(L.announcement)) { fastest.add(verdictLane(d, "fastest")); slowest.add(verdictLane(d, "slowest")); }
+    const focusLane = S.sheetLane || null;
+    // lane bands
+    for (const ln of lanes) {
+      const col = laneCol(ln.number);
+      ctx.beginPath();
+      ln.upper.forEach(([x, y], j) => { const [a, b] = toScreen(x, y); j ? ctx.lineTo(a, b) : ctx.moveTo(a, b); });
+      [...ln.lower].reverse().forEach(([x, y]) => { const [a, b] = toScreen(x, y); ctx.lineTo(a, b); });
+      ctx.closePath();
+      ctx.globalAlpha = focusLane ? (focusLane === ln.id ? 0.34 : 0.05) : fastest.has(ln.id) ? 0.24 : 0.12;
+      ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1;
+    }
+    // vehicles: quiet outlines; the followed car in its lane's colour with its speed
+    const dets = S.byFrame[S.f] || [];
+    ctx.lineWidth = 1.4;
+    for (const d of dets) {
+      if (d.id === S.followId) continue;
+      const [x1, y1] = toScreen(d.x1, d.y1), [x2, y2] = toScreen(d.x2, d.y2);
+      if (x2 < -20 || x1 > W + 20) continue;
+      ctx.strokeStyle = "rgba(255,255,255,.55)"; rr(ctx, x1, y1, x2 - x1, y2 - y1, 4); ctx.stroke();
+    }
+    const fb = S.followId != null ? boxAt(S.followId, S.f) : null;
+    if (fb) {
+      const t = S.info.get(fb.id), ln = t && lanes[t.lane];
+      const col = ln ? laneCol(ln.number) : "#fff";
+      const [x1, y1] = toScreen(fb.x1, fb.y1), [x2, y2] = toScreen(fb.x2, fb.y2);
+      ctx.lineWidth = 3; ctx.strokeStyle = col; rr(ctx, x1 - 2, y1 - 2, x2 - x1 + 4, y2 - y1 + 4, 6); ctx.stroke();
+      if (t && t.kmh != null) {
+        const txt = `${Math.round(t.kmh)} km/h`;
+        ctx.font = "600 13px " + css("--font-sans");
+        const tw = ctx.measureText(txt).width, bx = Math.max(4, Math.min(W - tw - 16, (x1 + x2) / 2 - tw / 2 - 6)), by = Math.max(4, y1 - 26);
+        ctx.fillStyle = col; rr(ctx, bx, by, tw + 12, 21, 10); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, bx + 6, by + 11);
+      }
+    }
+    // sticky lane labels at the left edge of the view
+    if (!S.pano) {
+      ctx.font = "600 11px " + css("--font-sans");
+      const [fx] = toFrame(8, 0);
+      let lastY = -99;
+      const items = lanes.map((ln) => {
+        const pts = ln.centre; let y = pts[0][1];
+        for (let j = 1; j < pts.length; j++) if (pts[j][0] >= fx) { const [ax, ay] = pts[j - 1], [bx, byy] = pts[j]; y = ay + (byy - ay) * ((fx - ax) / Math.max(1e-6, bx - ax)); break; }
+        return { ln, y: toScreen(0, y)[1] };
+      }).sort((a, b) => a.y - b.y);
+      for (const { ln, y } of items) {
+        if (y < 8 || y > H - 8 || y - lastY < 17) continue;
+        lastY = y;
+        const sp = speedOf(ln.id), txt = `${ln.number}${ln.direction === "left" ? "←" : "→"}${sp && sp.v_kmh != null ? " " + Math.round(sp.v_kmh) : ""}`;
+        const tw = ctx.measureText(txt).width;
+        ctx.fillStyle = "rgba(10,14,18,.72)"; rr(ctx, 6, y - 8, tw + 14, 16, 8); ctx.fill();
+        ctx.fillStyle = laneCol(ln.number); ctx.beginPath(); ctx.arc(12, y, 3, 0, 7); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, 17, y + 0.5);
+      }
+    }
+  }
+
+  function drawMini() {
+    if (!S.meta || mini.width === 0) return;
+    const ctx = mini.getContext("2d"), w = mini.width, h = mini.height, dpr = devicePixelRatio || 1;
+    try { ctx.drawImage(vid, 0, 0, w, h); } catch (_) { ctx.fillStyle = "#0b0f12"; ctx.fillRect(0, 0, w, h); }
+    ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(0, 0, w, h);
+    const c = S.meta.crop, sx = w / c.w, sy = h / c.h;
+    const fb = S.followId != null ? boxAt(S.followId, S.f) : null;
+    if (fb) { const t = S.info.get(fb.id), ln = t && S.meta.lanes[t.lane];
+      ctx.fillStyle = ln ? laneCol(ln.number) : "#fff"; ctx.beginPath();
+      ctx.arc(((fb.x1 + fb.x2) / 2 - c.x) * sx, ((fb.y1 + fb.y2) / 2 - c.y) * sy, 4 * dpr, 0, 7); ctx.fill(); }
+    if (S.worldW > view.clientWidth + 1) {
+      const x = S.camX / S.worldW * w, ww = view.clientWidth / S.worldW * w;
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2 * dpr; ctx.strokeRect(x + dpr, dpr, ww - 2 * dpr, h - 2 * dpr);
+    }
+  }
+
+  // timeline coloured by the leading lane (of the main direction) in each rolling window
+  function drawScrub() {
+    const cv = $("scrubCv"); if (!cv.width) return;
+    const ctx = cv.getContext("2d"), w = cv.width, h = cv.height, dpr = devicePixelRatio || 1;
+    ctx.clearRect(0, 0, w, h);
+    const dur = S.n / S.fps, barY = h * 0.38, barH = h * 0.24;
+    ctx.fillStyle = css("--line"); rr(ctx, 0, barY, w, barH, barH / 2); ctx.fill();
+    const L = ls(), dir = L && mainDirection(), tl = L && dir && L.timeline[dir];
+    if (tl && tl.t0.length) {
+      const lanes = L.lanes.filter((l) => l.direction === dir && !l.auxiliary && l.evidence_ok);
+      ctx.save(); rr(ctx, 0, barY, w, barH, barH / 2); ctx.clip();
+      for (let px = 0; px < w; px += 2 * dpr) {
+        const t = (px / w) * dur;
+        let i = 0, bd = 1e9;
+        tl.t0.forEach((t0, j) => { const dd = Math.abs(t0 + tl.window_s / 2 - t); if (dd < bd) { bd = dd; i = j; } });
+        let lead = null, v = -1;
+        for (const l of lanes) { const x = (tl.v_kmh[l.lane] || [])[i]; if (x != null && x > v) { v = x; lead = l; } }
+        if (lead) { ctx.fillStyle = laneCol(lead.number); ctx.fillRect(px, barY, 2 * dpr, barH); }
+      }
+      ctx.restore();
+    }
+    const x = (S.f / Math.max(1, S.n - 1)) * w;
+    ctx.fillStyle = css("--fg"); rr(ctx, x - 2 * dpr, h * 0.18, 4 * dpr, h * 0.64, 2 * dpr); ctx.fill();
+  }
+
+  // ---------------------------------------------------------------- chips, cards, race
+  function renderAnswer() {
+    const L = ls(), el = $("answer");
+    if (!L) { el.hidden = true; return; }
+    const dir = S.followLane ? laneById(S.followLane)?.direction : mainDirection();
+    const id = verdictLane(dir, "fastest"), l = laneById(id), sp = speedOf(id);
+    if (!l || !sp) { el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = `<span class="dot" style="background:${laneCol(l.number)}"></span>Fastest: lane ${l.number} ${l.direction === "left" ? "←" : "→"} · ${sp.v_kmh.toFixed(0)} km/h${closeCall(dir, "fastest") ? " <small>· close call</small>" : ""}`;
+  }
+  function renderFollowChip() {
+    const el = $("follow");
+    if (S.pano) { el.hidden = true; return; }
+    if (S.mode === "free") { el.hidden = false; el.innerHTML = `Free view · <button id="resume">⟲ Follow again</button>`; $("resume").onclick = () => { S.mode = "auto"; S.followLane = null; S.followId = null; }; return; }
+    const t = S.followId != null && S.info.get(S.followId), ln = t && S.meta.lanes[t.lane];
+    if (!t || !ln) { el.hidden = true; return; }
+    el.hidden = false;
+    const why = S.mode === "auto" ? "Riding along in the fastest lane" : S.mode === "lane" ? `Following lane ${ln.number}` : "Following your car";
+    el.textContent = `${why} · lane ${ln.number} · ${t.kmh != null ? Math.round(t.kmh) + " km/h" : t.cls}`;
+  }
+
+  function renderVerdict() {
+    const L = ls(), box = $("verdict");
+    if (!L) { box.innerHTML = `<p class="hint">Lane speeds are not computed for this video yet.</p>`; return; }
+    box.innerHTML = Object.keys(L.announcement).sort().reverse().map((d) => {
+      const cell = (t) => {
+        const l = laneById(verdictLane(d, t)), sp = l && speedOf(l.id);
+        if (!l || !sp) return `<div><div class="k">${t}</div><div class="v">–</div></div>`;
+        return `<div><div class="k">${t === "fastest" ? "▲ Fastest" : "▼ Slowest"}${closeCall(d, t) ? '<span class="tag">close</span>' : ""}</div>
+          <div class="ln"><span class="dot" style="background:${laneCol(l.number)}"></span>Lane ${l.number}</div>
+          <div class="v mono">${sp.v_kmh.toFixed(1)} km/h</div></div>`;
+      };
+      return `<button class="vcard" data-dir="${d}"><div class="dir">${DIRW[d]}</div><div class="pair">${cell("fastest")}${cell("slowest")}</div></button>`;
+    }).join("");
+    for (const b of box.querySelectorAll(".vcard")) b.onclick = () => openLane(verdictLane(b.dataset.dir, "fastest"));
+  }
+
+  function windowAt(tl, t) { let i = 0, bd = 1e9; tl.t0.forEach((t0, j) => { const dd = Math.abs(t0 + tl.window_s / 2 - t); if (dd < bd) { bd = dd; i = j; } }); return i; }
+  function renderRace() {
+    const L = ls(), box = $("race");
+    if (!L) { box.innerHTML = `<p class="hint">Lane speeds are not computed for this video yet.</p>`; return; }
+    box.innerHTML = Object.keys(L.announcement).sort().reverse().map((d) => {
+      const lanes = L.lanes.filter((l) => l.direction === d && l.v_kmh != null).sort((a, b) => a.number - b.number);
+      const tl = L.timeline[d];
+      let share = "";
+      if (tl && tl.t0.length) {
+        const ranked = lanes.filter((l) => !l.auxiliary && l.evidence_ok), wins = {};
+        tl.t0.forEach((_, i) => { let lead = null, v = -1; for (const l of ranked) { const x = (tl.v_kmh[l.lane] || [])[i]; if (x != null && x > v) { v = x; lead = l; } } if (lead) wins[lead.lane] = (wins[lead.lane] || 0) + 1; });
+        const top = Object.entries(wins).sort((a, b) => b[1] - a[1])[0];
+        if (top) share = `Lane ${laneById(top[0]).number} was fastest in ${Math.round(100 * top[1] / tl.t0.length)}% of the moments measured.`;
+      }
+      const f = laneById(verdictLane(d, "fastest")), s = laneById(verdictLane(d, "slowest"));
+      return `<div class="race" data-dir="${d}"><h3>${DIRW[d]}</h3>
+        <div class="sub">Average speed in each lane right now (25 s around the playhead)</div>
+        ${lanes.map((l) => `<div class="rrow${l.auxiliary ? " aux" : ""}" data-lane="${l.lane}"><div class="nm">Lane ${l.number}${l.auxiliary ? " ramp" : ""}</div>
+          <div class="track"><div class="fill" style="background:${laneCol(l.number)};width:0%"></div></div><div class="val mono">–</div></div>`).join("")}
+        <p class="sentence">Over the whole video: ▲ lane ${f ? f.number : "–"} fastest${closeCall(d, "fastest") ? " (close call)" : ""}, ▼ lane ${s ? s.number : "–"} slowest${closeCall(d, "slowest") ? " (close call)" : ""}. ${share}</p></div>`;
+    }).join("");
+    for (const r of box.querySelectorAll(".rrow")) r.onclick = () => openLane(r.dataset.lane);
+    $("raceNote").textContent = L.validation ? `Checked against the official MiTra ground truth: lane speeds within ${(L.validation.median_rel_err * 100).toFixed(1)}% (median).` : "No ground truth for this video; distances use an assumed lane width (3.6 m) and car length (4.5 m).";
+    updateRace();
+  }
+  function updateRace() {
+    const L = ls(); if (!L || $("tabLanes").hidden) return;
+    const t = S.f / S.fps;
+    for (const blk of $("race").querySelectorAll(".race")) {
+      const d = blk.dataset.dir, tl = L.timeline[d]; if (!tl) continue;
+      const i = windowAt(tl, t);
+      const rows = [...blk.querySelectorAll(".rrow")];
+      const vals = rows.map((r) => (tl.v_kmh[r.dataset.lane] || [])[i]);
+      const vmax = Math.max(1, ...vals.filter((v) => v != null));
+      let lead = -1, lv = -1;
+      rows.forEach((r, j) => { const sp = speedOf(r.dataset.lane); if (sp && !sp.auxiliary && vals[j] != null && vals[j] > lv) { lv = vals[j]; lead = j; } });
+      rows.forEach((r, j) => {
+        r.classList.toggle("lead", j === lead);
+        r.querySelector(".fill").style.width = vals[j] == null ? "0%" : (100 * vals[j] / vmax).toFixed(1) + "%";
+        r.querySelector(".val").textContent = vals[j] == null ? "–" : vals[j].toFixed(1);
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------- sheets
+  function openSheet(html) {
+    $("sheetBody").innerHTML = html; const s = $("sheet"); s.hidden = false; s.classList.remove("closing");
+    if (navigator.vibrate) navigator.vibrate(8);
+  }
+  function closeSheet(now) {
+    const s = $("sheet"); S.sheetLane = null;
+    if (s.hidden) return;
+    if (now) { s.hidden = true; return; }
+    s.classList.add("closing"); setTimeout(() => { s.hidden = true; s.classList.remove("closing"); }, 220);
+  }
+  $("sheetX").onclick = () => closeSheet();
+  (() => { let y0 = null; const s = $("sheet");
+    s.addEventListener("touchstart", (e) => { y0 = s.scrollTop === 0 ? e.touches[0].clientY : null; }, { passive: true });
+    s.addEventListener("touchend", (e) => { if (y0 != null && e.changedTouches[0].clientY - y0 > 70) closeSheet(); y0 = null; }, { passive: true }); })();
+
+  function openCar(id) {
+    const t = S.info.get(id); if (!t) return;
+    const ln = S.meta.lanes[t.lane], tr = S.tracks.get(id) || [];
+    const secs = tr.length ? (tr[tr.length - 1].f - tr[0].f) / S.fps : 0;
+    const dist = t.kmh != null ? t.kmh / 3.6 * secs : null;
+    const sp = ln && speedOf(ln.id);
+    const cmp = sp && t.kmh != null ? (t.kmh >= sp.v_kmh ? `${Math.round(t.kmh - sp.v_kmh)} km/h faster than its lane's average` : `${Math.round(sp.v_kmh - t.kmh)} km/h slower than its lane's average`) : "";
+    S.mode = "car"; S.followId = id; S.lostFrames = 0;
+    openSheet(`<h3>${t.cls === "truck" ? "🚚" : t.cls === "bus" ? "🚌" : t.cls === "motorcycle" ? "🏍" : "🚗"} ${t.cls[0].toUpperCase() + t.cls.slice(1)} #${id}</h3>
+      <div class="big mono">${t.kmh != null ? t.kmh.toFixed(0) : "–"} <small>km/h average</small></div>
+      <div class="v" style="color:var(--muted);font-size:13px">${cmp}</div>
+      <dl class="kv"><dt>Lane</dt><dd>${ln ? `<span style="color:${laneCol(ln.number)}">●</span> Lane ${ln.number} ${ln.direction === "left" ? "←" : "→"}` : "not in a lane"}</dd>
+        <dt>On screen</dt><dd class="mono">${secs.toFixed(1)} s</dd>
+        ${dist != null ? `<dt>Distance seen</dt><dd class="mono">${dist.toFixed(0)} m</dd>` : ""}</dl>
+      <button class="sbtn" id="sFollow">Following ✓</button>${ln ? `<button class="sbtn ghost" id="sLane">Lane ${ln.number} details</button>` : ""}`);
+    if ($("sLane")) $("sLane").onclick = () => openLane(ln.id);
+    $("sFollow").onclick = () => closeSheet();
+    if (vid.paused) frame();
+  }
+
+  function openLane(id) {
+    const ln = laneById(id), sp = speedOf(id), L = ls(); if (!ln) return;
+    S.sheetLane = id; S.followLane = id; S.mode = "lane"; S.followId = pickCar(id); S.lostFrames = 0;
+    const same = L ? L.lanes.filter((l) => l.direction === ln.direction && !l.auxiliary && l.v_kmh != null).sort((a, b) => b.v_kmh - a.v_kmh) : [];
+    const rank = same.findIndex((l) => l.lane === id) + 1;
+    const vmax = Math.max(...same.map((l) => (l.ci || [0, l.v_kmh])[1]), sp ? sp.v_kmh : 1) * 1.1;
+    const ci = sp && sp.ci ? `<div class="ci"><div class="bar" style="background:${laneCol(ln.number)};left:${100 * sp.ci[0] / vmax}%;width:${100 * (sp.ci[1] - sp.ci[0]) / vmax}%"></div><div class="pt" style="left:calc(${100 * sp.v_kmh / vmax}% - 2px)"></div></div>
+      <div style="font-size:12px;color:var(--muted)">95% range ${sp.ci[0].toFixed(1)}–${sp.ci[1].toFixed(1)} km/h</div>` : "";
+    const a = L && L.announcement[ln.direction];
+    const title = a && verdictLane(ln.direction, "fastest") === id ? `▲ Fastest${closeCall(ln.direction, "fastest") ? " (close call)" : ""}` :
+                  a && verdictLane(ln.direction, "slowest") === id ? `▼ Slowest${closeCall(ln.direction, "slowest") ? " (close call)" : ""}` : "";
+    openSheet(`<h3><span style="color:${laneCol(ln.number)}">●</span> Lane ${ln.number} ${ln.direction === "left" ? "←" : "→"} ${sp && sp.auxiliary ? "· ramp" : ""}</h3>
+      <div style="font-size:13px;color:var(--muted)">${title}${rank && !(sp && sp.auxiliary) ? ` · ${rank} of ${same.length} by speed` : sp && sp.auxiliary ? "measured, not ranked (on-ramp)" : ""}</div>
+      <div class="big mono">${sp && sp.v_kmh != null ? sp.v_kmh.toFixed(1) : "–"} <small>km/h average</small></div>${ci}
+      ${sp ? `<dl class="kv"><dt>Vehicles counted</dt><dd class="mono">${sp.vehicles}</dd><dt>Trucks and buses</dt><dd class="mono">${Math.round((sp.heavy_share || 0) * 100)}%</dd>
+        <dt>Lane changes in / out</dt><dd class="mono">${sp.changes_in} / ${sp.changes_out}</dd>
+        ${L.validation && L.validation.per_lane[id] != null ? `<dt>Ground truth</dt><dd class="mono">${L.validation.per_lane[id]} km/h</dd>` : ""}</dl>` : ""}
+      <button class="sbtn" id="sClose">Follow this lane</button>`);
+    $("sClose").onclick = () => closeSheet();
+    if (vid.paused) frame();
+  }
+
+  // ---------------------------------------------------------------- touch on the video
+  (() => {
+    let down = null, moved = false, lastTap = 0;
+    view.addEventListener("pointerdown", (e) => {
+      if (e.target.closest("button")) return;
+      down = { x: e.clientX, y: e.clientY, cx: S.camX, cy: S.camY }; moved = false; view.setPointerCapture(e.pointerId);
+    });
+    view.addEventListener("pointermove", (e) => {
+      if (!down) return;
+      const dx = e.clientX - down.x, dy = e.clientY - down.y;
+      if (!moved && Math.hypot(dx, dy) > 8) { moved = true; if (!S.pano) { S.mode = "free"; renderFollowChip(); } }
+      if (moved && !S.pano) { S.camX = down.cx - dx; S.camY = down.cy - dy; clampCam(); applyCam(); if (vid.paused) frame(); }
+    });
+    view.addEventListener("pointerup", (e) => {
+      if (!down) return;
+      const r = view.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
+      down = null;
+      if (moved) return;
+      const now = performance.now();
+      if (now - lastTap < 300) { S.userPano = !S.pano; layout(); lastTap = 0; return; }   // double tap: whole road / zoomed
+      lastTap = now;
+      setTimeout(() => { if (lastTap === now) tapAt(sx, sy); }, 260);
+    });
+    view.addEventListener("pointercancel", () => { down = null; });
+  })();
+  function tapAt(sx, sy) {
+    if (!S.meta) return;
+    if (landscape()) { $("controls").classList.toggle("faded"); }
+    const [fx, fy] = toFrame(sx, sy), pad = 16 / S.k;
+    let best = null, bd = 1e9;
+    for (const d of S.byFrame[S.f] || []) {
+      if (fx < d.x1 - pad || fx > d.x2 + pad || fy < d.y1 - pad || fy > d.y2 + pad) continue;
+      const dd = Math.hypot(fx - (d.x1 + d.x2) / 2, fy - (d.y1 + d.y2) / 2); if (dd < bd) { bd = dd; best = d.id; }
+    }
+    if (best != null) { openCar(best); return; }
+    for (const ln of S.meta.lanes || []) {
+      const poly = [...ln.upper, ...[...ln.lower].reverse()];
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const [xi, yi] = poly[i], [xj, yj] = poly[j];
+        if ((yi > fy) !== (yj > fy) && fx < (xj - xi) * (fy - yi) / (yj - yi) + xi) inside = !inside;
+      }
+      if (inside) { openLane(ln.id); return; }
+    }
+    if (!landscape()) togglePlay();
+  }
+
+  // road map: tap or drag to move the view
+  (() => {
+    const wrap = $("miniWrap"); let on = false;
+    const go = (e) => { const r = wrap.getBoundingClientRect(), u = (e.clientX - r.left) / r.width;
+      S.mode = "free"; S.camX = u * S.worldW - view.clientWidth / 2; clampCam(); applyCam(); renderFollowChip(); if (vid.paused) frame(); };
+    wrap.addEventListener("pointerdown", (e) => { on = true; wrap.setPointerCapture(e.pointerId); go(e); });
+    wrap.addEventListener("pointermove", (e) => { if (on) go(e); });
+    wrap.addEventListener("pointerup", () => { on = false; });
+  })();
+
+  // scrubber
+  (() => {
+    const el = $("scrub"); let on = false, was = false;
+    const go = (e) => { const r = el.getBoundingClientRect(), u = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+      vid.currentTime = (u * (S.n - 1) + 0.5) / S.fps; };
+    el.addEventListener("pointerdown", (e) => { on = true; was = !vid.paused; vid.pause(); el.setPointerCapture(e.pointerId); go(e); });
+    el.addEventListener("pointermove", (e) => { if (on) go(e); });
+    el.addEventListener("pointerup", () => { on = false; if (was) vid.play(); });
+  })();
+
+  // ---------------------------------------------------------------- playback
+  function togglePlay() { if (vid.paused) { vid.play().catch(() => {}); } else vid.pause(); }
+  $("play").onclick = togglePlay; $("bigPlay").onclick = togglePlay;
+  $("rate").onclick = () => { S.rateIdx = (S.rateIdx + 1) % RATES.length; vid.playbackRate = RATES[S.rateIdx]; $("rate").textContent = RATES[S.rateIdx] + "×"; };
+  const syncPlay = () => { const p = !vid.paused; $("play").textContent = p ? "❚❚" : "▶"; $("play").setAttribute("aria-label", p ? "Pause" : "Play"); $("bigPlay").hidden = p || !$("loading").hidden; };
+  vid.addEventListener("play", syncPlay); vid.addEventListener("pause", syncPlay);
+  vid.addEventListener("seeked", () => frame());
+  vid.addEventListener("ended", () => { vid.currentTime = 0; vid.play().catch(() => {}); });
+
+  function frame() {
+    if (!S.meta) return;
+    S.f = Math.max(0, Math.min(S.n - 1, Math.round(vid.currentTime * S.fps)));
+    updateFollow(); draw(); drawMini(); drawScrub(); renderAnswer(); updateRace();
+    $("tNow").textContent = (S.f / S.fps).toFixed(1) + " s";
+  }
+  function loop(ts) {
+    const dt = Math.min(0.1, (ts - S.lastT) / 1000 || 0.016); S.lastT = ts;
+    if (S.meta) { steerCamera(dt); if (!vid.paused || S.mode !== "free") frame(); }
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // ---------------------------------------------------------------- tabs, orientation, desktop switch
+  for (const b of document.querySelectorAll(".tabbar button")) b.onclick = () => {
+    for (const x of document.querySelectorAll(".tabbar button")) x.removeAttribute("aria-current");
+    b.setAttribute("aria-current", "page");
+    for (const t of document.querySelectorAll(".tab")) t.hidden = t.id !== b.dataset.tab;
+    closeSheet(true); if (b.dataset.tab === "tabWatch") layout(); updateRace(); scrollTo(0, 0);
+  };
+  function showTab(id) {
+    for (const x of document.querySelectorAll(".tabbar button")) x.toggleAttribute("aria-current", x.dataset.tab === id);
+    for (const x of document.querySelectorAll(".tabbar button")) if (x.dataset.tab === id) x.setAttribute("aria-current", "page");
+    for (const t of document.querySelectorAll(".tab")) t.hidden = t.id !== id;
+  }
+  addEventListener("resize", () => {
+    if (landscape()) { store.set("li-rotated", "1"); if ($("tabWatch").hidden) { closeSheet(true); showTab("tabWatch"); } }
+    S.userPano = null; layout();
+  });
+  setTimeout(() => { $("rotateHint").classList.add("gone"); setTimeout(() => { $("rotateHint").hidden = true; }, 700); }, 8000);
+  const toDesktop = () => { store.set("lane-intel-view", "desktop"); location.reload(); };
+  $("toDesktop").onclick = toDesktop; $("toDesktop2").onclick = toDesktop;
+
+  init().catch((e) => { $("loading").hidden = false; $("loading").textContent = "Could not load: " + e.message; });
+})();
+</script>
+
+</body></html>

@@ -287,7 +287,7 @@ def pages(a) -> None:
         sys.exit("No viewer site yet. Run:  python run.py viewer")
     docs = ROOT / "docs"
     docs.mkdir(exist_ok=True)
-    wanted = ["index.html", "clips.json"]                # exactly the files the site references
+    wanted = ["index.html", "clips.json"] + (["m.html"] if (VIEWER / "m.html").exists() else [])  # site files
     for c in json.loads((VIEWER / "clips.json").read_text()):
         meta = json.loads((VIEWER / c["dir"] / "meta.json").read_text())
         wanted += [c["dir"] + f for f in ["video.mp4", "meta.json", *[v["file"] for v in meta["variants"]]]]

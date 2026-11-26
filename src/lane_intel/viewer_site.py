@@ -36,6 +36,7 @@ from lane_intel.lane_speed import viewer_payload
 from lane_intel.lanes import lanes_path
 
 ARCH_SRC = VIEWER_SRC.parents[1] / "architecture" / "index.html"
+MOBILE_SRC = VIEWER_SRC.parents[1] / "mobile" / "index.html"
 
 
 def clip_variants(clip: dict, cfg: dict) -> list[ViewerVariant]:
@@ -75,6 +76,8 @@ def build_site(spec: dict, out: str | Path, only: set[str] | None = None) -> lis
         (out / stale).unlink(missing_ok=True)             # single-clip layout from before
     (out / "clips.json").write_text(json.dumps(index, indent=1))
     (out / "index.html").write_text(wrap_page(VIEWER_SRC.read_text()))
+    if MOBILE_SRC.exists():                                # phone app, loaded by index.html on phones
+        (out / "m.html").write_text(wrap_page(MOBILE_SRC.read_text()))
     if ARCH_SRC.exists():                                  # "How it works" tab, also a standalone page
         (out / "architecture.html").write_text(wrap_page(ARCH_SRC.read_text()))
     print(f"viewer site -> {out}  ({len(index)} clips)")
@@ -85,6 +88,7 @@ def site_files(out: str | Path) -> list[str]:
     """Every file the site needs, relative to its root (used to publish exactly these)."""
     out = Path(out)
     files = ["index.html", "clips.json"] + (["architecture.html"] if (out / "architecture.html").exists() else [])
+    files += ["m.html"] if (out / "m.html").exists() else []
     for c in json.loads((out / "clips.json").read_text()):
         meta = json.loads((out / c["dir"] / "meta.json").read_text())
         files += [c["dir"] + f for f in ["video.mp4", "meta.json", *[v["file"] for v in meta["variants"]]]]

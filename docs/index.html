@@ -4,6 +4,33 @@
 <title>Lane Intel Inspector</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<script>
+// Same address for everyone: phones get the phone app (m.html), everything else this Inspector.
+// "?view=phone|desktop" or the in-app switch overrides the choice and is remembered.
+(function () {
+  var pref = null;
+  try { pref = localStorage.getItem("lane-intel-view"); } catch (e) {}
+  var q = new URLSearchParams(location.search).get("view");
+  if (q === "phone" || q === "desktop") { pref = q; try { localStorage.setItem("lane-intel-view", q); } catch (e) {} }
+  var phone = matchMedia("(pointer: coarse) and (max-width: 900px)").matches;
+  if (!(pref === "phone" || (pref !== "desktop" && phone))) return;
+  window.__LI_PHONE = true;
+  document.documentElement.style.background = "#0f1418";
+  var mount = function (html) {
+    var doc = new DOMParser().parseFromString(html, "text/html");
+    document.title = doc.title || document.title;
+    doc.head.querySelectorAll("link, meta").forEach(function (n) { document.head.appendChild(document.importNode(n, true)); });
+    document.body.innerHTML = "";
+    Array.prototype.forEach.call(doc.body.childNodes, function (n) {
+      if (n.nodeName === "SCRIPT") { var s = document.createElement("script"); s.textContent = n.textContent; document.body.appendChild(s); }
+      else document.body.appendChild(document.importNode(n, true));
+    });
+  };
+  var go = function () { fetch("m.html").then(function (r) { if (!r.ok) throw 0; return r.text(); }).then(mount)
+    .catch(function () { window.__LI_PHONE = false; location.reload(); }); };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", go); else go();
+})();
+</script>
 </head><body>
 <style>
 /* Layout: instrument strip. Video stage across the full width, transport + count timeline under it,
@@ -244,6 +271,7 @@ footer a { color: inherit; }
       <button type="button" id="tabBtnInspector" aria-pressed="true">Inspector</button>
       <button type="button" id="tabBtnHow" aria-pressed="false">How it works</button>
     </nav>
+    <button type="button" class="phone-link" id="toPhone" hidden>Phone view</button>
     <div class="theme" role="group" aria-label="Colour theme">
       <span>Theme</span>
       <button type="button" data-theme-choice="auto" aria-pressed="true">Auto</button>
@@ -426,6 +454,7 @@ footer a { color: inherit; }
 
 <script>
 (() => {
+  if (window.__LI_PHONE) return;           // the phone app takes over this page
   const $ = (id) => document.getElementById(id);
   const vid = $("vid"), ov = $("ov"), stage = $("stage"), wrap = $("stageWrap"), tl = $("tl");
   const S = {
@@ -1266,6 +1295,8 @@ footer a { color: inherit; }
 
   new ResizeObserver(() => { draw(); drawTimeline(); }).observe(stage);
   new ResizeObserver(() => drawTimeline()).observe(tl);
+  if (matchMedia("(pointer: coarse)").matches) $("toPhone").hidden = false;
+  $("toPhone").onclick = () => { try { localStorage.setItem("lane-intel-view", "phone"); } catch (_) {} location.reload(); };
   matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { readColors(); if (S.meta) refresh(); });
   new MutationObserver(() => { readColors(); if (S.meta) refresh(); })
     .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
