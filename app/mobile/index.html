@@ -54,8 +54,16 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .chip { position: absolute; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px;
   background: rgba(10,14,18,.78); color: #fff; font-size: 12.5px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .answer { left: 10px; top: 10px; font-weight: 600; max-width: calc(100% - 70px); }
-.answer .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.answer { gap: 7px; padding: 5px 11px 5px 12px; }
 .answer small { font-weight: 400; opacity: .75; }
+/* lane road-sign (same as the tags drawn on the video): number disc, speed + unit, pointed end = direction of travel */
+.sign { display: inline-flex; align-items: center; gap: 4px; height: 20px; padding: 0 12px 0 3px; background: rgba(255,255,255,.15);
+  white-space: nowrap; border-radius: 10px 0 0 10px; clip-path: polygon(0 0, calc(100% - 7px) 0, 100% 50%, calc(100% - 7px) 100%, 0 100%); }
+.sign.l { padding: 0 8px 0 11px; border-radius: 0 10px 10px 0; clip-path: polygon(7px 0, 100% 0, 100% 100%, 7px 100%, 0 50%); }
+.sign i { min-width: 14px; height: 14px; padding: 0 3px; border-radius: 7px; display: inline-grid; place-items: center;
+  font: normal 700 9.5px/1 var(--font-sans); }
+.sign b { font-weight: 600; font-size: 12.5px; font-variant-numeric: tabular-nums; }
+.sign small { font-size: 9.5px; opacity: .7; font-weight: 500; margin-left: -1px; }
 .follow { left: 10px; bottom: 10px; max-width: calc(100% - 20px); transition: opacity .25s; }
 .follow button { color: #fff; font-weight: 600; padding: 4px 2px; margin: -4px 0; }
 .ovbtn { position: absolute; right: 10px; top: 10px; width: 40px; height: 40px; border-radius: 50%; background: rgba(10,14,18,.72);
@@ -158,9 +166,18 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   height: calc(var(--bar) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
   background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid var(--line); }
-.tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11.5px; color: var(--muted); }
-.tabbar .ic { font-size: 18px; line-height: 1; }
+.tabbar button { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+  gap: 1px; padding-top: 6px; font-size: 11.5px; color: var(--muted); transition: color .2s; }
+.tabbar .ic { display: grid; place-items: center; width: 56px; height: 30px; transition: transform .14s var(--ease); }
+.tabbar .ic svg { width: 21px; height: 21px; }
+.tabbar button:active .ic { transform: scale(.88); }
 .tabbar button[aria-current="page"] { color: var(--accent); font-weight: 600; }
+.tabbar button:focus-visible { outline: none; }
+.tabbar button:focus-visible .ic { outline: 2px solid var(--accent); outline-offset: 1px; border-radius: 15px; }
+/* the pill behind the active icon slides to the tab you touch */
+.tabbar .ind { position: absolute; left: 0; top: 6px; width: calc(100% / 3); height: 30px; display: flex; justify-content: center;
+  pointer-events: none; transition: transform .32s var(--ease); }
+.tabbar .ind::before { content: ""; width: 56px; height: 30px; border-radius: 15px; background: color-mix(in srgb, var(--accent) 15%, transparent); }
 
 #confetti { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
 
@@ -188,6 +205,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   <nav class="clips" id="clips" aria-label="Videos"></nav>
 
   <div class="notch" aria-hidden="true"></div>
+  <div id="pin" aria-hidden="true"></div><!-- where the player sits before it sticks (a sticky element's own offsetTop moves with it) -->
   <section class="player" id="player" aria-label="Video player">
     <div class="view" id="view">
       <div class="world" id="world"><video id="vid" playsinline muted preload="auto"></video></div>
@@ -242,9 +260,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   </div>
 
   <nav class="tabbar" aria-label="Sections">
-    <button data-tab="tabAnswer" aria-current="page"><span class="ic">◎</span>Answer</button>
-    <button data-tab="tabRace"><span class="ic">≡</span>Lane race</button>
-    <button data-tab="tabAbout"><span class="ic">?</span>About</button>
+    <span class="ind" id="tabInd" aria-hidden="true"></span>
+    <button data-tab="tabAnswer" aria-current="page"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.6 18.5a9 9 0 1 1 14.8 0"/><path d="M12 14.5l4.2-5"/><circle cx="12" cy="14.5" r="1.3" fill="currentColor"/></svg></span>Answer</button>
+    <button data-tab="tabRace"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6.5h9M4 12h16M4 17.5h6"/></svg></span>Lane race</button>
+    <button data-tab="tabAbout"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r="1.1" fill="currentColor" stroke="none"/></svg></span>About</button>
   </nav>
   <canvas id="confetti" hidden></canvas>
   <div class="sr" aria-live="polite" id="live"></div>
@@ -324,6 +343,17 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   vid.addEventListener("loadeddata", () => { $("loading").hidden = true; syncPlay(); layout(); frame(); maybeCoach(); });
   vid.addEventListener("error", () => { $("loading").textContent = "The video could not be loaded. Check the connection and reload."; });
 
+  // ================================================================ page geometry
+  // pinY: the scroll position at which the player is pinned at the top (from a plain marker, since a stuck
+  // element's own offsetTop follows the scroll). fitMain: every tab is at least tall enough to keep it pinned,
+  // so switching to a short tab never pulls the video down.
+  const stickTop = () => parseFloat(getComputedStyle(player).top) || 0;
+  const pinY = () => Math.max(0, Math.round($("pin").getBoundingClientRect().top + scrollY - stickTop()));
+  function fitMain() {
+    const pad = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
+    document.querySelector("main").style.minHeight = Math.max(0, Math.ceil(innerHeight - stickTop() - player.offsetHeight - pad)) + "px";
+  }
+
   // ================================================================ camera
   const landscape = () => matchMedia("(orientation: landscape) and (max-height: 520px)").matches;
   function layout() {
@@ -336,7 +366,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     ov.width = Math.round(W * dpr); ov.height = Math.round(H * dpr);
     mini.width = Math.round(mini.clientWidth * dpr); mini.height = Math.round(mini.clientHeight * dpr);
     const sc = $("scrubCv"); sc.width = Math.round(sc.clientWidth * dpr); sc.height = Math.round(sc.clientHeight * dpr);
-    updateZoomBtn(); clampCam(true); applyCam(); drawScrub(); draw(); drawMini();
+    updateZoomBtn(); clampCam(true); applyCam(); drawScrub(); draw(); drawMini(); fitMain();
   }
   function setScale(k) {
     S.k = k; S.worldW = S.meta.crop.w * k; S.worldH = S.meta.crop.h * k;
@@ -458,35 +488,111 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
         ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, bx + 6, by + 11);
       }
     }
-    // lane tags: right-moving lanes on the left edge, left-moving on the right edge (where that traffic
-    // enters); crowded tags are nudged apart instead of dropped. Tap a tag for the lane's card.
+    // lane tags pinned to the left edge (tap one for that lane's card)
     S.laneTags = [];
-    if (!(wholeRoad() && landscape())) {
-      ctx.font = "600 11px " + css("--font-sans");
-      for (const side of ["right", "left"]) {
-        const atLeft = side === "right", ex = atLeft ? 8 : W - 8;
-        const [fx] = toFrame(ex, 0);
-        const items = lanes().filter((ln) => ln.direction === side).map((ln) => {
-          const p = ln.centre; let y = p[0][1];
-          for (let j = 1; j < p.length; j++) if (p[j][0] >= fx) { const [ax, ay] = p[j - 1], [bx, by] = p[j]; y = ay + (by - ay) * ((fx - ax) / Math.max(1e-6, bx - ax)); break; }
-          return { ln, y: toScreen(0, y)[1] };
-        }).sort((a, b) => a.y - b.y);
-        let prev = atLeft ? 4 : 56;                                   // keep clear of the zoom button
-        for (const it of items) {
-          const y = Math.max(it.y, prev + 18);
-          if (it.y < -6 || y > H - 10) continue;
-          prev = y;
-          const sp = speedOf(it.ln.id), txt = `${it.ln.number}${arrow(it.ln.direction)}${sp && sp.v_kmh != null ? " " + Math.round(sp.v_kmh) : ""}`;
-          const tw = ctx.measureText(txt).width, bw = tw + 15, bx = atLeft ? 6 : W - 6 - bw;
-          if (Math.abs(y - it.y) > 3) { ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1; ctx.beginPath();
-            ctx.moveTo(atLeft ? bx + bw : bx, y); ctx.lineTo(atLeft ? bx + bw + 10 : bx - 10, it.y); ctx.stroke(); }
-          ctx.fillStyle = "rgba(10,14,18,.78)"; rr(ctx, bx, y - 8, bw, 16, 8); ctx.fill();
-          ctx.fillStyle = laneCol(it.ln.number); ctx.beginPath(); ctx.arc(bx + 6.5, y, 3, 0, 7); ctx.fill();
-          ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, bx + 12, y + 0.5);
-          S.laneTags.push({ id: it.ln.id, x0: bx - 6, x1: bx + bw + 6, y0: y - 13, y1: y + 13 });
+    if (!(wholeRoad() && landscape())) drawLaneTags(ctx, H);
+  }
+
+  // ---------------------------------------------------------------- lane tags
+  // Each tag is a small road sign:  (1) 42 km/h ▷
+  //   the disc is the lane number in the lane's colour, then the lane's average speed with its unit,
+  //   and the pointed end is the direction of travel (so no arrow sits between two numbers).
+  // Lanes closer than a tag is tall are spread just enough to fit, with a short leader back to their lane;
+  // the two directions get a wider gap. Tags stay clear of the chips at the top and bottom of the video.
+  const TAG = { h: 16, gap: 2, dirGap: 8, tip: 6, x0: 6 };
+  let FONT = null;
+  const font = () => FONT || (FONT = css("--font-sans") || "system-ui, sans-serif");
+  function inkOn(col) {                              // dark or white digits, whichever reads better on the disc
+    const m = /^#?([0-9a-f]{6})$/i.exec(col); if (!m) return "#fff";
+    const n = parseInt(m[1], 16), lin = (v) => { v /= 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+    const L = 0.2126 * lin(n >> 16) + 0.7152 * lin((n >> 8) & 255) + 0.0722 * lin(n & 255);
+    return L > 0.24 ? "#0b0f12" : "#fff";
+  }
+  function laneTagItems(H, top, bot) {
+    const [fx] = toFrame(TAG.x0 + 4, 0), out = [];
+    for (const ln of lanes()) {
+      const p = ln.centre; if (!p || p.length < 2 || fx > p[p.length - 1][0]) continue;   // a ramp that ended left of here
+      let y = p[0][1];
+      for (let j = 1; j < p.length; j++) if (p[j][0] >= fx) {
+        const [ax, ay] = p[j - 1], [bx, by] = p[j]; y = ay + (by - ay) * Math.max(0, Math.min(1, (fx - ax) / Math.max(1e-6, bx - ax))); break;
+      }
+      const sy = toScreen(0, y)[1];
+      if (sy >= 2 && sy <= H - 2) out.push({ ln, want: sy, y: sy });
+    }
+    out.sort((a, b) => a.want - b.want);
+    // too many for the space (zoomed in, short screen): drop the least useful tags first
+    const L = ls(), key = new Set();
+    if (L) for (const d of Object.keys(L.announcement)) { key.add(verdictLane(d, "fastest")); key.add(verdictLane(d, "slowest")); }
+    const rank = (it) => { const s = speedOf(it.ln.id); return key.has(it.ln.id) ? 3 : !s || s.evidence_ok === false ? 0 : s.auxiliary ? 1 : 2; };
+    while (out.length > 1 && stackLen(out) > bot - top) {
+      let w = 0; out.forEach((it, i) => { if (rank(it) < rank(out[w])) w = i; }); out.splice(w, 1);
+    }
+    return out;
+  }
+  const spacing = (a, b) => TAG.h + (a.ln.direction !== b.ln.direction ? TAG.dirGap : TAG.gap);
+  const stackLen = (items) => items.reduce((s, it, i) => s + (i ? spacing(items[i - 1], it) : 0), 0);
+  function spreadTags(items, top, bot) {             // 1-D label layout: each tag as near its lane as it can be, no overlaps
+    let blocks = items.map((it) => ({ items: [it], offs: [0], len: 0, y: 0 }));
+    const place = (bk) => {
+      const ideal = bk.items.reduce((s, it, j) => s + it.want - bk.offs[j], 0) / bk.items.length;
+      bk.y = Math.max(top, Math.min(bot - bk.len, ideal));
+    };
+    blocks.forEach(place);
+    for (let merged = true; merged;) {
+      merged = false;
+      for (let i = 0; i + 1 < blocks.length; i++) {
+        const a = blocks[i], b = blocks[i + 1], need = spacing(a.items[a.items.length - 1], b.items[0]);
+        if (a.y + a.len + need > b.y + 0.01) {
+          const base = a.len + need;
+          a.offs.push(...b.offs.map((o) => o + base)); a.items.push(...b.items); a.len = base + b.len;
+          blocks.splice(i + 1, 1); place(a); merged = true; break;
         }
       }
     }
+    for (const bk of blocks) bk.items.forEach((it, j) => { it.y = bk.y + bk.offs[j]; });
+  }
+  function drawLaneTags(ctx, H) {
+    const ans = $("answer"), fol = $("follow");
+    const top = (ans.hidden ? 4 : ans.offsetTop + ans.offsetHeight + 4) + TAG.h / 2;
+    const bot = (fol.hidden ? H - 4 : fol.offsetTop - 4) - TAG.h / 2;
+    const items = laneTagItems(H, top, bot);
+    spreadTags(items, top, bot);
+    for (const it of items) drawTag(ctx, it);
+  }
+  function drawTag(ctx, it) {
+    const ln = it.ln, sp = speedOf(ln.id), col = laneCol(ln.number), right = ln.direction !== "left";
+    const v = sp && sp.v_kmh != null ? sp.v_kmh : null, weak = !!sp && sp.evidence_ok === false;
+    const num = String(ln.number), spd = v == null ? "–" : (weak ? "~" : "") + Math.round(v);
+    const F = font(), h = TAG.h, r = h / 2, cy = it.y, t = cy - r, b = cy + r;
+    ctx.font = `700 9px ${F}`; const nw = ctx.measureText(num).width;
+    ctx.font = `600 11px ${F}`; const sw = ctx.measureText(spd).width;
+    ctx.font = `500 8.5px ${F}`; const uw = v == null ? 0 : ctx.measureText("km/h").width;
+    const d = Math.max(12, nw + 6);                                   // the number disc (a pill for 2 digits)
+    const body = 2 + d + 4 + sw + (uw ? 2 + uw : 0) + (right ? 4 : 7);
+    const bx0 = right ? TAG.x0 : TAG.x0 + TAG.tip, bx1 = bx0 + body, xEnd = right ? bx1 + TAG.tip : bx1;
+    // body: round at one end, pointed at the end the traffic is heading
+    ctx.beginPath();
+    if (right) {
+      ctx.moveTo(bx0 + r, t); ctx.arcTo(bx1, t, bx1 + TAG.tip, cy, 3); ctx.arcTo(bx1 + TAG.tip, cy, bx1, b, 1.6);
+      ctx.arcTo(bx1, b, bx0, b, 3); ctx.lineTo(bx0 + r, b); ctx.arc(bx0 + r, cy, r, Math.PI / 2, Math.PI * 1.5);
+    } else {
+      ctx.moveTo(bx1 - r, t); ctx.arc(bx1 - r, cy, r, -Math.PI / 2, Math.PI / 2); ctx.arcTo(bx0, b, bx0 - TAG.tip, cy, 3);
+      ctx.arcTo(bx0 - TAG.tip, cy, bx0, t, 1.6); ctx.arcTo(bx0, t, bx1, t, 3);
+    }
+    ctx.closePath(); ctx.fillStyle = "rgba(10,14,18,.8)"; ctx.fill();
+    // leader back to the lane when the tag had to move
+    if (Math.abs(it.y - it.want) > 1.5) {
+      ctx.strokeStyle = col; ctx.lineWidth = 1.25; ctx.beginPath(); ctx.moveTo(xEnd + 1, cy); ctx.lineTo(xEnd + 10, it.want); ctx.stroke();
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xEnd + 10, it.want, 2, 0, 7); ctx.fill();
+    }
+    const x = bx0 + 2;
+    ctx.fillStyle = col; rr(ctx, x, cy - 6, d, 12, 6); ctx.fill();
+    ctx.textBaseline = "alphabetic"; ctx.textAlign = "center";
+    ctx.font = `700 9px ${F}`; ctx.fillStyle = inkOn(col); ctx.fillText(num, x + d / 2, cy + 3.3);
+    ctx.textAlign = "left";
+    ctx.font = `600 11px ${F}`; ctx.fillStyle = weak ? "rgba(255,255,255,.62)" : "#fff"; ctx.fillText(spd, x + d + 4, cy + 4);
+    if (uw) { ctx.font = `500 8.5px ${F}`; ctx.fillStyle = "rgba(255,255,255,.62)"; ctx.fillText("km/h", x + d + 4 + sw + 2, cy + 4); }
+    S.laneTags.push({ id: ln.id, x0: 0, x1: xEnd + 14, y: cy, y0: cy - 12, y1: cy + 12 });
   }
   function drawMini() {
     if (!S.meta || !mini.width) return;
@@ -526,13 +632,20 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   }
 
   // ================================================================ chips, cards, race, guess
+  // the same road-sign as the tags on the video, for use in text:  (1) 42 km/h ▷
+  function signHTML(ln) {
+    const sp = speedOf(ln.id), col = laneCol(ln.number), v = sp && sp.v_kmh != null ? Math.round(sp.v_kmh) : null;
+    return `<span class="sign ${ln.direction === "left" ? "l" : "r"}" role="img" aria-label="Lane ${ln.number}, heading ${ln.direction}${v != null ? `, ${v} km/h` : ""}">` +
+      `<i style="background:${col};color:${inkOn(col)}">${ln.number}</i>${v != null ? `<b>${v}</b><small>km/h</small>` : ""}</span>`;
+  }
   function renderChips() {
     const L = ls(), el = $("answer");
     if (L) {
       const dir = S.followLane && laneById(S.followLane) ? laneById(S.followLane).direction : mainDirection();
       const l = laneById(verdictLane(dir, "fastest")), sp = l && speedOf(l.id);
       el.hidden = !sp;
-      if (sp) el.innerHTML = `<span class="dot" style="background:${laneCol(l.number)}"></span>Fastest ${arrow(dir)} lane ${l.number} · ${Math.round(sp.v_kmh)} km/h${closeCall(dir, "fastest") ? " <small>· close call</small>" : ""}`;
+      const html = sp ? `Fastest ${signHTML(l)}${closeCall(dir, "fastest") ? "<small>close call</small>" : ""}` : "";
+      if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }   // only touch the DOM on change
     } else el.hidden = true;
     const f = $("follow");
     if (S.exploring) {
@@ -670,7 +783,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     $("sheetTitle").innerHTML = title; $("sheetBody").innerHTML = body; $("sheetBody").scrollTop = 0;
     S.sheet = info || {};
     // bring the player to the top so the whole video stays visible above the card
-    if (scrollY < player.offsetTop - 1) scrollTo({ top: player.offsetTop, behavior: "auto" });
+    const py = pinY(); if (scrollY < py - 1) scrollTo({ top: py, behavior: "auto" });
     const wasOpen = !sheet.hidden; sheet.hidden = false;
     if (!wasOpen) { setSheetY(sheet.offsetHeight, false); void sheet.offsetHeight; }
     requestAnimationFrame(() => { setSheetY(snapY("peek"), true); S.sheetSnap = "peek"; });
@@ -801,7 +914,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   function tapAt(sx, sy) {
     if (!S.meta) return;
     if (landscape()) { player.classList.toggle("faded"); if (player.classList.contains("faded")) return; }
-    for (const t of S.laneTags) if (sx >= t.x0 && sx <= t.x1 && sy >= t.y0 && sy <= t.y1) { openLane(t.id); return; }
+    let tag = null;                                   // tags sit close together: the nearest one under the finger wins
+    for (const t of S.laneTags) if (sx >= t.x0 && sx <= t.x1 && sy >= t.y0 && sy <= t.y1 && (!tag || Math.abs(sy - t.y) < Math.abs(sy - tag.y))) tag = t;
+    if (tag) { openLane(tag.id); return; }
     const [fx, fy] = toFrame(sx, sy), pad = 18 / S.k;
     let best = null, bd = 1e9;
     for (const d of S.byFrame[S.f] || []) {
@@ -872,25 +987,45 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   requestAnimationFrame(loop);
 
   // ================================================================ tabs, sticky shadow, orientation, desktop switch
+  // Tabs behave like a native tab bar:
+  //  - the tab switches the moment the finger lands (pointerdown), not on release; keyboard still uses click
+  //  - the page never jumps: <main> is always tall enough to keep the video pinned (fitMain)
+  //  - each tab keeps its own scroll position; touching the open tab again scrolls it back to its top
+  //  - the new pane fades in (no sideways slide and no swipe-between-tabs: sideways swipes belong to the road and the cards)
+  const TABS = [...document.querySelectorAll(".tabbar button")], tabScroll = {};
+  let curTab = "tabAnswer";
   function showTab(id) {
-    for (const x of document.querySelectorAll(".tabbar button")) { if (x.dataset.tab === id) x.setAttribute("aria-current", "page"); else x.removeAttribute("aria-current"); }
+    const py = pinY(), pinned = scrollY >= py - 1;
+    if (id === curTab) { if (scrollY > py + 1) scrollTo({ top: py, behavior: reduced ? "auto" : "smooth" }); return; }
+    tabScroll[curTab] = pinned ? scrollY - py : 0;
+    curTab = id;
+    const i = TABS.findIndex((b) => b.dataset.tab === id);
+    TABS.forEach((b, j) => { if (j === i) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
+    $("tabInd").style.transform = `translateX(${i * 100}%)`;
     for (const t of document.querySelectorAll(".tab")) t.hidden = t.id !== id;
     updateRace();
-    const top = player.offsetTop; if (scrollY > top) scrollTo({ top, behavior: reduced ? "auto" : "smooth" });
+    if (pinned) scrollTo({ top: py + (tabScroll[id] || 0), behavior: "auto" });   // same frame as the swap: no flash, video stays put
+    const pane = $(id);
+    if (!reduced && pane.animate) pane.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }],
+      { duration: 220, easing: "cubic-bezier(.2,.8,.2,1)" });
   }
-  for (const b of document.querySelectorAll(".tabbar button")) b.onclick = () => { buzz(4); showTab(b.dataset.tab); };
-  addEventListener("scroll", () => player.classList.toggle("stuck", scrollY > player.offsetTop - 1), { passive: true });
+  for (const b of TABS) {
+    b.addEventListener("pointerdown", (e) => { if (e.button) return; b._down = performance.now(); buzz(4); showTab(b.dataset.tab); });
+    b.addEventListener("click", () => { if (performance.now() - (b._down || -1e9) < 1000) return; showTab(b.dataset.tab); });
+  }
+  addEventListener("scroll", () => player.classList.toggle("stuck", scrollY > 0 && scrollY >= pinY() - 1), { passive: true });
   $("aboutCards").addEventListener("scroll", () => {
     const el = $("aboutCards"), i = Math.round(el.scrollLeft / (el.firstElementChild.offsetWidth + 12));
     [...$("aboutDots").children].forEach((d, j) => d.classList.toggle("on", j === i));
   }, { passive: true });
   addEventListener("resize", () => {
-    player.classList.remove("faded"); layout();
+    player.classList.remove("faded"); layout(); fitMain();
     if (!sheet.hidden && S.sheet) setSheetY(snapY(S.sheetSnap || "peek"), false);
   });
   const toDesktop = () => { store.set("lane-intel-view", "desktop"); location.reload(); };
   $("toDesktop").onclick = toDesktop; $("toDesktop2").onclick = toDesktop;
 
+  fitMain();
   init().catch((e) => { $("loading").hidden = false; $("loading").textContent = "Could not load: " + e.message; });
 })();
 </script>
