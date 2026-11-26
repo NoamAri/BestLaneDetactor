@@ -114,7 +114,8 @@ td.dir .arw { font-size: 15px; color: var(--fg); display: inline-block; width: 1
 .sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; flex: none; }
 .empty { color: var(--muted); }
 .note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
-.spark { width: 100%; height: 64px; display: block; margin-top: 10px; }
+.spark { width: 100%; height: 64px; display: block; margin-top: 4px; }
+.spark-label { margin-top: 10px; font-size: 11px; color: var(--muted); }
 .row-btns { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
 .layers { display: grid; gap: 6px; }
 .layers label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
@@ -222,14 +223,15 @@ footer a { color: inherit; }
           <dt>Direction</dt><dd id="sDir">–</dd>
           <dt>Box here</dt><dd id="sBox">–</dd>
         </dl>
-        <svg class="spark" id="sSpark" viewBox="0 0 300 64" preserveAspectRatio="none" aria-label="Horizontal image position over time"></svg>
+        <div class="spark-label">Distance travelled since first seen</div>
+        <svg class="spark" id="sSpark" viewBox="0 0 300 64" preserveAspectRatio="none" aria-label="Distance travelled since first seen, over time"></svg>
         <div class="row-btns">
           <button id="sFirst">First frame</button>
           <button id="sLast">Last frame</button>
           <button id="sFollow" aria-pressed="false" title="Keep the selected vehicle centred when zoomed">Follow</button>
         </div>
         <p class="note">Speed is the vehicle's average motion along the road over its whole track, in image pixels per second
-          (km/h once the camera is calibrated to metres). Below 15 px/s it counts as stopped.</p>
+          (km/h once the camera is calibrated to metres).</p>
       </div>
     </section>
 
@@ -303,13 +305,9 @@ footer a { color: inherit; }
   }
   const clsColor = (c) => S.colors[c] || S.colors.car;
 
-  // Direction of travel in the image. Below STOPPED_PX_S the average motion is within box jitter.
-  const STOPPED_PX_S = 15;
-  const directionOf = (v) => {                     // threshold scales with the clip's resolution
-    const lim = STOPPED_PX_S * ((S.meta && S.meta.px_scale) || 1);
-    return v > lim ? 1 : v < -lim ? -1 : 0;
-  };
-  const DIRECTION = { "1": ["→", "right"], "-1": ["←", "left"], "0": ["–", "stopped"] };
+  // Direction of travel in the image, from the vehicle's net motion over its track.
+  const directionOf = (v) => (v < 0 ? -1 : 1);
+  const DIRECTION = { "1": ["→", "right"], "-1": ["←", "left"] };
 
   const fmtT = (s) => {
     const m = Math.floor(s / 60), r = s - 60 * m;
@@ -757,12 +755,15 @@ footer a { color: inherit; }
     $("sDir").textContent = `${arrow} ${word}`;
     const here = pts.find((p) => p.f === S.frame);
     $("sBox").textContent = here ? `${here.x2 - here.x1}×${here.y2 - here.y1} px` : "not in this frame";
-    // sparkline: x (bottom-centre) over frames
-    const xs = pts.map((p) => (p.x1 + p.x2) / 2);
-    const lo = Math.min(...xs), hi = Math.max(...xs), span = Math.max(1, hi - lo);
+    // sparkline: distance travelled in the direction of travel since the first observation,
+    // so the line rises whichever way the vehicle drives
+    const dirSign = directionOf(info.px_per_s);
+    const x0 = (pts[0].x1 + pts[0].x2) / 2;
+    const ds = pts.map((p) => ((p.x1 + p.x2) / 2 - x0) * dirSign);
+    const lo = Math.min(0, ...ds), hi = Math.max(...ds), span = Math.max(1, hi - lo);
     const f0 = pts[0].f, f1 = Math.max(f0 + 1, pts[pts.length - 1].f);
-    const sx = (f) => ((f - f0) / (f1 - f0)) * 296 + 2, sy = (x) => 60 - ((x - lo) / span) * 56;
-    const d = pts.map((p, i) => `${i ? "L" : "M"}${sx(p.f).toFixed(1)},${sy((p.x1 + p.x2) / 2).toFixed(1)}`).join("");
+    const sx = (f) => ((f - f0) / (f1 - f0)) * 296 + 2, sy = (v) => 60 - ((v - lo) / span) * 56;
+    const d = pts.map((p, i) => `${i ? "L" : "M"}${sx(p.f).toFixed(1)},${sy(ds[i]).toFixed(1)}`).join("");
     const cur = S.frame >= f0 && S.frame <= f1 ? `<line x1="${sx(S.frame)}" x2="${sx(S.frame)}" y1="0" y2="64" stroke="${S.colors.accent}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>` : "";
     $("sSpark").innerHTML =
       `<line x1="0" x2="300" y1="62" y2="62" stroke="${S.colors.line}" vector-effect="non-scaling-stroke"/>` + cur +

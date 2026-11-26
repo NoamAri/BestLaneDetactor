@@ -950,7 +950,7 @@ make test</div>
         "<b>Tracker switch</b> above the video, shown only when the bundle carries more than one tracker (<code>tracking.viewer_variants</code>; the default bundle has just the chosen one): one button per tracker with its ID count; <kbd>V</kbd> cycles; switching keeps the current frame.",
         "<b>Break markers</b>: a green + where a track starts mid-image and a red × where one ends, visible for 1.5 s. The timeline shows the same events as green and red ticks under the vehicle count.",
         "<b>Tracking quality panel</b>: IDs, mid-image starts and ends, short tracks, restart pairs, identity jumps and clear-box coverage, each with its change against the first tracker (green = better, red = worse).",
-        "<b>Track register</b>: sortable table of every track: class, timing, confidence, <b>direction</b> (→ right, ← left, – stopped below 15 px/s) and <b>speed</b> (always positive, px/s until calibration), and a Mid-image column (start / end / both).",
+        "<b>Track register</b>: sortable table of every track: class, timing, confidence, <b>direction</b> (→ right or ← left, from the net motion) and <b>speed</b> (always positive, px/s until calibration), and a Mid-image column (start / end / both).",
       ],
       inputs: ["meta.json", "tags_&lt;variant&gt;.json (fetched when chosen, then cached)", "video.mp4"],
       outputs: ["nothing saved: read-only inspector"],
