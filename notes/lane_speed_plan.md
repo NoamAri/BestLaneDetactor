@@ -235,3 +235,14 @@ Steps 1–2 decide everything after them, so they come first and get their own c
 3. **Speed limits** of both roads (to detect free flow); they must be looked up, not guessed.
 4. **The uploaded clip's road**: if you know the location, its lane width and marking standard
    make that calibration more reliable.
+
+## 11. Pre-registration (before any lane speed was computed)
+
+Settings: `configs/lane_speed.json` (thresholds, evidence, stretch rule, plausibility limits, ground-point
+widths) and per camera `calibration` + `lane_speed` blocks. Open decisions resolved with the proposed
+defaults: announce at a 10% gap, P ≥ 0.90, 60 s windows; all vehicles ranked; speed limits unknown, so
+the free-flow check is off until they are given; uploaded clip's lane width assumed 3.6 m (to confirm).
+Stretch: the common covered range of all ranked lanes of a direction, 5% margins, ends trimmed where a
+lane's detection coverage falls below 50% of its median, at least 40 m.
+MiTra uses 0–180 s of the clip (six 30 s detection windows tracked separately and joined; Edie sums do
+not care that IDs restart between windows).

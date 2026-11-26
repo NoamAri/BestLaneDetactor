@@ -1,0 +1,60 @@
+{
+  "_about": [
+    "Settings for per-lane speed and the fastest/slowest announcement (notes/lane_speed_plan.md).",
+    "Fixed and committed before any lane speed was computed. Changing them later is a documented amendment."
+  ],
+
+  "window_s": 60.0,
+  "step_s": 5.0,
+
+  "evidence": {
+    "min_vehicles": 5,
+    "min_vehicle_time_s": 20.0
+  },
+
+  "announce": {
+    "min_gap": 0.10,
+    "min_p_rank": 0.90,
+    "ci": 0.95,
+    "bootstrap": 2000,
+    "seed": 0,
+    "keep_gap": 0.05,
+    "takeover_s": 60.0,
+    "free_flow_frac": 0.85
+  },
+
+  "vehicles": "all",
+
+  "ground_point": {
+    "class_width_m": { "car": 1.8, "motorcycle": 0.8, "bus": 2.55, "truck": 2.55 },
+    "reference_width_m": 1.8
+  },
+
+  "occlusion_height_frac": 0.7,
+
+  "plausibility": {
+    "max_speed_kmh": 200.0,
+    "max_accel_ms2": 5.0,
+    "accel_window_s": 0.5,
+    "max_lateral_jump_lane_frac": 0.5,
+    "lateral_jump_window_s": 0.5
+  },
+
+  "pieces": { "min_dwell_s": 0.5 },
+
+  "stretch": {
+    "min_length_m": 40.0,
+    "margin_frac": 0.05,
+    "coverage_bins": 12,
+    "min_bin_coverage_frac": 0.5
+  },
+
+  "auxiliary_lane_rule": "A lane is auxiliary (measured, not ranked) when it is listed in the camera config's lane_speed.auxiliary_lanes. For MiTra the list is filled from ground truth: our lanes whose boxes map mostly to GT lane 10 (the ramp lane).",
+
+  "validation_targets": {
+    "relative_speed_error": 0.10,
+    "announcement_precision": 0.90,
+    "calibration_reprojection_m": 0.5,
+    "lane_width_m": [3.4, 3.9]
+  }
+}

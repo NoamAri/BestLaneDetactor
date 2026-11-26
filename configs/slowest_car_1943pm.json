@@ -5,28 +5,43 @@
   "video_note": "User-uploaded clip (0318408c-slowest_car_1943pm_3.9kmh.mp4): 1050x450, 4 fps, 64.25 s, MPEG-4 Part 2. Oblique view from a building; red marker dots on one car are burned into the pixels.",
   "clip_offset_s": 0.0,
   "native_fps": 4.0,
-  "frame_size": [1050, 450],
-  "band_y": [0, 450],
-
+  "frame_size": [
+    1050,
+    450
+  ],
+  "band_y": [
+    0,
+    450
+  ],
   "detector": {
     "model": "data/models/yolo26s.pt",
-    "classes": [2, 3, 5, 7],
+    "classes": [
+      2,
+      3,
+      5,
+      7
+    ],
     "imgsz": 2112,
     "conf_min": 0.05,
     "max_det": 1000,
     "process_every": 1
   },
-
   "tracking": {
     "variants_file": "configs/tracking.json",
     "_note": "Chosen on this clip with the selection rule against the plain baseline, stitching variants excluded (see notes/tracking.md section 7). The MiTra tracker (r2_botsort_first005) left 41% of clear boxes untracked at 4 fps.",
     "variant": "r2_bt_conf015_buf4s",
     "reference": "baseline",
-    "viewer_variants": ["@selected"]
+    "viewer_variants": [
+      "@selected"
+    ]
   },
-
-  "viewer": { "crop_y": [0, 450], "width": 1050 },
-
+  "viewer": {
+    "crop_y": [
+      0,
+      450
+    ],
+    "width": 1050
+  },
   "direction": null,
   "roi": null,
   "lanes": null,
@@ -34,5 +49,15 @@
   "calib_dst_m": null,
   "crs": null,
   "count_line_y_m": null,
-  "speed_limit_kmh": null
+  "speed_limit_kmh": null,
+  "calibration": {
+    "method": "vehicle_size",
+    "lane_width_m": 3.6,
+    "car_length_m": 4.5,
+    "note": "No ground truth. Lateral scale from lane spacing (lane width ASSUMED 3.6 m: confirm); along-road scale from the median car length (4.5 m). Validated on MiTra against the ground-truth homography."
+  },
+  "lane_speed": {
+    "auxiliary_lanes": [],
+    "speed_limit_kmh": null
+  }
 }
