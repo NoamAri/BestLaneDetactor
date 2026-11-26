@@ -7,12 +7,22 @@
   "native_fps": 29.97002997,
   "frame_size": [3840, 2160],
   "band_y": [1092, 1604],
-  "model": "data/models/yolo26s.pt",
-  "classes": [2, 3, 5, 7],
-  "conf": 0.25,
-  "imgsz": 3840,
-  "process_every": 1,
-  "track_lost_buffer_s": 1.0,
+
+  "detector": {
+    "model": "data/models/yolo26s.pt",
+    "classes": [2, 3, 5, 7],
+    "imgsz": 3840,
+    "conf_min": 0.05,
+    "max_det": 1000,
+    "process_every": 1
+  },
+
+  "tracking": {
+    "variants_file": "configs/tracking.json",
+    "variant": "s2_bytetrack_tuned",
+    "viewer_variants": ["baseline", "s1_lowconf", "s2_bytetrack_tuned"]
+  },
+
   "direction": null,
   "roi": null,
   "lanes": null,

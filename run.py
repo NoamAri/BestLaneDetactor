@@ -2,14 +2,18 @@
 
     python run.py setup      create .venv, install everything, download yolo26s.pt
     python run.py clip       cut a 3-min 4K clip of drone D1 from the remote MiTra zip (~2.2 GB)
-    python run.py extract    detect + track  -> data/interim/<tag>_points.parquet
+    python run.py detect     run YOLO once on a window -> data/interim/<tag>_detections.parquet (slow)
+    python run.py tune       try every tracker variant on those detections, pick one by the
+                             fixed rule -> data/out/tracking/<tag>/report.md (seconds)
+    python run.py track      track with the configured variant -> data/interim/<tag>_points.parquet
+    python run.py extract    detect + track in one go
     python run.py viewer     bundle video + tags for the browser -> data/out/viewer/
     python run.py serve      start the viewer at http://localhost:8000 and open the browser
-    python run.py pages      copy the viewer into docs/ for GitHub Pages
+    python run.py pages      copy the viewer and the architecture page into docs/ for GitHub Pages
     python run.py test       run the tests
-    python run.py all        setup, clip, extract, viewer, serve
+    python run.py all        setup, clip, detect, tune, track, viewer, serve
 
-Options: --start 0 --dur 30 (detection window, seconds into the clip),
+Options: --start 0 --dur 30 (window, seconds into the clip), --variant NAME (track step),
          --clip-ss 300 --clip-len 180 (where to cut the clip from the full flight video).
 Only the Python standard library is used here, so it runs before the venv exists.
 """
@@ -111,8 +115,16 @@ def _tag(a) -> str:
     return f"T8_D1_{a.start:g}-{a.dur:g}s"
 
 
+def _dets(a) -> Path:
+    return ROOT / "data" / "interim" / f"{_tag(a)}_detections.parquet"
+
+
 def _points(a) -> Path:
     return ROOT / "data" / "interim" / f"{_tag(a)}_points.parquet"
+
+
+def _experiment(a) -> Path:
+    return ROOT / "data" / "out" / "tracking" / _tag(a)
 
 
 def _cfg_for_clip(a) -> Path:
@@ -129,25 +141,57 @@ def _cfg_for_clip(a) -> Path:
     return alt
 
 
-def extract(a) -> None:
+def detect(a) -> None:
     need_venv(); need_ffmpeg()
     if not clip_path(a.clip_ss).exists():
         sys.exit("No clip yet. Run:  python run.py clip")
-    out = _points(a)
+    out = _dets(a)
     if out.exists() and not a.force:
-        print(f"Already extracted: {out}  (use --force to redo)")
+        print(f"Already detected: {out}  (use --force to redo)")
         return
-    out.parent.mkdir(parents=True, exist_ok=True)
-    sh([PY, "-W", "ignore", "-m", "lane_intel.extract", "--cfg", _cfg_for_clip(a),
+    sh([PY, "-W", "ignore", "-m", "lane_intel.detect", "--cfg", _cfg_for_clip(a),
         "--start", a.start, "--duration", a.dur, "--out", out])
 
 
+def _need_dets(a) -> None:
+    if not _dets(a).exists():
+        sys.exit("No detections for this window yet. Run:  python run.py detect")
+
+
+def tune(a) -> None:
+    need_venv(); _need_dets(a)
+    sh([PY, "-W", "ignore", "-m", "lane_intel.tracking.experiment", "--cfg", _cfg_for_clip(a),
+        "--dets", _dets(a), "--out-dir", _experiment(a)])
+
+
+def track(a) -> None:
+    need_venv(); _need_dets(a)
+    cmd = [PY, "-W", "ignore", "-m", "lane_intel.tracking", "--cfg", _cfg_for_clip(a),
+           "--dets", _dets(a), "--out", _points(a)]
+    if a.variant:
+        cmd += ["--variant", a.variant]
+    sh(cmd)
+
+
+def extract(a) -> None:
+    detect(a)
+    track(a)
+
+
 def viewer(a) -> None:
+    """Bundle the viewer: every tracker in tracking.viewer_variants if 'tune' ran, else the tracked points."""
+    import json
     need_venv(); need_ffmpeg()
-    if not _points(a).exists():
-        sys.exit("No detections yet. Run:  python run.py extract")
-    sh([PY, "-W", "ignore", "-m", "lane_intel.export_viewer", "--cfg", _cfg_for_clip(a),
-        "--points", _points(a), "--start", a.start, "--duration", a.dur, "--out-dir", VIEWER])
+    cfg_path = _cfg_for_clip(a)
+    common = ["--cfg", cfg_path, "--start", a.start, "--duration", a.dur, "--out-dir", VIEWER]
+    if (_experiment(a) / "report.json").exists():
+        names = json.loads(Path(cfg_path).read_text())["tracking"].get("viewer_variants", ["@selected"])
+        sh([PY, "-W", "ignore", "-m", "lane_intel.export_viewer", "--experiment", _experiment(a),
+            "--variants", ",".join(names), *common])
+    elif _points(a).exists():
+        sh([PY, "-W", "ignore", "-m", "lane_intel.export_viewer", "--points", _points(a), *common])
+    else:
+        sys.exit("Nothing to show yet. Run:  python run.py tune   (or: python run.py track)")
 
 
 def serve(a) -> None:
@@ -163,22 +207,29 @@ def serve(a) -> None:
         pass
 
 
+def _wrap_page(fragment: str) -> str:
+    """Same as lane_intel.export_viewer.wrap_page (duplicated: run.py must not need the venv)."""
+    head, sep, rest = fragment.partition("<style>")
+    return ('<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+            + head.strip() + "\n</head><body>\n" + sep + rest + "\n</body></html>\n")
+
+
 def pages(a) -> None:
-    """Copy the viewer bundle into docs/ so GitHub Pages can host it (Settings -> Pages -> /docs)."""
+    """Mirror the viewer bundle and the architecture page into docs/ for GitHub Pages."""
     if not (VIEWER / "index.html").exists():
         sys.exit("No viewer bundle yet. Run:  python run.py viewer")
     docs = ROOT / "docs"
     docs.mkdir(exist_ok=True)
-    for name in ("index.html", "video.mp4", "detections.json", "meta.json"):
-        shutil.copy2(VIEWER / name, docs / name)
+    for old in [*docs.glob("tags_*.json"), docs / "detections.json"]:
+        old.unlink(missing_ok=True)                      # files from an older bundle layout
+    for f in VIEWER.iterdir():
+        if f.is_file():
+            shutil.copy2(f, docs / f.name)
     (docs / ".nojekyll").write_text("")
     arch = ROOT / "app" / "architecture" / "index.html"
-    if arch.exists():  # page fragment -> complete document (title, meta and fonts in <head>)
-        head, sep, rest = arch.read_text(encoding="utf-8").partition("<style>")
-        (docs / "architecture.html").write_text(
-            '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n'
-            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-            + head.strip() + "\n</head><body>\n" + sep + rest + "\n</body></html>\n", encoding="utf-8")
+    if arch.exists():
+        (docs / "architecture.html").write_text(_wrap_page(arch.read_text(encoding="utf-8")), encoding="utf-8")
     print(f"GitHub Pages site written to {docs}. Commit and push it to update the site.")
 
 
@@ -188,22 +239,24 @@ def test(a) -> None:
 
 
 def all_steps(a) -> None:
-    for step in (setup, clip, extract, viewer, serve):
+    for step in (setup, clip, detect, tune, track, viewer, serve):
         step(a)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("step", choices=["setup", "clip", "extract", "viewer", "serve", "pages", "test", "all"])
+    steps = {"setup": setup, "clip": clip, "detect": detect, "tune": tune, "track": track, "extract": extract,
+             "viewer": viewer, "serve": serve, "pages": pages, "test": test, "all": all_steps}
+    ap.add_argument("step", choices=list(steps))
     ap.add_argument("--start", type=float, default=0.0, help="detection window start, s into the clip")
     ap.add_argument("--dur", type=float, default=30.0, help="detection window length, s")
     ap.add_argument("--clip-ss", type=float, default=300.0, help="clip start in the full flight video, s")
     ap.add_argument("--clip-len", type=float, default=180.0, help="clip length, s")
     ap.add_argument("--port", type=int, default=8000)
+    ap.add_argument("--variant", default=None, help="track step: tracker variant (default: from the config)")
     ap.add_argument("--force", action="store_true", help="redo detection even if the output exists")
     a = ap.parse_args()
-    {"setup": setup, "clip": clip, "extract": extract, "viewer": viewer,
-     "serve": serve, "pages": pages, "test": test, "all": all_steps}[a.step](a)
+    steps[a.step](a)
 
 
 if __name__ == "__main__":
