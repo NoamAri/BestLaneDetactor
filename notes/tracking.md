@@ -1,7 +1,7 @@
 # Tracking: keeping one ID per vehicle
 
-Status: steps 0–2 of the tracking plan are done (decision in section 4). Steps 3–6 (stitching,
-occlusion zones, junk removal, ground-truth evaluation) come next.
+Status: steps 0–2 done (decision in section 4). Step 3 (stitching) built and partly evaluated, no
+stitching variant accepted yet (section 6.5). Steps 4–6 not started.
 Code: `src/lane_intel/detect.py`, `src/lane_intel/tracking/`. Variants: `configs/tracking.json`.
 Run reports (configs, metrics, guard verdicts, detection provenance): `notes/runs/`.
 Reproduce: `python run.py detect` then `python run.py tune` (add `--start 30` for the held-out window), then
@@ -289,3 +289,37 @@ measure.** Inside tracker pieces it remains valid (8 of 8 audited events were re
 
 Because A1 was written after seeing the step-3 guard results, the decision rests on the fresh
 audit, not on the guard numbers.
+
+### 6.5 Status when work paused (step 3 not finished)
+
+Re-run under A1 (reports `notes/runs/step3_*_amended.*`): every stitching variant passes the
+guards (tracker pieces unchanged: 6 / 10 jumps inside pieces on the two windows). Held-out
+fragmentation: incumbent 449; `s3_stitch_2s` 335 (−25%); `s3_stitch_5s` 281 (−37%);
+`s3_stitch_5s_loose` 201 (−55%).
+
+Fresh audits (seed 1, held-out window, `notes/audits/`), in rank order:
+
+| Variant | Same vehicle | Wrong joins | Verdict |
+|---|---|---|---|
+| `s3_stitch_5s_loose` | 14 / 20 | 4 clear + 2 not verifiable; gaps 0.9–4.5 s | rejected |
+| `s3_stitch_5s` | 17 / 20 | 2 at 4.5–4.7 s under the trees; 1 queue follower at 0.7 s | rejected (needs ≥ 18) |
+| `s3_stitch_2s` | not audited | | **next step** |
+
+(The seed-0 sample of `s3_stitch_5s`, seen before A1, scored 18 / 20; it does not count for the
+decision.) Combined over both samples, `s3_stitch_5s` is right about 35 times in 40 (88%).
+
+Failure modes seen:
+* **Long gaps under the trees (≥ 3 s):** a different car of the same lane reappears near the
+  predicted spot; colours often differ (dark car → white van).
+* **Queue followers:** in a jam, the next car in the queue reaches the spot where the hidden car
+  vanished a moment later (card 5, frame sequence `..._seed1_card5_sequence.jpg`).
+
+**Decision for now: no stitching.** The project tracker stays `r2_botsort_first005`
+(`tracking.variant`); the viewer is unchanged apart from the break markers, which are now an
+opt-in diagnostics layer.
+
+**Next steps for step 3**
+1. Audit `s3_stitch_2s` (seed 1, 20 joins, ≥ 18 to accept):
+   `python -m lane_intel.tracking.audit --cfg configs/T8_D1.json --experiment data/out/tracking/T8_D1_30-30s_step3 --variant s3_stitch_2s --n 20 --seed 1 --out notes/audits/T8_D1_30-30s_s3_stitch_2s_seed1`
+2. If it fails, add an appearance check to the stitcher (colour histogram of the clearest box of each
+   piece): both failure modes above change colour. That would be a new, pre-registered variant.

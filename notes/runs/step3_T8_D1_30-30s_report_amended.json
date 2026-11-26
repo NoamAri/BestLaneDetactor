@@ -1,0 +1,277 @@
+{
+  "created_utc": "2026-11-26T11:07:09+00:00",
+  "detections": "data/interim/T8_D1_30-30s_detections.parquet",
+  "detections_provenance": {
+    "created_utc": "2026-11-26T10:04:36+00:00",
+    "video": "data/raw/T8_D1_dev_300s.mp4",
+    "start_s": 30.0,
+    "duration_s": 30.0,
+    "frame_first": 899,
+    "frames": 899,
+    "fps": 29.97002997,
+    "band_y": [
+      1092,
+      1604
+    ],
+    "detector": {
+      "model": "data/models/yolo26s.pt",
+      "classes": [
+        2,
+        3,
+        5,
+        7
+      ],
+      "imgsz": 3840,
+      "conf_min": 0.05,
+      "max_det": 1000,
+      "process_every": 1
+    },
+    "device": "cpu",
+    "seconds": 641.3,
+    "boxes": 115590,
+    "boxes_conf_ge_0_25": 87584,
+    "versions": {
+      "ultralytics": "8.4.219",
+      "torch": "2.15.0"
+    },
+    "python": "3.13.18"
+  },
+  "frame_range": [
+    899,
+    1797
+  ],
+  "fps": 29.97002997,
+  "image_width": 3840,
+  "quality_params": {
+    "edge_px": 120.0,
+    "window_margin_frames": 2,
+    "short_s": 1.0,
+    "velocity_window_s": 0.5,
+    "restart_max_gap_s": 5.0,
+    "restart_dy_px": 18.0,
+    "restart_dx_base_px": 60.0,
+    "restart_dx_per_s": 40.0,
+    "jump_frac": 0.5,
+    "jump_slack_px_per_s": 15.0
+  },
+  "selection_rule": {
+    "reference": "r2_botsort_first005",
+    "jump_tolerance": 0.2,
+    "jump_slack": 2,
+    "coverage_tolerance": 0.01,
+    "order": [
+      "fragmentation",
+      "ids",
+      "short_lt_1s"
+    ]
+  },
+  "variants": {
+    "baseline": {
+      "config": {
+        "name": "baseline",
+        "tracker": "bytetrack",
+        "min_conf": 0.25,
+        "lost_buffer_s": 1.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.1,
+          "minimum_consecutive_frames": 2
+        },
+        "stitch": {},
+        "label": "Baseline (original run)",
+        "note": "Reproduces the first 30 s run: YOLO cut at 0.25, ByteTrack with a 1 s memory.",
+        "step": "0"
+      },
+      "summary": {
+        "ids": 427,
+        "ids_ge_1s": 311,
+        "short_lt_1s": 116,
+        "born_mid": 281,
+        "died_mid": 266,
+        "fragmentation": 547,
+        "restart_pairs": 150,
+        "identity_jumps": 21,
+        "identity_jumps_within": 21,
+        "junction_jumps": 0,
+        "tracks_with_jumps": 17,
+        "median_span_s": 3.27,
+        "mean_span_s": 6.73,
+        "tags": 82359,
+        "coverage_clear": 0.9937,
+        "track_seconds": 4.13,
+        "stitch_links": 0
+      },
+      "guard_failures": [
+        "identity jumps 21 > limit 14"
+      ]
+    },
+    "r2_botsort_first005": {
+      "config": {
+        "name": "r2_botsort_first005",
+        "tracker": "botsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_consecutive_frames": 2,
+          "enable_cmc": false,
+          "minimum_iou_threshold_first_assoc": 0.05
+        },
+        "stitch": {},
+        "label": "BoT-SORT, loosest first match",
+        "note": "Round 2. Confident boxes match at fused similarity 0.05; faint boxes still need IoU 0.5.",
+        "step": "2b"
+      },
+      "summary": {
+        "ids": 372,
+        "ids_ge_1s": 274,
+        "short_lt_1s": 98,
+        "born_mid": 233,
+        "died_mid": 216,
+        "fragmentation": 449,
+        "restart_pairs": 109,
+        "identity_jumps": 10,
+        "identity_jumps_within": 10,
+        "junction_jumps": 0,
+        "tracks_with_jumps": 10,
+        "median_span_s": 3.92,
+        "mean_span_s": 7.6,
+        "tags": 81051,
+        "coverage_clear": 0.9928,
+        "track_seconds": 7.99,
+        "stitch_links": 0
+      },
+      "guard_failures": []
+    },
+    "s3_stitch_2s": {
+      "config": {
+        "name": "s3_stitch_2s",
+        "tracker": "botsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_consecutive_frames": 2,
+          "enable_cmc": false,
+          "minimum_iou_threshold_first_assoc": 0.05
+        },
+        "stitch": {
+          "max_gap_s": 2.0
+        },
+        "label": "Tracker + stitching (gaps up to 2 s)",
+        "note": "Step 3. The chosen tracker, then offline stitching of pieces up to 2 s apart (stitch.py defaults otherwise).",
+        "step": "3"
+      },
+      "summary": {
+        "ids": 315,
+        "ids_ge_1s": 243,
+        "short_lt_1s": 72,
+        "born_mid": 176,
+        "died_mid": 159,
+        "fragmentation": 335,
+        "restart_pairs": 54,
+        "identity_jumps": 45,
+        "identity_jumps_within": 10,
+        "junction_jumps": 35,
+        "tracks_with_jumps": 42,
+        "median_span_s": 5.34,
+        "mean_span_s": 9.1,
+        "tags": 81051,
+        "coverage_clear": 0.9928,
+        "track_seconds": 9.08,
+        "stitch_links": 57
+      },
+      "guard_failures": []
+    },
+    "s3_stitch_5s": {
+      "config": {
+        "name": "s3_stitch_5s",
+        "tracker": "botsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_consecutive_frames": 2,
+          "enable_cmc": false,
+          "minimum_iou_threshold_first_assoc": 0.05
+        },
+        "stitch": {
+          "max_gap_s": 5.0
+        },
+        "label": "Tracker + stitching (gaps up to 5 s)",
+        "note": "Step 3. The chosen tracker, then offline stitching of pieces up to 5 s apart: same lane band (top edge within 15 px + 3 px/s), restart within 0.6 car widths + 25 px/s of the predicted position, width ratio <= 1.6, same direction.",
+        "step": "3"
+      },
+      "summary": {
+        "ids": 288,
+        "ids_ge_1s": 234,
+        "short_lt_1s": 54,
+        "born_mid": 149,
+        "died_mid": 132,
+        "fragmentation": 281,
+        "restart_pairs": 28,
+        "identity_jumps": 54,
+        "identity_jumps_within": 10,
+        "junction_jumps": 44,
+        "tracks_with_jumps": 45,
+        "median_span_s": 6.72,
+        "mean_span_s": 10.27,
+        "tags": 81051,
+        "coverage_clear": 0.9928,
+        "track_seconds": 9.82,
+        "stitch_links": 84
+      },
+      "guard_failures": []
+    },
+    "s3_stitch_5s_loose": {
+      "config": {
+        "name": "s3_stitch_5s_loose",
+        "tracker": "botsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_consecutive_frames": 2,
+          "enable_cmc": false,
+          "minimum_iou_threshold_first_assoc": 0.05
+        },
+        "stitch": {
+          "max_gap_s": 5.0,
+          "x_base_frac": 1.0,
+          "x_per_s": 40.0,
+          "y_px": 20.0,
+          "width_ratio_max": 2.0
+        },
+        "label": "Tracker + loose stitching (5 s)",
+        "note": "Step 3. As s3_stitch_5s with wider tolerances: 1.0 car widths + 40 px/s, top edge within 20 px, width ratio <= 2.0.",
+        "step": "3"
+      },
+      "summary": {
+        "ids": 248,
+        "ids_ge_1s": 209,
+        "short_lt_1s": 39,
+        "born_mid": 109,
+        "died_mid": 92,
+        "fragmentation": 201,
+        "restart_pairs": 5,
+        "identity_jumps": 93,
+        "identity_jumps_within": 10,
+        "junction_jumps": 83,
+        "tracks_with_jumps": 66,
+        "median_span_s": 8.51,
+        "mean_span_s": 12.14,
+        "tags": 81051,
+        "coverage_clear": 0.9928,
+        "track_seconds": 8.65,
+        "stitch_links": 124
+      },
+      "guard_failures": []
+    }
+  },
+  "selected": "s3_stitch_5s_loose"
+}

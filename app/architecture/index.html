@@ -164,7 +164,7 @@ tr:last-child td { border-bottom: 0; }
       <div><b>11</b><span>Python modules</span></div>
       <div><b>1,068</b><span>lines of pipeline code</span></div>
       <div><b>806</b><span>lines of viewer (HTML/CSS/JS)</span></div>
-      <div><b>29</b><span>tests, all passing</span></div>
+      <div><b>42</b><span>tests, all passing</span></div>
       <div><b>15</b><span>tracker variants compared</span></div>
     </div>
   </header>
@@ -353,7 +353,7 @@ tr:last-child td { border-bottom: 0; }
 
           <g class="node" data-file="tests" tabindex="0">
             <rect x="690" y="600" width="410" height="44" rx="6" fill="none" stroke="#5b6875" stroke-dasharray="4 3"/>
-            <text x="895" y="619" text-anchor="middle" font-size="12" class="mono" fill="currentColor">tests/ · 29 tests</text>
+            <text x="895" y="619" text-anchor="middle" font-size="12" class="mono" fill="currentColor">tests/ · 42 tests</text>
             <text x="895" y="635" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">video, tracking scenarios with known answers, metrics, export, server</text>
           </g>
         </svg>
@@ -654,7 +654,8 @@ make test</div>
       <div class="phase"><span class="st done">Done</span><div><b>Phase 4 · detection.</b> <code>video.py</code>, <code>detect.py</code> → saved boxes with provenance. About 96 vehicles tagged per frame; 110 in ground truth.</div></div>
       <div class="phase"><span class="st done">Done</span><div><b>Tracking steps 0–2.</b> Tracking package, quality metrics, 15 variants, held-out confirmation; BoT-SORT setting chosen (section 7).</div></div>
       <div class="phase"><span class="st done">Done</span><div><b>Inspection tooling.</b> Viewer with tracker switch and break markers, local server, GitHub Pages and claude.ai hosting, this page.</div></div>
-      <div class="phase"><span class="st todo">Next</span><div><b>Tracking steps 3–5.</b> <code>stitch.py</code>: offline re-linking of break → restart pairs (about 100 per 30 s left); occlusion zones for the trees and gantry; removal of short junk tracks.</div></div>
+      <div class="phase"><span class="st todo">In progress</span><div><b>Tracking step 3 · stitching.</b> <code>stitch.py</code> and <code>audit.py</code> built and tested. Joins cut breaks by 25–55%, but audits rejected the 5 s and loose settings (wrong joins under the trees and in queues). Next: audit the 2 s setting; if it fails, add a colour check. Not used yet.</div></div>
+      <div class="phase"><span class="st todo">Planned</span><div><b>Tracking steps 4–5.</b> Occlusion zones for the trees and gantry; removal of short junk tracks.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phase 0 · ground truth check.</b> <code>gt_mitra.py</code>: per-lane 60 s speed windows from the CSV, the fit test, choice of direction.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phases 2–3 · calibration.</b> <code>calibrate.py</code>, <code>stabilize.py</code>: pixels → metres (fills <code>x_w</code>, <code>y_w</code>), lane polygons (fills <code>lane_frame</code>), drone drift. Unlocks tracking step 6: IDF1 against MiTra's true IDs.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phases 5–8 · measurements.</b> <code>tracks.py</code> (km/h per track), <code>metrics.py</code>, <code>status.py</code>, <code>validate.py</code>, <code>persistence.py</code>.</div></div>
@@ -862,6 +863,36 @@ make test</div>
       inputs: ["two experiment folders"], outputs: ["data/out/tracking/crosscheck.md"],
       fns: [["crosscheck(tuning, heldout)", "Side-by-side table (fragmentation change vs baseline, jumps, guard verdict on both windows) and the held-out window's selection."]],
       related: ["experiment", "notes"], why: [] },
+
+    { id: "stitch", dir: "src/lane_intel/tracking/", name: "stitch.py", role: "module", lines: 150,
+      summary: "Step 3 (built, not yet accepted): after tracking, join a track that ends mid-image to the track that continues the same vehicle.",
+      what: [
+        "A live tracker cannot bridge a car that is fully hidden under the trees or behind a truck; it gets a new ID when it reappears. On recorded video we can look forward and join the pieces afterwards.",
+        "A join needs: the same lane band (compared on the <b>top</b> edge of the box, because trees and nearer trucks hide the lower part of a car), a restart where the old piece's speed predicts, a similar width, the same direction, and a gap up to <code>max_gap_s</code>. Pairs are chosen together, one-to-one, by an optimal assignment; chains become one vehicle; the tracker's own ID stays in <code>raw_track_id</code>; no boxes are invented for the hidden stretch.",
+        "Status: cuts breaks by 25–55% depending on settings, but visual audits found too many wrong joins (5 s: 17 / 20 correct, needs 18). Failure modes: long gaps under the trees, and the next car in a queue taking the hidden car's spot. Not used by the project yet; see notes section 6.5.",
+      ],
+      inputs: ["points (one tracker variant)", "StitchParams (set per variant in a <code>stitch</code> block)"],
+      outputs: ["points with joined track_id + raw_track_id", "links table (one row per join, with its errors)"],
+      fns: [
+        ["StitchParams", "max gap, position tolerance (fraction of the car width + px per second of gap), lane-band tolerance, width ratio, direction speed, edge zone."],
+        ["endpoint_table(…)", "track_table plus the top edge of the box at each end."],
+        ["choose_links(…)", "Feasible end → start pairs, then the optimal one-to-one choice (Hungarian method)."],
+        ["chain_ids(links)", "Raw ID → vehicle ID (the first piece's ID)."],
+        ["stitch(points, …)", "The whole step; returns joined points and the links table."],
+      ],
+      related: ["runner", "quality", "audit", "notes"], why: [] },
+
+    { id: "audit", dir: "src/lane_intel/tracking/", name: "audit.py", role: "module", lines: 150,
+      summary: "Visual audit of stitch joins: draws a random sample, renders before/after appearance cards from the 4K video, and scores the verdicts a person writes down.",
+      what: ["The automatic identity-jump check misreads stitch joins (a car reappearing from behind a pole looks like a jump), so join quality is judged by eye. Samples, cards and verdicts are committed under <code>notes/audits/</code> so every judgement can be checked."],
+      inputs: ["an experiment folder", "variant", "sample size and seed"],
+      outputs: ["&lt;out&gt;.jpg (cards)", "&lt;out&gt;.csv (one row per join; verdict column)"],
+      fns: [
+        ["sample_links(…)", "Random joins with a fixed seed, marked if the jump check flagged them."],
+        ["render(…)", "For each join, the clearest view of each piece within 1.5 s of the join, side by side."],
+        ["score(csv)", "Share of joins judged the same vehicle, and which were wrong."],
+      ],
+      related: ["stitch", "notes"], why: [] },
 
     { id: "export", dir: "src/lane_intel/", name: "export_viewer.py", role: "module", lines: 210,
       summary: "Packages one window for the browser: a light video of the road strip, and the tracks of several trackers so the viewer can switch between them.",

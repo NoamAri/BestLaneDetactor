@@ -193,7 +193,7 @@ footer a { color: inherit; }
 
   <div class="timeline">
     <canvas id="tl" tabindex="0" aria-label="Vehicles detected per frame; click or drag to seek"></canvas>
-    <div class="tl-label">Tagged vehicles per frame · ticks: tracks starting (green) / ending (red) mid-image</div>
+    <div class="tl-label">Tagged vehicles per frame</div>
   </div>
 
   <div class="panels">
@@ -239,7 +239,7 @@ footer a { color: inherit; }
         <label><input type="checkbox" id="lCls"> Class names</label>
         <label><input type="checkbox" id="lConf"> Confidence</label>
         <label><input type="checkbox" id="lTrails" checked> Trails (last 1 s)</label>
-        <label><input type="checkbox" id="lBreaks" checked> Mid-image starts (+) and ends (×)</label>
+        <label><input type="checkbox" id="lBreaks"> Diagnostics: where an ID starts (+) or ends (×) mid-image</label>
       </div>
       <div class="zoom" role="group" aria-label="Zoom">
         <span>Zoom</span>
@@ -285,7 +285,7 @@ footer a { color: inherit; }
   const S = {
     meta: null, byFrame: [], tracks: new Map(), info: new Map(), counts: [], frame: 0, sel: null,
     zoom: 1, follow: false, playing: false, sortK: "track_id", sortDir: 1, colors: {},
-    layers: { boxes: true, ids: true, cls: false, conf: false, trails: true, breaks: true },
+    layers: { boxes: true, ids: true, cls: false, conf: false, trails: true, breaks: false },
     variant: null, cache: new Map(), births: [], deaths: [], videoReady: false,
   };
   const TRAIL = 30;          // trail length in frames (1 s)
@@ -634,10 +634,12 @@ footer a { color: inherit; }
     ctx.lineTo(w, top + bh); ctx.closePath();
     ctx.globalAlpha = 0.35; ctx.fill(); ctx.globalAlpha = 1;
     const tick = 5 * dpr;
+    if (S.layers.breaks) {                         // diagnostics layer: ID starts/ends mid-image
     ctx.fillStyle = S.colors.good;
     for (const b of S.births) ctx.fillRect(fx(b.f), h - tick, Math.max(1, dpr), tick);
     ctx.fillStyle = S.colors.bad;
     for (const d of S.deaths) ctx.fillRect(fx(d.f), h - 2 * tick - dpr, Math.max(1, dpr), tick);
+    }
     const px = fx(S.frame);
     ctx.fillStyle = S.colors.accent;
     ctx.fillRect(px - dpr, 0, 2 * dpr, h);
@@ -780,6 +782,7 @@ footer a { color: inherit; }
   // layers + zoom
   const bindLayer = (id, key) => $(id).addEventListener("change", (e) => { S.layers[key] = e.target.checked; draw(); });
   bindLayer("lBoxes", "boxes"); bindLayer("lIds", "ids"); bindLayer("lCls", "cls"); bindLayer("lConf", "conf"); bindLayer("lTrails", "trails");
+  $("lBreaks").addEventListener("change", (e) => { S.layers.breaks = e.target.checked; draw(); drawTimeline(); });
 
   function setZoom(z) {
     const cx = (wrap.scrollLeft + wrap.clientWidth / 2) / stage.offsetWidth;
