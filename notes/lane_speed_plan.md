@@ -247,7 +247,7 @@ lane's detection coverage falls below 50% of its median, at least 40 m.
 MiTra uses 0–180 s of the clip (six 30 s detection windows tracked separately and joined; Edie sums do
 not care that IDs restart between windows).
 
-### Amendment A2: ground point = box centre (recorded before any lane speed was computed)
+### Amendment A2: ground point = the tracker's anchor (box bottom-centre) (recorded before any lane speed was computed)
 
 Section 2.1 pre-registered the box bottom shifted by half the vehicle width. The ground-truth check
 (notes/lane_speed.md §1.3) contradicts it: with the box centre, 98.1% of car boxes, 95.9% of truck boxes

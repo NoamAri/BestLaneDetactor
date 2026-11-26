@@ -63,6 +63,12 @@ for tall vehicles.
 
 ### 1.3 Ground point (amendment A2)
 
+**Correction (wording):** "box centre" below means the tracker's anchor point x_px / y_px, which is the
+**bottom-centre** of the box (y_px = y2). That is the point that was tested and is used everywhere; the
+"bottom + shift" variant moved *up* from it. The conclusions are unchanged. The viewers draw lane bands shifted
+up by the lanes' median half box height (`display_dy`), so the bands run through the vehicles.
+
+
 | Ground point | Cars in their ground-truth lane | Trucks | Buses |
 |---|---|---|---|
 | Box centre | **98.1%** | **95.9%** | **98.7%** |

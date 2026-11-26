@@ -143,6 +143,7 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
     if lanes_file and Path(lanes_file).exists():
         geo, lanes = load_lanes(lanes_file)
     meta_variants = []
+    lane_of_first = None
     for v in variants:
         df = windowed[v.name]
         fname = f"tags_{v.name}.json"
@@ -157,6 +158,8 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
             add_road_speed(tracks, ref, road_frame)
         if lanes:
             lane_of = assign_lanes(ref, geo, lanes, W).groupby("track_id").lane_track.first()
+            if lane_of_first is None:
+                lane_of_first = lane_of
             for t in tracks:
                 t["lane"] = int(lane_of.get(t["track_id"], -1))
         meta_variants.append({
@@ -179,7 +182,8 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
         "model": Path(det.get("model", "?")).name, "imgsz": det.get("imgsz"),
         "edge_px": QualityParams.scaled(W).edge_px,
         "variants": meta_variants,
-        "lanes": _to_video(lane_polygons(geo, lanes), stab, f0, f1) if lanes else [],
+        "lanes": _on_vehicles(_to_video(lane_polygons(geo, lanes), stab, f0, f1), windowed[variants[0].name],
+                              lane_of_first) if lanes else [],
         "lane_speed": lane_speed,
     }
     (out / "meta.json").write_text(json.dumps(_json_clean(meta), allow_nan=False))
@@ -216,6 +220,31 @@ def add_road_speed(tracks: list[dict], ref: pd.DataFrame, rf) -> None:
         if k in span.index and span[k] > 0:
             t["kmh"] = round(float(ds[k] / span[k] * 3.6), 1)
             t["m_per_px"] = round(float(ds[k] / dx[k]), 5) if dx[k] > 1 else None
+
+
+def _on_vehicles(polys: list[dict], pts: pd.DataFrame, lane_of) -> list[dict]:
+    """Shift each lane's outline (display only) so it runs through its vehicles' boxes.
+
+    Lanes are measured at the ground point (box bottom-centre). In an oblique view a vehicle's
+    body rises above that point, so a band drawn at the ground points sits under the cars. The
+    shift is the median offset of box centres from the lane's centre line; it is stored as
+    display_dy so it is clear the measured geometry itself is unchanged.
+    """
+    if lane_of is None or pts.empty:
+        return polys
+    p = pts.assign(lane=pts.track_id.map(lane_of)).dropna(subset=["lane"])
+    out = []
+    for i, ln in enumerate(polys):
+        q = p[p.lane == i]
+        if len(q) < 5:
+            out.append(ln)
+            continue
+        c = np.asarray(ln["centre"], float)
+        cx = ((q.x1 + q.x2) / 2).to_numpy()
+        dy = float(np.median((q.y1 + q.y2).to_numpy() / 2 - np.interp(cx, c[:, 0], c[:, 1])))
+        out.append({**ln, "display_dy": round(dy, 1),
+                    **{k: [[x, round(y + dy, 1)] for x, y in ln[k]] for k in ("centre", "upper", "lower")}})
+    return out
 
 
 def _to_video(polys: list[dict], stab: pd.DataFrame | None, f0: int, f1: int) -> list[dict]:

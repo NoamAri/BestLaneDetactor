@@ -458,26 +458,33 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
         ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, bx + 6, by + 11);
       }
     }
-    // lane tags pinned to the left edge (tap one for that lane's card)
+    // lane tags: right-moving lanes on the left edge, left-moving on the right edge (where that traffic
+    // enters); crowded tags are nudged apart instead of dropped. Tap a tag for the lane's card.
     S.laneTags = [];
     if (!(wholeRoad() && landscape())) {
       ctx.font = "600 11px " + css("--font-sans");
-      const [fx] = toFrame(8, 0);
-      const items = lanes().map((ln) => {
-        const p = ln.centre; let y = p[0][1];
-        for (let j = 1; j < p.length; j++) if (p[j][0] >= fx) { const [ax, ay] = p[j - 1], [bx, by] = p[j]; y = ay + (by - ay) * ((fx - ax) / Math.max(1e-6, bx - ax)); break; }
-        return { ln, y: toScreen(0, y)[1] };
-      }).sort((a, b) => a.y - b.y);
-      let lastY = -99;
-      for (const { ln, y } of items) {
-        if (y < 8 || y > H - 8 || y - lastY < 17) continue;
-        lastY = y;
-        const sp = speedOf(ln.id), txt = `${ln.number}${arrow(ln.direction)}${sp && sp.v_kmh != null ? " " + Math.round(sp.v_kmh) : ""}`;
-        const tw = ctx.measureText(txt).width;
-        ctx.fillStyle = "rgba(10,14,18,.74)"; rr(ctx, 6, y - 8, tw + 15, 16, 8); ctx.fill();
-        ctx.fillStyle = laneCol(ln.number); ctx.beginPath(); ctx.arc(12.5, y, 3, 0, 7); ctx.fill();
-        ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, 18, y + 0.5);
-        S.laneTags.push({ id: ln.id, x0: 0, x1: tw + 30, y0: y - 14, y1: y + 14 });
+      for (const side of ["right", "left"]) {
+        const atLeft = side === "right", ex = atLeft ? 8 : W - 8;
+        const [fx] = toFrame(ex, 0);
+        const items = lanes().filter((ln) => ln.direction === side).map((ln) => {
+          const p = ln.centre; let y = p[0][1];
+          for (let j = 1; j < p.length; j++) if (p[j][0] >= fx) { const [ax, ay] = p[j - 1], [bx, by] = p[j]; y = ay + (by - ay) * ((fx - ax) / Math.max(1e-6, bx - ax)); break; }
+          return { ln, y: toScreen(0, y)[1] };
+        }).sort((a, b) => a.y - b.y);
+        let prev = atLeft ? 4 : 56;                                   // keep clear of the zoom button
+        for (const it of items) {
+          const y = Math.max(it.y, prev + 18);
+          if (it.y < -6 || y > H - 10) continue;
+          prev = y;
+          const sp = speedOf(it.ln.id), txt = `${it.ln.number}${arrow(it.ln.direction)}${sp && sp.v_kmh != null ? " " + Math.round(sp.v_kmh) : ""}`;
+          const tw = ctx.measureText(txt).width, bw = tw + 15, bx = atLeft ? 6 : W - 6 - bw;
+          if (Math.abs(y - it.y) > 3) { ctx.strokeStyle = "rgba(255,255,255,.55)"; ctx.lineWidth = 1; ctx.beginPath();
+            ctx.moveTo(atLeft ? bx + bw : bx, y); ctx.lineTo(atLeft ? bx + bw + 10 : bx - 10, it.y); ctx.stroke(); }
+          ctx.fillStyle = "rgba(10,14,18,.78)"; rr(ctx, bx, y - 8, bw, 16, 8); ctx.fill();
+          ctx.fillStyle = laneCol(it.ln.number); ctx.beginPath(); ctx.arc(bx + 6.5, y, 3, 0, 7); ctx.fill();
+          ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, bx + 12, y + 0.5);
+          S.laneTags.push({ id: it.ln.id, x0: bx - 6, x1: bx + bw + 6, y0: y - 13, y1: y + 13 });
+        }
       }
     }
   }
