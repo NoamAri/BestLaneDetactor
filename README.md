@@ -3,9 +3,22 @@
 Per-lane traffic measurements from fixed aerial video of a congested motorway.
 Data: [MiTra](https://opara.zih.tu-dresden.de/items/68482417-ddc5-40ac-885a-83124bd459e8), A50 Milan, CC BY 4.0.
 
-## Quick start
+## Quick start (Windows, macOS, Linux)
 
-Everything runs inside a project venv (`.venv/`) through `make`:
+Needs Python 3.11+, git and ffmpeg (Windows: `winget install Gyan.FFmpeg`, then open a new terminal).
+
+```bash
+git clone -b claude/happy-faraday-r67vcd https://github.com/NoamAri/BestLaneDetactor.git
+cd BestLaneDetactor
+python run.py setup      # .venv + all packages + yolo26s.pt (CUDA build of torch if an NVIDIA GPU is found)
+python run.py clip       # 3-min 4K clip of drone D1, read straight out of the remote 70 GB zip (~2.2 GB)
+python run.py extract    # detection + tracking on the first 30 s (minutes on a GPU, ~12 min on CPU)
+python run.py viewer     # bundle video + tags for the browser
+python run.py serve      # opens http://localhost:8000
+```
+
+`python run.py all` does all five. Other windows: `python run.py extract viewer --start 30 --dur 60`
+(run each step separately). On Linux/macOS the same steps are also available through `make`:
 
 ```bash
 make setup          # create .venv, install the package + deps, fetch yolo26s.pt
