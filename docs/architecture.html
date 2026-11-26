@@ -156,20 +156,22 @@ tr:last-child td { border-bottom: 0; }
     <p class="eyebrow">BestLaneDetactor · branch claude/happy-faraday-r67vcd</p>
     <h1>Lane Intel Code Map</h1>
     <p class="lede">
-      The project turns a 4K drone video of the A50 motorway in Milan into a list of vehicles with an ID, a class and a
-      box in every frame, then shows that list on top of the video so you can check it frame by frame and compare
-      trackers. Later phases will turn the same list into per-lane speeds and decide which lane is measurably fastest.
+      The project turns motorway video into a list of vehicles, each with an ID, a class, a box in every frame, a speed,
+      a direction and a lane, and shows it on top of the video so you can check it frame by frame. Two videos are in so
+      far: a 4K drone clip of the A50 in Milan (MiTra dataset, with ground truth) and an uploaded clip filmed from a
+      building. The goal: measure each lane and say which one is measurably fastest.
     </p>
     <p class="muted">
       Every stage reads files written by the stage before it. Detection runs once and saves every box; tracking reads
       those boxes, so tracker settings are compared on identical input in seconds and nothing downstream reruns the model.
     </p>
     <div class="stats">
-      <div><b>11</b><span>Python modules</span></div>
-      <div><b>1,068</b><span>lines of pipeline code</span></div>
-      <div><b>806</b><span>lines of viewer (HTML/CSS/JS)</span></div>
-      <div><b>42</b><span>tests, all passing</span></div>
-      <div><b>15</b><span>tracker variants compared</span></div>
+      <div><b>16</b><span>Python modules</span></div>
+      <div><b>1,940</b><span>lines of pipeline code</span></div>
+      <div><b>937</b><span>lines of viewer (HTML/CSS/JS)</span></div>
+      <div><b>48</b><span>tests, all passing</span></div>
+      <div><b>2</b><span>videos in the viewer</span></div>
+      <div><b>8 + 6</b><span>lanes found (MiTra, upload)</span></div>
     </div>
   </header>
 
@@ -203,8 +205,8 @@ tr:last-child td { border-bottom: 0; }
           <!-- camera config -->
           <g class="node" data-file="config" tabindex="0">
             <rect x="420" y="34" width="270" height="44" rx="6" fill="none" stroke="#9a6a00" stroke-width="1.5"/>
-            <text x="555" y="53" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">configs/T8_D1.json</text>
-            <text x="555" y="69" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">band rows, detector, chosen tracker</text>
+            <text x="555" y="53" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">configs/&lt;camera&gt;.json</text>
+            <text x="555" y="69" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">one per camera: band, detector, tracker</text>
           </g>
           <path d="M600 78 V106" stroke="#9a6a00" stroke-dasharray="3 3" fill="none" marker-end="url(#ahm)"/>
           <path d="M690 56 H760 V106" stroke="#9a6a00" stroke-dasharray="3 3" fill="none" marker-end="url(#ahm)"/>
@@ -226,8 +228,8 @@ tr:last-child td { border-bottom: 0; }
           <g class="node" data-file="data" tabindex="0">
             <rect x="388" y="110" width="150" height="64" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
             <text x="463" y="135" text-anchor="middle" font-size="12" class="mono" fill="currentColor">data/raw/</text>
-            <text x="463" y="152" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">T8_D1_dev_300s.mp4</text>
-            <text x="463" y="166" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">3 min · 4K · 2.26 GB</text>
+            <text x="463" y="152" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">MiTra clip (4K, 30 fps)</text>
+            <text x="463" y="166" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">+ uploads/ (1050 px, 4 fps)</text>
           </g>
           <g class="node" data-file="video" tabindex="0">
             <rect x="572" y="110" width="140" height="64" rx="6" fill="none" stroke="#2563a8" stroke-width="1.5"/>
@@ -299,12 +301,15 @@ tr:last-child td { border-bottom: 0; }
           </g>
           <path d="M880 334 H858 V360 H410 V352" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
           <text x="560" y="376" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">track (chosen variant)</text>
-          <g>
-            <rect x="20" y="282" width="220" height="56" rx="6" fill="none" stroke="currentColor" stroke-opacity=".4" stroke-dasharray="4 3"/>
-            <text x="130" y="306" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".75">phases 5–8: per-lane speed,</text>
-            <text x="130" y="322" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".75">flow, status (not built yet)</text>
+          <g class="node" data-file="lanesmod" tabindex="0">
+            <rect x="20" y="270" width="220" height="80" rx="6" fill="none" stroke="#2563a8" stroke-width="2.2"/>
+            <text x="130" y="292" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">lanes.py</text>
+            <text x="130" y="310" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">lanes found from vehicle paths</text>
+            <text x="130" y="326" text-anchor="middle" font-size="11" class="mono" fill="currentColor" opacity=".75">configs/lanes/&lt;camera&gt;.json</text>
+            <text x="130" y="341" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">+ lane of every vehicle</text>
           </g>
-          <line x1="290" y1="310" x2="242" y2="310" stroke="currentColor" stroke-opacity=".5" stroke-dasharray="3 3" marker-end="url(#ah)"/>
+          <line x1="290" y1="310" x2="242" y2="310" stroke="currentColor" marker-end="url(#ah)"/>
+          <text x="20" y="380" font-size="10.5" fill="currentColor" opacity=".6">next: calibration to metres, then per-lane speed (fastest lane)</text>
 
           <!-- row C: packaging -->
           <path d="M705 350 V412 H1015 V466" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
@@ -312,17 +317,17 @@ tr:last-child td { border-bottom: 0; }
           <g class="node" data-file="export" tabindex="0">
             <rect x="930" y="468" width="170" height="64" rx="6" fill="none" stroke="#2563a8" stroke-width="1.5"/>
             <text x="1015" y="493" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">export_viewer.py</text>
-            <text x="1015" y="510" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">light video + tags</text>
-            <text x="1015" y="524" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">per tracker</text>
+            <text x="1015" y="510" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">+ viewer_site.py: one folder</text>
+            <text x="1015" y="524" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">per video (viewer.json)</text>
           </g>
           <line x1="930" y1="500" x2="882" y2="500" stroke="currentColor" marker-end="url(#ah)"/>
           <g class="node" data-file="data" tabindex="0">
             <rect x="690" y="452" width="190" height="96" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
             <text x="785" y="472" text-anchor="middle" font-size="12" class="mono" fill="currentColor">data/out/viewer/</text>
-            <text x="704" y="491" font-size="11" class="mono" fill="currentColor" opacity=".75">video.mp4  11 MB</text>
-            <text x="704" y="506" font-size="11" class="mono" fill="currentColor" opacity=".75">tags_&lt;variant&gt;.json</text>
-            <text x="704" y="521" font-size="11" class="mono" fill="currentColor" opacity=".75">meta.json</text>
-            <text x="704" y="536" font-size="11" class="mono" fill="currentColor" opacity=".75">index.html</text>
+            <text x="704" y="491" font-size="11" class="mono" fill="currentColor" opacity=".75">index.html, clips.json</text>
+            <text x="704" y="506" font-size="11" class="mono" fill="currentColor" opacity=".75">clips/&lt;id&gt;/video.mp4</text>
+            <text x="704" y="521" font-size="11" class="mono" fill="currentColor" opacity=".75">  tags_&lt;tracker&gt;.json</text>
+            <text x="704" y="536" font-size="11" class="mono" fill="currentColor" opacity=".75">  meta.json (+ lanes)</text>
           </g>
           <g class="node" data-file="serve" tabindex="0">
             <rect x="420" y="452" width="200" height="40" rx="6" fill="none" stroke="#2563a8" stroke-width="1.5"/>
@@ -347,8 +352,8 @@ tr:last-child td { border-bottom: 0; }
             <rect x="20" y="470" width="340" height="104" rx="6" fill="none" stroke="#a3489a" stroke-width="2.2"/>
             <text x="190" y="494" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">app/viewer/index.html</text>
             <text x="190" y="513" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">in your browser: video + canvas overlay,</text>
-            <text x="190" y="529" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">tracker switch, break markers, quality panel,</text>
-            <text x="190" y="545" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">frame stepping, track register</text>
+            <text x="190" y="529" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">video selector, lanes, speed + direction,</text>
+            <text x="190" y="545" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">frame stepping, quality + lane panels</text>
             <text x="190" y="565" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">no server logic: it only reads the bundle files</text>
           </g>
           <line x1="420" y1="472" x2="362" y2="500" stroke="currentColor" marker-end="url(#ah)"/>
@@ -357,15 +362,15 @@ tr:last-child td { border-bottom: 0; }
 
           <g class="node" data-file="tests" tabindex="0">
             <rect x="690" y="600" width="410" height="44" rx="6" fill="none" stroke="#5b6875" stroke-dasharray="4 3"/>
-            <text x="895" y="619" text-anchor="middle" font-size="12" class="mono" fill="currentColor">tests/ · 42 tests</text>
-            <text x="895" y="635" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">video, tracking scenarios with known answers, metrics, export, server</text>
+            <text x="895" y="619" text-anchor="middle" font-size="12" class="mono" fill="currentColor">tests/ · 48 tests</text>
+            <text x="895" y="635" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">tracking, stitching, lanes, metrics, export, site, server</text>
           </g>
         </svg>
       </div>
       <figcaption>
-        Band 1 is the heavy work, done once per window (about 12 minutes per 30 s of video on this CPU). It saves every box YOLO finds, with no IDs.
-        Band 2 links those boxes into vehicles; because it reads saved boxes, any tracker setting can be tried in seconds and every setting sees exactly
-        the same input. Band 3 packages the video and the tracks of several trackers for the browser. The dashed ground-truth file is downloaded but not
+        Band 1 is the heavy work, done once per window (about 12 minutes per 30 s of 4K video on this CPU). It saves every box YOLO finds, with no IDs.
+        Band 2 links those boxes into vehicles (the tracker is chosen per camera in seconds, on identical input) and finds the lanes from where those
+        vehicles drive. Band 3 builds one folder per video and a single page with a video selector. The dashed ground-truth file is downloaded but not
         used by any code yet; it becomes the reference for validation in a later phase.
       </figcaption>
     </figure>
@@ -550,7 +555,9 @@ tr:last-child td { border-bottom: 0; }
             <tr><td>x1 y1 x2 y2</td><td>box corners, full-frame pixels</td></tr>
             <tr><td>x_px y_px</td><td>bottom-centre anchor point, full-frame pixels</td></tr>
             <tr><td>x_w y_w</td><td>world metres, empty until calibration (phase 2)</td></tr>
-            <tr><td>lane_frame</td><td>lane number, −1 until lane polygons exist (phase 2)</td></tr>
+            <tr><td>lane_frame</td><td>lane of this box (index into the camera's lanes file), −1 outside every lane</td></tr>
+            <tr><td>lane_track</td><td>lane of the vehicle: the most frequent lane of its boxes</td></tr>
+            <tr><td>raw_track_id</td><td>the tracker's own ID (differs from track_id only if stitching joined pieces)</td></tr>
           </tbody>
         </table></div>
       </div>
@@ -584,10 +591,12 @@ python run.py clip      # 3-min clip from the remote zip
 python run.py detect    # YOLO once on 0-30 s (slow)
 python run.py tune      # all trackers + report (seconds)
 python run.py track     # chosen tracker -> points
-python run.py viewer    # build data/out/viewer/
+python run.py lanes     # lanes + lane per vehicle
+python run.py viewer    # all videos -> data/out/viewer/
 python run.py serve     # http://localhost:8000
 python run.py pages     # copy to docs/
-python run.py test      # 29 tests</div>
+python run.py test      # 48 tests
+# another camera: add --cfg configs/&lt;camera&gt;.json</div>
       <div class="cmd">make setup
 make clip
 make detect START=0 DUR=30
@@ -647,10 +656,34 @@ make test</div>
     </div>
   </section>
 
-  <!-- ===================================================== 8. status -->
+  <!-- ===================================================== 8. lanes and second video -->
   <section>
     <div class="prose">
-      <p class="eyebrow">8 · Where this sits in the plan</p>
+      <p class="eyebrow">8 · Lanes and the second video</p>
+      <h2>Lanes found from where vehicles drive</h2>
+      <p>
+        Cars keep to their lanes, so their paths cluster into one band per lane. The lane shape is chosen per camera by testing
+        which family predicts held-out vehicles best, and lanes with traffic standing still are recovered from the stopped cars.
+        Lane 1 is the leftmost lane in the direction of travel, the one next to the median.
+      </p>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Video</th><th>Frame rate · size</th><th>Tracker (chosen on that video)</th><th>Lane shape</th><th>Lanes</th><th>Boxes in a lane</th></tr></thead>
+        <tbody>
+          <tr><td>MiTra A50 drone D1</td><td>29.97 fps · 3840×2160</td><td>BoT-SORT, loose first match</td><td>straight, parallel</td><td>4 ← + 4 → (ground truth: 4 and 3 + ramp)</td><td>99%</td></tr>
+          <tr><td>Uploaded slowest_car_1943pm</td><td>4 fps · 1050×450</td><td>ByteTrack, faint floor 0.15</td><td>curved, parallel</td><td>6 ← (a slip road at top left is not found)</td><td>99%</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">Speeds per lane are not compared yet: pixels shrink with distance from the camera, so far lanes look slower in px/s.
+      That comparison needs the calibration to metres (next step). Details: <code>notes/lanes.md</code>.</p>
+  </section>
+
+  <!-- ===================================================== 9. status -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">9 · Where this sits in the plan</p>
       <h2>Built so far, and what comes next</h2>
     </div>
     <div class="phases">
@@ -663,6 +696,8 @@ make test</div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Tracking steps 4–5.</b> Occlusion zones for the trees and gantry; removal of short junk tracks.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phase 0 · ground truth check.</b> <code>gt_mitra.py</code>: per-lane 60 s speed windows from the CSV, the fit test, choice of direction.</div></div>
       <div class="phase"><span class="st done">Done</span><div><b>Phase 2 · lanes.</b> <code>lanes.py</code>: lanes found from vehicle paths on both cameras (MiTra 4 + 4, matching ground truth; upload 6), lane per vehicle, shown in the viewer.</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Viewer.</b> Video selector, speed always positive with a → / ← direction, distance-travelled graph, lanes layer and panel, one tracker per video.</div></div>
+      <div class="phase"><span class="st todo">Next</span><div><b>Calibration to metres</b> (phase 2): turns px/s into km/h so lanes can be compared; then per-lane windows, status and the fastest lane (phases 5–8).</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phases 2–3 · calibration.</b> <code>calibrate.py</code>, <code>stabilize.py</code>: pixels → metres (fills <code>x_w</code>, <code>y_w</code>), lane polygons (fills <code>lane_frame</code>), drone drift. Unlocks tracking step 6: IDF1 against MiTra's true IDs.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phases 5–8 · measurements.</b> <code>tracks.py</code> (km/h per track), <code>metrics.py</code>, <code>status.py</code>, <code>validate.py</code>, <code>persistence.py</code>.</div></div>
     </div>
@@ -670,7 +705,7 @@ make test</div>
 
   <footer class="muted" style="font-size:13px">
     Video and ground truth: <a href="https://opara.zih.tu-dresden.de/items/68482417-ddc5-40ac-885a-83124bd459e8">MiTra dataset</a>, CC BY 4.0.
-    Figures from the tracking experiment of 26 Nov 2026 (notes/tracking.md).
+    Figures as of 26 Nov 2026 (notes/tracking.md, notes/lanes.md).
   </footer>
 </div>
 
@@ -687,12 +722,12 @@ make test</div>
 
   const FILES = [
     // ------------------------------------------------------------- root
-    { id: "readme", dir: "/", name: "README.md", role: "config", lines: 52,
+    { id: "readme", dir: "/", name: "README.md", role: "config", lines: 61,
       summary: "The front page of the repo: what the project is, how to run it on any OS, the pipeline table and data notes.",
       what: ["Quick start with the <code>run.py</code> steps (setup, clip, detect, tune, track, viewer, serve), the same steps as <code>make</code> targets, a table of every stage and its output, and links to the tracking notes and this page."],
       inputs: [], outputs: [], fns: [], related: ["run", "makefile", "notes"], why: [] },
 
-    { id: "run", dir: "/", name: "run.py", role: "entry", lines: 263,
+    { id: "run", dir: "/", name: "run.py", role: "entry", lines: 296,
       summary: "The one command you run. Each pipeline step is a sub-command, and it works the same on Windows, macOS and Linux.",
       what: [
         "Each step is a function picked by the first argument: <code>python run.py detect</code>. It uses only the Python standard library, so it runs before the virtual environment exists, then launches pipeline modules with the venv's Python (<code>.venv/Scripts/python.exe</code> on Windows, <code>.venv/bin/python</code> elsewhere).",
@@ -704,20 +739,22 @@ make test</div>
       fns: [
         ["setup", "Creates <code>.venv</code>, installs the CUDA build of PyTorch if an NVIDIA GPU is present (PyPI's Windows wheel is CPU-only), installs the project (<code>pip install -e .[dev]</code>), downloads <code>yolo26s.pt</code>, prints whether a GPU is usable."],
         ["clip", "ffmpeg's <code>subfile</code> protocol reads only bytes 59 to 12,377,194,959 of the remote zip (drone D1's video, stored uncompressed). <code>-ss 300 -t 180 -c copy</code> copies 3 minutes without re-encoding into a <code>.part.mp4</code> that is renamed when complete."],
+        ["--cfg", "Every step works for any camera: <code>--cfg configs/&lt;camera&gt;.json</code> (default the MiTra config). Output names come from the config name and window."],
         ["detect", "Runs <code>lane_intel.detect</code> on the window: the slow YOLO step, once."],
         ["tune", "Runs <code>lane_intel.tracking.experiment</code>: every variant in <code>configs/tracking.json</code> on the saved detections, the comparison report and the selection rule. Seconds."],
         ["track", "Runs <code>python -m lane_intel.tracking</code> with the configured variant (or <code>--variant</code>) and writes the window's points file."],
+        ["lanes", "Runs <code>lane_intel.lanes</code>: finds the lanes from the window's tracks, writes <code>configs/lanes/&lt;camera&gt;.json</code> and the lane of every box into the points file."],
         ["extract", "detect then track, for one-shot use."],
-        ["viewer", "If <code>tune</code> ran, bundles every tracker listed in <code>tracking.viewer_variants</code> (with <code>@selected</code> resolved from the report); otherwise bundles the single points file."],
+        ["viewer", "Builds the viewer for every video in <code>configs/viewer.json</code> through <code>lane_intel.viewer_site</code>; <code>--only &lt;id&gt;</code> rebuilds one."],
         ["serve", "Starts <code>lane_intel.serve</code> on port 8000 and opens your browser."],
-        ["pages", "Mirrors the viewer bundle into <code>docs/</code> (removing files from older layouts) and writes <code>docs/architecture.html</code> from this page."],
-        ["test / all", "pytest in the venv; <code>all</code> = setup → clip → detect → tune → track → viewer → serve."],
+        ["pages", "Copies exactly the files the viewer site references (all videos) into <code>docs/</code>, removes anything else, and writes <code>docs/architecture.html</code> from this page."],
+        ["test / all", "pytest in the venv; <code>all</code> = setup → clip → detect → tune → track → lanes → viewer → serve."],
       ],
       related: ["makefile", "detect", "tracking", "experiment", "export", "serve"],
       why: ["Standard library only, because it has to create the venv that holds everything else.",
             "Byte-range reading makes the 3-minute clip a 2.2 GB download instead of 75 GB."] },
 
-    { id: "makefile", dir: "/", name: "Makefile", role: "entry", lines: 87,
+    { id: "makefile", dir: "/", name: "Makefile", role: "entry", lines: 85,
       summary: "The same steps as run.py for Linux and macOS, as make targets that rebuild only what is out of date.",
       what: [
         "Targets: <code>setup</code>, <code>clip</code>, <code>detect</code>, <code>tune</code>, <code>track</code>, <code>extract</code>, <code>viewer</code>, <code>serve</code>, <code>pages</code>, <code>test</code>, <code>all</code>. Variables <code>START</code>, <code>DUR</code>, <code>CFG</code>, <code>CLIP_SS</code>.",
@@ -738,18 +775,38 @@ make test</div>
       inputs: [], outputs: [], fns: [], related: ["data", "docs"], why: [] },
 
     // ------------------------------------------------------------- configs
-    { id: "config", dir: "configs/", name: "T8_D1.json", role: "config", lines: 34,
+    { id: "config", dir: "configs/", name: "T8_D1.json", role: "config", lines: 39,
       summary: "Everything specific to one camera (flight T8, drone D1) in one place.",
       what: [
         "<code>video</code>, <code>clip_offset_s: 300.0</code> (clip time 0 = flight time 5:00), <code>native_fps: 29.97002997</code> (exactly 30000/1001), <code>frame_size</code>, <code>band_y: [1092, 1604]</code> (the 512 road rows).",
         "<code>detector</code>: model, classes [2, 3, 5, 7] (car, motorcycle, bus, truck), <code>imgsz 3840</code> (full width), <code>conf_min 0.05</code> (save faint boxes too; trackers decide what to use), <code>max_det 1000</code>.",
-        "<code>tracking</code>: the variants file, the chosen <code>variant</code>, and <code>viewer_variants</code> (which trackers the viewer offers; <code>@selected</code> = the experiment's pick).",
+        "<code>tracking</code>: the variants file, the chosen <code>variant</code>, the <code>reference</code> the guards compare against, and <code>viewer_variants</code> (which trackers the viewer offers; <code>@selected</code> = the experiment's pick).",
+        "<code>label</code>, <code>time_label</code> (\"Flight time\") and <code>viewer</code> (crop rows 1040–1660, width 2560) for the browser video.",
         "Placeholders for later phases: <code>roi</code>, <code>lanes</code>, <code>calib_src_px</code>, <code>calib_dst_m</code>, <code>count_line_y_m</code>, <code>speed_limit_kmh</code>; <code>crs</code> EPSG:32632 because the ground truth is in UTM 32N.",
       ],
       inputs: [], outputs: [], fns: [], related: ["detect", "tracking", "tvariants", "export"],
       why: ["All manual per-camera work will live here, so a second drone just needs a second file."] },
 
-    { id: "tvariants", dir: "configs/", name: "tracking.json", role: "config", lines: 114,
+    { id: "upcfg", dir: "configs/", name: "slowest_car_1943pm.json", role: "config", lines: 38,
+      summary: "Camera config of the uploaded clip: 1050×450 at 4 fps, filmed from a building.",
+      what: [
+        "Detects at <code>imgsz 2112</code>, twice the width, because vehicles are small: about 40% more found than at native size.",
+        "Its own tracker: <code>r2_bt_conf015_buf4s</code> (ByteTrack). The MiTra tracker left 41% of clearly visible cars untracked at 4 fps, because cars move far between frames; the selection rule, run on this clip, chose this one (93% tracked).",
+        "<code>viewer</code>: whole frame at native width; <code>time_label</code> \"Video time\".",
+      ],
+      inputs: [], outputs: [], fns: [], related: ["config", "site", "notes"], why: ["Lesson: choose the tracker per camera; frame rate and resolution change what works."] },
+
+    { id: "viewercfg", dir: "configs/", name: "viewer.json", role: "config", lines: 19,
+      summary: "The videos the viewer offers, in order; the first opens by default.",
+      what: ["Per video: id, label, camera config, time window, and the tracking experiment whose tracks to show."],
+      inputs: [], outputs: [], fns: [], related: ["site", "viewer"], why: [] },
+
+    { id: "lanecfg", dir: "configs/", name: "lanes/<camera>.json", role: "data", lines: null,
+      summary: "Lanes of each camera, written by lanes.py and editable by hand.",
+      what: ["The lane-line family (straight or curved parallel lanes, or a vanishing point), and per lane its id (L1/R1…), number, direction, lateral coordinate c, x range and vehicle count. Also the cross-validated error of each family and the share of boxes inside a lane."],
+      inputs: [], outputs: [], fns: [], related: ["lanesmod", "export"], why: [] },
+
+    { id: "tvariants", dir: "configs/", name: "tracking.json", role: "config", lines: 130,
       summary: "The tracker settings under test. Each variant is a named, fully specified experiment arm that changes one thing relative to its parent.",
       what: [
         "<code>baseline</code> reproduces the original run (faint floor 0.25, 1 s memory, ByteTrack). <code>s1_lowconf</code> lowers the floor to 0.10 (step 1). <code>s2_*</code> vary memory (2/4/6 s), overlap, the confident tier, and compare OC-SORT and BoT-SORT (step 2). <code>r2_*</code> are round 2, designed after auditing round 1 (step 2b).",
@@ -794,7 +851,7 @@ make test</div>
       why: ["Replaces the old <code>extract.py</code>, which ran detection and tracking together, so every tracker experiment cost a 12-minute YOLO run."] },
 
     // ------------------------------------------------------------- tracking
-    { id: "tracking", dir: "src/lane_intel/tracking/", name: "__init__.py + __main__.py", role: "module", lines: 75,
+    { id: "tracking", dir: "src/lane_intel/tracking/", name: "__init__.py + __main__.py", role: "module", lines: 84,
       summary: "Stage 2, the tracking package: turns saved boxes into vehicles that keep one ID. __main__ tracks one window with the chosen tracker.",
       what: [
         "<code>__init__.py</code> documents the package layout and exports <code>load_variants</code>, <code>build_tracker</code>, <code>run_tracker</code>, <code>evaluate</code>.",
@@ -805,7 +862,7 @@ make test</div>
       fns: [], related: ["tconfig", "runner", "quality", "experiment", "crosscheck", "notes"],
       why: ["The points format is unchanged from before, so the viewer and future speed calculations do not care which tracker produced it."] },
 
-    { id: "tconfig", dir: "src/lane_intel/tracking/", name: "config.py", role: "module", lines: 104,
+    { id: "tconfig", dir: "src/lane_intel/tracking/", name: "config.py", role: "module", lines: 111,
       summary: "Loads the variants file, resolves inheritance, rejects invalid settings, and builds the tracker object.",
       what: ["Turns each entry of <code>configs/tracking.json</code> into a frozen <code>TrackerConfig</code>. A variant that <code>extends</code> another inherits all its fields; <code>params</code> merge key by key when the tracker type is the same and are replaced when it changes (different trackers accept different arguments)."],
       inputs: ["configs/tracking.json"], outputs: ["dict name → TrackerConfig", "tracker instances"],
@@ -818,7 +875,7 @@ make test</div>
       ],
       related: ["tvariants", "runner"], why: [] },
 
-    { id: "runner", dir: "src/lane_intel/tracking/", name: "runner.py", role: "module", lines: 89,
+    { id: "runner", dir: "src/lane_intel/tracking/", name: "runner.py", role: "module", lines: 99,
       summary: "Runs one tracker variant over saved detections and returns the tracked boxes in the standard points format.",
       what: [
         "Keeps boxes with confidence ≥ the variant's <code>min_conf</code>, then feeds the tracker frame by frame. It updates the tracker on <b>every</b> frame of the window, including frames with no usable box, so a lost vehicle's memory ages at the true rate.",
@@ -829,7 +886,7 @@ make test</div>
       fns: [["run_tracker(dets, cfg, fps, frame_range=None)", "The loop above; keeps only confirmed tracks (ID ≥ 0). <code>coverage_clear</code> = share of boxes with confidence ≥ 0.5 that received an ID."]],
       related: ["tconfig", "quality", "detect"], why: [] },
 
-    { id: "quality", dir: "src/lane_intel/tracking/", name: "quality.py", role: "module", lines: 175,
+    { id: "quality", dir: "src/lane_intel/tracking/", name: "quality.py", role: "module", lines: 199,
       summary: "Measures how well vehicles keep their ID without ground truth. These numbers decide which tracker is better.",
       what: [
         "Key idea: on this road vehicles only enter and leave at the left and right image edges. A track that starts or ends in the middle of the image is a vehicle that already existed under another ID: a break.",
@@ -848,7 +905,7 @@ make test</div>
       related: ["runner", "experiment", "export", "notes"],
       why: ["The viewer's break markers use the same <code>track_table</code>, so what you see marked is exactly what is counted."] },
 
-    { id: "experiment", dir: "src/lane_intel/tracking/", name: "experiment.py", role: "module", lines: 156,
+    { id: "experiment", dir: "src/lane_intel/tracking/", name: "experiment.py", role: "module", lines: 168,
       summary: "Runs every variant on the same saved detections, scores them, applies the selection rule, and writes the report.",
       what: [
         "<b>Selection rule</b>, fixed and committed before the results: (1) guards against the baseline: identity jumps ≤ baseline × 1.2 + 2, clear-box coverage ≥ baseline − 1 point; (2) among variants that pass, lowest fragmentation, then fewest IDs, then fewest short tracks.",
@@ -870,7 +927,7 @@ make test</div>
       fns: [["crosscheck(tuning, heldout)", "Side-by-side table (fragmentation change vs baseline, jumps, guard verdict on both windows) and the held-out window's selection."]],
       related: ["experiment", "notes"], why: [] },
 
-    { id: "stitch", dir: "src/lane_intel/tracking/", name: "stitch.py", role: "module", lines: 150,
+    { id: "stitch", dir: "src/lane_intel/tracking/", name: "stitch.py", role: "module", lines: 140,
       summary: "Step 3 (built, not yet accepted): after tracking, join a track that ends mid-image to the track that continues the same vehicle.",
       what: [
         "A live tracker cannot bridge a car that is fully hidden under the trees or behind a truck; it gets a new ID when it reappears. On recorded video we can look forward and join the pieces afterwards.",
@@ -888,7 +945,7 @@ make test</div>
       ],
       related: ["runner", "quality", "audit", "notes"], why: [] },
 
-    { id: "audit", dir: "src/lane_intel/tracking/", name: "audit.py", role: "module", lines: 150,
+    { id: "audit", dir: "src/lane_intel/tracking/", name: "audit.py", role: "module", lines: 133,
       summary: "Visual audit of stitch joins: draws a random sample, renders before/after appearance cards from the 4K video, and scores the verdicts a person writes down.",
       what: ["The automatic identity-jump check misreads stitch joins (a car reappearing from behind a pole looks like a jump), so join quality is judged by eye. Samples, cards and verdicts are committed under <code>notes/audits/</code> so every judgement can be checked."],
       inputs: ["an experiment folder", "variant", "sample size and seed"],
@@ -900,14 +957,14 @@ make test</div>
       ],
       related: ["stitch", "notes"], why: [] },
 
-    { id: "export", dir: "src/lane_intel/", name: "export_viewer.py", role: "module", lines: 210,
+    { id: "export", dir: "src/lane_intel/", name: "export_viewer.py", role: "module", lines: 227,
       summary: "Packages one window for the browser: a light video of the road strip, and the tracks of several trackers so the viewer can switch between them.",
       what: [
         "Encodes a strip (rows 1040–1660) at 2560 px wide, H.264, a keyframe every 10 frames so any frame is reachable quickly.",
         "Per variant: <code>tags_&lt;variant&gt;.json</code> (one short integer record per box) and, in <code>meta.json</code>, its label, note, quality numbers and one summary row per track, including the mid-image start/end flags from <code>quality.track_table</code>.",
       ],
       inputs: ["config", "an experiment folder + variant names (<code>@selected</code> allowed) or a single points file"],
-      outputs: ["video.mp4", "tags_&lt;variant&gt;.json", "meta.json", "index.html"],
+      outputs: ["video.mp4", "tags_&lt;variant&gt;.json", "meta.json (label, time label, pixel scale, lanes, per-track lane)"],
       fns: [
         ["encode_proxy(…)", "ffmpeg crop + scale, <code>-crf 32 -g 10</code>, <code>yuv420p</code>, <code>+faststart</code>."],
         ["track_summary(df, fps, frame_range, width)", "Per track: class, lifetime, observations, mean confidence, horizontal image motion (px/s, not km/h), break flags and start/end positions."],
@@ -918,7 +975,7 @@ make test</div>
       ],
       related: ["experiment", "quality", "viewer", "serve", "docs"], why: [] },
 
-    { id: "lanesmod", dir: "src/lane_intel/", name: "lanes.py", role: "module", lines: 330,
+    { id: "lanesmod", dir: "src/lane_intel/", name: "lanes.py", role: "module", lines: 352,
       summary: "Finds each lane from where tracked vehicles drive, numbers it (lane 1 = leftmost in the direction of travel) and assigns every vehicle to a lane.",
       what: [
         "Lanes are one family of lines, chosen per camera by cross-validation: straight parallel (MiTra), curved parallel (the uploaded clip's road bends), or straight lines meeting at a vanishing point.",
@@ -937,7 +994,7 @@ make test</div>
       related: ["viewer", "export", "notes"],
       why: ["Checked against MiTra's ground truth: 4 lanes in the jammed direction and 3 plus a ramp lane in the moving one, as found. Speeds per lane wait for calibration because pixels shrink with distance."] },
 
-    { id: "site", dir: "src/lane_intel/", name: "viewer_site.py", role: "module", lines: 100,
+    { id: "site", dir: "src/lane_intel/", name: "viewer_site.py", role: "module", lines: 94,
       summary: "Builds the viewer for several videos at once, so you can choose which clip to look at.",
       what: [
         "Reads <code>configs/viewer.json</code>: one entry per clip (id, label, camera config, time window, and the tracking experiment or points file to show).",
@@ -963,7 +1020,7 @@ make test</div>
       related: ["viewer", "export"], why: ["This fixed the first viewer bug: boxes drawn on a different frame than the one shown."] },
 
     // ------------------------------------------------------------- app
-    { id: "viewer", dir: "app/viewer/", name: "index.html", role: "ui", lines: 806,
+    { id: "viewer", dir: "app/viewer/", name: "index.html", role: "ui", lines: 937,
       summary: "The inspector you use in the browser: plays the road strip and draws every vehicle's box, ID and trail on top, frame by frame, for whichever tracker you pick.",
       what: [
         "<b>Lanes</b> layer (on by default): each lane band with its number and direction; the selected vehicle's lane is brighter. A Lanes panel counts vehicles per lane; the register has a Lane column.",
@@ -993,31 +1050,33 @@ make test</div>
       inputs: [], outputs: [], fns: [], related: ["docs"], why: [] },
 
     // ------------------------------------------------------------- tests
-    { id: "tests", dir: "tests/", name: "conftest.py + 4 test files", role: "test", lines: 318,
-      summary: "Twenty-nine automated checks, in about 6 seconds, on generated data, so they need neither the real clip nor the model.",
+    { id: "tests", dir: "tests/", name: "conftest.py + 8 test files", role: "test", lines: 563,
+      summary: "Forty-eight automated checks, in about 7 seconds, on generated data, so they need neither the real videos nor the model.",
       what: [
         "<code>test_tracking.py</code>, scenarios with known answers: a car hidden for 2 s splits into 2 IDs with a 1 s memory and keeps 1 ID with 4 s; a car that is faint for 2 s keeps its ID only when faint boxes reach the tracker; faint boxes alone never start a track. Plus variant inheritance and validation, break and restart classification, the identity-jump definition (a lane-width jump is caught, a shrinking box is not), the selection rule's guards, and the cross-check.",
+        "<code>test_stitch.py</code>: joins a hidden car, and never across lanes, the image edge, opposite directions, different sizes or too-long gaps; chains; one-to-one choice. <code>test_lanes.py</code>: a straight two-way road, a curved road, a jammed lane found only from stopped cars, lane-1 numbering, assignment. <code>test_viewer_site.py</code>: a two-video site and per-camera thresholds.",
         "<code>test_export_viewer.py</code>: track summary (motion, majority class, break flags), a two-tracker bundle end to end, page wrapping. <code>test_video.py</code>: frame reading and windows. <code>test_serve.py</code>: range parsing and a live server.",
       ],
       inputs: [], outputs: ["pytest report"], fns: [], related: ["runner", "quality", "experiment", "export", "serve"],
       why: ["detect.py has no unit test: it needs the model. Its output was checked on the real clip, and the baseline variant reproduces the original run exactly (386 IDs)."] },
 
     // ------------------------------------------------------------- notes
-    { id: "notes", dir: "notes/", name: "tracking.md", role: "config", lines: 129,
-      summary: "The tracking method and experiment log: problem, metrics, variants, selection and confirmation rules, results, decision, limits.",
+    { id: "notes", dir: "notes/", name: "tracking.md + lanes.md", role: "config", lines: 388,
+      summary: "The lab notebook: tracking (method, rules, results, the stitching audits, the second camera) and lanes (method, results, limits). Run reports in notes/runs/, audit cards and verdicts in notes/audits/.",
       what: ["Written like a lab notebook. The method and both rules were committed to git before the results they judge, so the choice of tracker could not be bent to fit the numbers."],
       inputs: [], outputs: [], fns: [], related: ["experiment", "crosscheck", "tvariants", "quality"], why: [] },
 
     // ------------------------------------------------------------- docs + data
     { id: "docs", dir: "docs/", name: "(GitHub Pages site)", role: "data", lines: null,
       summary: "Generated public copy of the viewer bundle and this page, served by GitHub Pages.",
-      what: ["<code>index.html</code>, <code>video.mp4</code>, <code>tags_&lt;variant&gt;.json</code>, <code>meta.json</code>, <code>architecture.html</code>, <code>.nojekyll</code>. Written by <code>python run.py pages</code>; never edit by hand."],
+      what: ["<code>index.html</code>, <code>clips.json</code>, <code>clips/&lt;id&gt;/</code> (video, tags, meta) for each video, <code>architecture.html</code>, <code>.nojekyll</code>. Written by <code>python run.py pages</code>; never edit by hand."],
       inputs: ["data/out/viewer/", "app/architecture/index.html"], outputs: ["https://noamari.github.io/BestLaneDetactor/ once Pages is on"],
       fns: [], related: ["run", "export", "viewer"], why: [] },
 
     { id: "data", dir: "data/", name: "(not in git)", role: "data", lines: null,
       summary: "Everything large or generated. It exists only on the machine that ran the pipeline and can be rebuilt with run.py.",
       what: [
+        "<code>raw/uploads/</code>: the uploaded clip.",
         "<code>raw/</code>: the 3-minute 4K clip (2.26 GB) and the D1 ground truth (3.16 M rows: ID, type, time, UTM x/y, speed, lane, neighbours; not used yet).",
         "<code>models/</code>: yolo26s.pt (used), yolo11s.pt and yolo26m.pt (compared, not chosen).",
         "<code>interim/</code>: <code>&lt;tag&gt;_detections.parquet</code> + provenance, <code>&lt;tag&gt;_points.parquet</code> + meta.",
