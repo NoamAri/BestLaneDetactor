@@ -262,6 +262,7 @@ def viewer_payload(out_dir: str | Path) -> dict | None:
         announce_[a.direction] = {"status": a.status, "fastest": a.fastest, "slowest": a.slowest,
                                   **{f"{t}_{k}": (r(getattr(a, f"{t}_{k}"), 3) if k != "candidate" else getattr(a, f"{t}_candidate"))
                                      for t in ("fastest", "slowest") for k in ("candidate", "p", "ratio", "ratio_ci_lo", "ratio_ci_hi")},
+                                  "fastest_other": a.fastest_other, "slowest_other": a.slowest_other,
                                   "fastest_calibration_sensitive": bool(a.fastest_calibration_sensitive),
                                   "slowest_calibration_sensitive": bool(a.slowest_calibration_sensitive)}
     roll = lt[lt.window != "all"]

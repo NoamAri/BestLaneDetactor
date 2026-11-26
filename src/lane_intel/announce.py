@@ -121,6 +121,7 @@ def announce_all(lanes_tab: pd.DataFrame, veh: pd.DataFrame, cfg: dict, speed_li
                 r = j.get(title)
                 row[f"{title}_rule"] = r["lane"] if r and r["meets_rule"] else None
                 row[f"{title}_candidate"] = r["lane"] if r else None
+                row[f"{title}_other"] = r["other"] if r else None
                 row[f"{title}_p"] = r["p"] if r else np.nan
                 row[f"{title}_ratio"] = r["ratio"] if r else np.nan
                 row[f"{title}_ratio_ci_lo"] = r["ratio_ci"][0] if r else np.nan

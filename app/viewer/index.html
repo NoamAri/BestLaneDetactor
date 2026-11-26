@@ -33,12 +33,14 @@
   --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --r: 6px;
+  --s1: #257de0; --s2: #f47230; --s3: #00b894; --s4: #f2a600; --s5: #ee7fac;   /* lane series (validated) */
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0f1418; --surface: #161d23; --fg: #e4eaee; --muted: #8c99a5; --line: #26313a;
     --accent: #34b27a; --accent-fg: #06140d; --warn-bg: #2e2410; --warn-fg: #f5d48e; --warn-line: #5a4519;
     --good: #4fd394; --bad: #ff7b7b;
+    --s1: #338ced; --s2: #e76624; --s3: #00a888; --s4: #d28e05; --s5: #e24d8b;
     color-scheme: dark;
   }
 }
@@ -46,8 +48,36 @@
   --bg: #0f1418; --surface: #161d23; --fg: #e4eaee; --muted: #8c99a5; --line: #26313a;
   --accent: #34b27a; --accent-fg: #06140d; --warn-bg: #2e2410; --warn-fg: #f5d48e; --warn-line: #5a4519;
     --good: #4fd394; --bad: #ff7b7b;
+    --s1: #338ced; --s2: #e76624; --s3: #00a888; --s4: #d28e05; --s5: #e24d8b;
+
   color-scheme: dark;
 }
+/* Lane speeds */
+.ls-dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+.ls-dir h3 { font-size: 14px; font-weight: 600; margin: 0 0 6px; }
+.ls-ann { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.ls-pill { font-size: 12.5px; border: 1px solid var(--line); border-radius: 999px; padding: 2px 10px; }
+.ls-pill b { font-weight: 600; }
+.ls-rows { display: grid; gap: 6px; }
+.ls-row { display: grid; grid-template-columns: 92px 1fr 74px; gap: 8px; align-items: center; font-size: 13px; }
+.ls-row .nm { white-space: nowrap; }
+.ls-row .nm small { display: block; color: var(--muted); font-size: 11px; }
+.ls-track { position: relative; height: 18px; }
+.ls-bar { position: absolute; left: 0; top: 4px; height: 10px; background: var(--s1); border-radius: 0 4px 4px 0; }
+.ls-row.low .ls-bar { opacity: .35; }
+.ls-ci { position: absolute; top: 8px; height: 2px; background: var(--fg); opacity: .7; }
+.ls-ci::before, .ls-ci::after { content: ""; position: absolute; top: -4px; width: 2px; height: 10px; background: inherit; }
+.ls-ci::before { left: 0; } .ls-ci::after { right: 0; }
+.ls-gt { position: absolute; top: 0; width: 0; height: 18px; border-left: 2px dashed var(--muted); }
+.ls-row .val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.ls-row .val small { display: block; color: var(--muted); font-size: 11px; font-family: var(--font-sans); }
+.ls-tag { font-size: 11px; font-weight: 600; margin-left: 4px; }
+.ls-tl { width: 100%; height: 150px; display: block; margin-top: 10px; }
+.ls-tl text { font-family: var(--font-sans); font-size: 10.5px; fill: var(--muted); }
+.ls-legend { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.ls-tip { position: fixed; pointer-events: none; z-index: 30; background: var(--surface); color: var(--fg); border: 1px solid var(--line);
+  border-radius: var(--r); padding: 6px 8px; font-size: 12px; box-shadow: 0 4px 14px rgba(0,0,0,.18); }
+.ls-tip table { border-collapse: collapse; } .ls-tip td { padding: 1px 6px 1px 0; font-family: var(--font-mono); }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }   /* component display rules must not override hidden */
 body {
@@ -302,6 +332,18 @@ footer a { color: inherit; }
     </section>
   </div>
 
+  <section class="panel" aria-labelledby="hLS" id="lsPanel" hidden>
+    <h2 id="hLS">Lane speeds</h2>
+    <p class="sub" id="lsSub" style="margin:-4px 0 12px"></p>
+    <div class="ls-dirs" id="lsDirs"></div>
+    <p class="note" id="lsNote">Space-mean speed per lane: total distance driven in the lane ÷ total time spent in it, over
+      one stretch of road shared by all lanes of a direction (Edie's definitions; a vehicle split into two IDs or changing
+      lanes counts exactly once). Bars: speed with its 95% interval (bootstrap over whole vehicles). A lane is announced
+      fastest or slowest only if it leads in ≥ 90% of resamples by ≥ 10%. Graph: rolling 60 s windows; the vertical line is
+      the video's current time.</p>
+  </section>
+  <div class="ls-tip" id="lsTip" hidden></div>
+
   <section class="panel" aria-labelledby="hReg">
     <h2 id="hReg">Track register <span id="regCount" class="mono"></span></h2>
     <div class="register">
@@ -473,6 +515,7 @@ footer a { color: inherit; }
     buildLegend();
     buildRegister();
     renderQuality();
+    renderLaneSpeeds();
     if (S.videoReady) { $("status").hidden = true; refresh(); }
   }
 
@@ -778,6 +821,7 @@ footer a { color: inherit; }
   function refresh() {
     draw();
     drawTimeline();
+    moveLaneNow();
     const m = S.meta, t = S.frame / m.fps, dets = S.byFrame[S.frame] || [];
     $("rFrame").textContent = `${S.frame} / ${m.frame_count - 1}`;
     $("rClip").textContent = t.toFixed(3) + " s";
@@ -852,6 +896,130 @@ footer a { color: inherit; }
       `<tr><th scope="row">Lane ${l.number} ${l.direction === "left" ? "←" : "→"}</th><td>${count[i]}</td><td class="d">vehicles</td></tr>`).join("") +
       `<tr><th scope="row">Not in a lane</th><td>${none}</td><td class="d"></td></tr>`;
   }
+
+  // ---------------------------------------------------------------- lane speeds
+  const LS_COLORS = ["--s1", "--s2", "--s3", "--s4", "--s5"];
+  const lsColor = (num) => `var(${LS_COLORS[(num - 1) % LS_COLORS.length]})`;
+  const tip = $("lsTip");
+  function showTip(e, html) { tip.innerHTML = html; tip.hidden = false;
+    const r = tip.getBoundingClientRect();
+    tip.style.left = Math.min(e.clientX + 14, innerWidth - r.width - 8) + "px";
+    tip.style.top = Math.min(e.clientY + 14, innerHeight - r.height - 8) + "px"; }
+  const hideTip = () => { tip.hidden = true; };
+  const DIR_NAME = { right: "→ Right-moving traffic", left: "← Left-moving traffic" };
+
+  function renderLaneSpeeds() {
+    const L = S.meta && S.meta.lane_speed;
+    $("lsPanel").hidden = !L;
+    if (!L) return;
+    const val = L.validation;
+    $("lsSub").textContent = `Analysed ${L.span_s[0].toFixed(0)}–${L.span_s[1].toFixed(0)} s of video · ` +
+      Object.entries(L.stretches).map(([d, st]) => `${d === "left" ? "←" : "→"} stretch ${st.length_m.toFixed(0)} m`).join(" · ") +
+      ` · ${L.lane_changes} lane changes` +
+      (val ? ` · checked against ground truth: median error ${(val.median_rel_err * 100).toFixed(1)}% (${val.median_abs_err_kmh} km/h)` : "");
+    const dirs = Object.keys(L.announcement).sort().reverse();
+    $("lsDirs").innerHTML = dirs.map((d) => {
+      const a = L.announcement[d];
+      const lanes = L.lanes.filter((l) => l.direction === d).sort((x, y) => x.number - y.number);
+      const vmax = Math.max(...lanes.map((l) => Math.max(l.v_kmh || 0, (l.ci || [0, 0])[1], val && val.per_lane[l.lane] || 0))) * 1.08 || 1;
+      const pill = (t, sym) => {
+        const lane = a[t];
+        if (lane) { const l = L.lanes.find((x) => x.lane === lane);
+          const r = a[`${t}_ratio`];                        // leader vs runner-up, always >= 1
+          const pct = Math.round((t === "fastest" ? r - 1 : 1 - 1 / r) * 100);
+          const other = L.lanes.find((x) => x.lane === a[`${t}_other`]);
+          const vs = other ? `lane ${other.number}` : "the next lane";
+          return `<span class="ls-pill">${sym} <b>${t === "fastest" ? "Fastest" : "Slowest"}: lane ${l.number}</b> · ${pct}% ${t === "fastest" ? "faster than" : "slower than"} ${vs} · P ${a[`${t}_p`].toFixed(2)}${a[`${t}_calibration_sensitive`] ? " · sensitive to calibration" : ""}</span>`; }
+        return `<span class="ls-pill">${sym} ${t === "fastest" ? "Fastest" : "Slowest"}: no meaningful difference</span>`;
+      };
+      const rows = lanes.map((l) => {
+        const w = (x) => (100 * x / vmax).toFixed(2) + "%";
+        const tag = a.fastest === l.lane ? `<span class="ls-tag">▲ fastest</span>` : a.slowest === l.lane ? `<span class="ls-tag">▼ slowest</span>` : "";
+        const gt = val && val.per_lane[l.lane] != null ? `<span class="ls-gt" style="left:${w(val.per_lane[l.lane])}"></span>` : "";
+        const ci = l.ci ? `<span class="ls-ci" style="left:${w(l.ci[0])};width:calc(${w(l.ci[1] - l.ci[0])})"></span>` : "";
+        return `<div class="ls-row${l.evidence_ok ? "" : " low"}" data-lane="${l.lane}">
+          <div class="nm">Lane ${l.number}${tag}<small>${l.auxiliary ? "ramp · not ranked" : l.evidence_ok ? `${l.vehicles} vehicle pieces` : "not enough data"}</small></div>
+          <div class="ls-track"><span class="ls-bar" style="width:${w(l.v_kmh || 0)}"></span>${ci}${gt}</div>
+          <div class="val">${l.v_kmh == null ? "–" : l.v_kmh.toFixed(1)}<small>km/h</small></div></div>`;
+      }).join("");
+      const tl = L.timeline[d];
+      const legend = tl && tl.t0.length > 1 ? `<div class="ls-legend">${lanes.map((l) =>
+        `<span class="chip"><span class="sw" style="background:${lsColor(l.number)}"></span>Lane ${l.number}${l.auxiliary ? " (ramp)" : ""}</span>`).join("")}</div>` : "";
+      return `<div class="ls-dir" data-dir="${d}"><h3>${DIR_NAME[d] || d}</h3>
+        <div class="ls-ann">${pill("fastest", "▲")}${pill("slowest", "▼")}</div>
+        <div class="ls-rows">${rows}</div>
+        ${tl && tl.t0.length > 1 ? `<svg class="ls-tl" data-dir="${d}" role="img" aria-label="Lane speeds in rolling ${tl.window_s} s windows"></svg>${legend}`
+          : `<p class="note">One ${tl ? tl.window_s : 60} s window fits in this video, so there is no timeline.</p>`}</div>`;
+    }).join("");
+    for (const row of $("lsDirs").querySelectorAll(".ls-row")) {
+      const l = L.lanes.find((x) => x.lane === row.dataset.lane);
+      row.onmousemove = (e) => showTip(e, `<b>Lane ${l.number} ${l.direction === "left" ? "←" : "→"}</b><table>
+        <tr><td>speed</td><td>${l.v_kmh} km/h</td></tr>${l.ci ? `<tr><td>95% interval</td><td>${l.ci[0]}–${l.ci[1]}</td></tr>` : ""}
+        <tr><td>median vehicle</td><td>${l.median_vehicle_kmh} km/h</td></tr>
+        ${val && val.per_lane[l.lane] != null ? `<tr><td>ground truth</td><td>${val.per_lane[l.lane]} km/h</td></tr>` : ""}
+        <tr><td>vehicle pieces</td><td>${l.vehicles}</td></tr><tr><td>vehicle time</td><td>${l.tau_s} s</td></tr>
+        <tr><td>trucks + buses</td><td>${Math.round((l.heavy_share || 0) * 100)}%</td></tr>
+        <tr><td>density</td><td>${l.k_veh_km} veh/km</td></tr><tr><td>flow</td><td>${l.q_veh_h} veh/h</td></tr>
+        <tr><td>lane changes in / out</td><td>${l.changes_in} / ${l.changes_out}</td></tr></table>`);
+      row.onmouseleave = hideTip;
+    }
+    drawLaneTimelines();
+  }
+
+  function drawLaneTimelines() {
+    const L = S.meta && S.meta.lane_speed;
+    if (!L) return;
+    for (const svg of $("lsDirs").querySelectorAll("svg.ls-tl")) {
+      const d = svg.dataset.dir, tl = L.timeline[d];
+      const lanes = L.lanes.filter((l) => l.direction === d).sort((x, y) => x.number - y.number);
+      const Wd = svg.clientWidth || 400, H = 150, ml = 34, mr = 10, mt = 8, mb = 20;
+      svg.setAttribute("viewBox", `0 0 ${Wd} ${H}`);
+      const xs = tl.t0.map((t) => t + tl.window_s / 2);
+      const x0 = Math.min(xs[0], L.span_s[0]), x1 = Math.max(xs[xs.length - 1], L.span_s[1]);
+      let ymax = 0; for (const l of lanes) for (const v of tl.v_kmh[l.lane] || []) if (v != null) ymax = Math.max(ymax, v);
+      ymax = Math.max(5, Math.ceil(ymax / 10) * 10);
+      const X = (t) => ml + (t - x0) / (x1 - x0) * (Wd - ml - mr), Y = (v) => mt + (1 - v / ymax) * (H - mt - mb);
+      let g = "";
+      for (let k = 0; k <= 4; k++) { const v = ymax * k / 4;
+        g += `<line x1="${ml}" x2="${Wd - mr}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--line)" stroke-width="1"/>` +
+             `<text x="${ml - 4}" y="${Y(v) + 3.5}" text-anchor="end">${v.toFixed(0)}</text>`; }
+      g += `<text x="${ml}" y="${H - 5}">${x0.toFixed(0)} s</text><text x="${Wd - mr}" y="${H - 5}" text-anchor="end">${x1.toFixed(0)} s · km/h</text>`;
+      for (const l of lanes) {
+        const v = tl.v_kmh[l.lane] || [];
+        const pts = xs.map((x, i) => v[i] == null ? null : `${X(x).toFixed(1)},${Y(v[i]).toFixed(1)}`);
+        let path = "", pen = false;
+        pts.forEach((p) => { if (p == null) { pen = false; return; } path += (pen ? "L" : "M") + p; pen = true; });
+        g += `<path d="${path}" fill="none" stroke="${lsColor(l.number)}" stroke-width="2" stroke-linejoin="round"${l.auxiliary ? ' stroke-dasharray="4 3"' : ""}/>`;
+      }
+      const tNow = S.frame / S.meta.fps;
+      g += `<line class="now" x1="${X(tNow)}" x2="${X(tNow)}" y1="${mt}" y2="${H - mb}" stroke="var(--fg)" stroke-width="1" opacity=".6"/>`;
+      g += `<line class="xh" x1="0" x2="0" y1="${mt}" y2="${H - mb}" stroke="var(--muted)" stroke-width="1" visibility="hidden"/>`;
+      g += `<rect x="${ml}" y="${mt}" width="${Wd - ml - mr}" height="${H - mt - mb}" fill="transparent"/>`;
+      svg.innerHTML = g;
+      const xh = svg.querySelector(".xh");
+      svg.onmousemove = (e) => {
+        const r = svg.getBoundingClientRect(), px = (e.clientX - r.left) * Wd / r.width;
+        let i = 0; xs.forEach((x, k) => { if (Math.abs(X(x) - px) < Math.abs(X(xs[i]) - px)) i = k; });
+        xh.setAttribute("x1", X(xs[i])); xh.setAttribute("x2", X(xs[i])); xh.setAttribute("visibility", "visible");
+        const f = tl.fastest[i], sl = tl.slowest[i];
+        showTip(e, `<b>${tl.t0[i].toFixed(0)}–${(tl.t0[i] + tl.window_s).toFixed(0)} s</b><table>${lanes.map((l) =>
+          `<tr><td><span class="sw" style="background:${lsColor(l.number)}"></span> lane ${l.number}</td><td>${(tl.v_kmh[l.lane] || [])[i] ?? "–"} km/h</td>` +
+          `<td>${f === l.lane ? "▲ fastest" : sl === l.lane ? "▼ slowest" : ""}</td></tr>`).join("")}</table>`);
+      };
+      svg.onmouseleave = () => { xh.setAttribute("visibility", "hidden"); hideTip(); };
+    }
+  }
+  function moveLaneNow() {
+    const L = S.meta && S.meta.lane_speed; if (!L) return;
+    for (const svg of $("lsDirs").querySelectorAll("svg.ls-tl")) {
+      const now = svg.querySelector(".now"); if (!now) continue;
+      const tl = L.timeline[svg.dataset.dir], xs = tl.t0.map((t) => t + tl.window_s / 2);
+      const Wd = svg.viewBox.baseVal.width, x0 = Math.min(xs[0], L.span_s[0]), x1 = Math.max(xs[xs.length - 1], L.span_s[1]);
+      const x = 34 + (S.frame / S.meta.fps - x0) / (x1 - x0) * (Wd - 44);
+      now.setAttribute("x1", x); now.setAttribute("x2", x);
+    }
+  }
+  addEventListener("resize", () => drawLaneTimelines());
 
   function buildRegister() {
     const rows = variantOf(S.variant).tracks.map((t) => ({
