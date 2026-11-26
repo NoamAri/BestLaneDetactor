@@ -7,15 +7,17 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 </head><body>
 <style>
-/* Lane Intel for phones: video first, the answer on the video, everything under the thumb.
-   Same data as the desktop Inspector (clips.json, clips/<id>/meta.json, tags, video). */
+/* Lane Intel for phones.
+   One pinned player (video, road map, transport) on top; the content scrolls underneath it.
+   Gestures: vertical always scrolls the page; horizontal pans the road (momentum, soft edges);
+   two fingers zoom; a tap is instant (car = follow it, lane tag = its card, road = play/pause). */
 :root {
   --bg: #eef1f3; --surface: #ffffff; --fg: #15202b; --muted: #5b6875; --line: #d3dae0;
   --accent: #0b7a4b; --accent-fg: #fff; --stage: #0b0f12;
   --s1: #257de0; --s2: #f47230; --s3: #00b894; --s4: #f2a600; --s5: #ee7fac;
   --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
-  --r: 14px; --bar: 62px;
+  --r: 14px; --bar: 60px; --ease: cubic-bezier(.2,.8,.2,1);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -27,122 +29,152 @@
 }
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
 [hidden] { display: none !important; }
-html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 var(--font-sans); }
-body { padding-bottom: calc(var(--bar) + env(safe-area-inset-bottom)); overscroll-behavior-y: none; }
-button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+html, body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.45 var(--font-sans); }
+body { padding-bottom: calc(var(--bar) + env(safe-area-inset-bottom) + 12px); -webkit-text-size-adjust: 100%; }
+button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; touch-action: manipulation; }
 .mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-/* top */
-.top { display: flex; align-items: center; justify-content: space-between; padding: calc(8px + env(safe-area-inset-top)) 16px 6px; }
-.brand { font-weight: 600; letter-spacing: .01em; }
+/* ---------------------------------------------------------------- header (scrolls away) */
+.top { display: flex; align-items: center; justify-content: space-between; padding: calc(10px + env(safe-area-inset-top)) 16px 4px; }
+.brand { font-weight: 600; font-size: 17px; }
 .brand span { color: var(--accent); }
-.linkbtn { font-size: 12.5px; color: var(--muted); text-decoration: underline; padding: 8px 0; }
-.clips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 16px 10px; scrollbar-width: none; scroll-snap-type: x mandatory; }
+.linkbtn { font-size: 12.5px; color: var(--muted); text-decoration: underline; padding: 10px 0; min-height: 44px; }
+.clips { display: flex; gap: 8px; overflow-x: auto; padding: 4px 16px 10px; scrollbar-width: none; scroll-snap-type: x proximity; }
 .clips::-webkit-scrollbar { display: none; }
 .clip { flex: none; scroll-snap-align: start; border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
-  padding: 7px 14px; font-size: 13px; white-space: nowrap; min-height: 36px; }
+  padding: 0 14px; font-size: 13px; white-space: nowrap; min-height: 38px; }
 .clip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 
-/* road map + video */
-.mini { position: relative; margin: 0 16px 8px; border-radius: 8px; overflow: hidden; background: var(--stage); touch-action: none; }
-.mini canvas { display: block; width: 100%; }
-.view { position: relative; height: min(46svh, 440px); background: var(--stage); overflow: hidden; touch-action: none; user-select: none; }
-.world { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
-.world video { display: block; width: 100%; height: 100%; }
-#ov { position: absolute; inset: 0; width: 100%; height: 100%; }
-.bigplay { position: absolute; left: 50%; top: 50%; width: 76px; height: 76px; margin: -38px 0 0 -38px; border-radius: 50%;
-  background: rgba(255,255,255,.92); color: #0b0f12; font-size: 28px; box-shadow: 0 6px 24px rgba(0,0,0,.35); padding-left: 6px; }
+/* ---------------------------------------------------------------- pinned player */
+.player { position: sticky; top: 0; z-index: 15; background: var(--bg); padding-top: env(safe-area-inset-top); }
+.player.stuck { box-shadow: 0 8px 18px -12px rgba(0,0,0,.45); }
+.view { position: relative; height: clamp(190px, 34svh, 360px); background: var(--stage); overflow: hidden;
+  touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.world { position: absolute; left: 0; top: 0; will-change: transform; }
+.world video { display: block; width: 100%; height: 100%; pointer-events: none; }
+#ov { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
 .chip { position: absolute; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px;
-  background: rgba(10,14,18,.78); color: #fff; font-size: 13px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
-.answer { left: 10px; top: 10px; font-weight: 600; max-width: calc(100% - 20px); }
-.answer .dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  background: rgba(10,14,18,.78); color: #fff; font-size: 12.5px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.answer { left: 10px; top: 10px; font-weight: 600; max-width: calc(100% - 70px); }
+.answer .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .answer small { font-weight: 400; opacity: .75; }
-.follow { left: 10px; bottom: 10px; font-size: 12.5px; max-width: calc(100% - 76px); }
-.follow button { color: #fff; font-weight: 600; text-decoration: underline; padding: 0 2px; }
-.rotate { left: 10px; top: 50px; font-size: 12px; transition: opacity .6s; }
-.rotate.gone { opacity: 0; }
+.follow { left: 10px; bottom: 10px; max-width: calc(100% - 20px); transition: opacity .25s; }
+.follow button { color: #fff; font-weight: 600; padding: 4px 2px; margin: -4px 0; }
+.ovbtn { position: absolute; right: 10px; top: 10px; width: 40px; height: 40px; border-radius: 50%; background: rgba(10,14,18,.72);
+  color: #fff; font-size: 17px; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+.bigplay { position: absolute; left: 50%; top: 50%; width: 72px; height: 72px; margin: -36px 0 0 -36px; border-radius: 50%;
+  background: rgba(255,255,255,.94); color: #0b0f12; font-size: 26px; box-shadow: 0 6px 24px rgba(0,0,0,.35); padding-left: 5px; }
+.flash { position: absolute; left: 50%; top: 50%; width: 64px; height: 64px; margin: -32px 0 0 -32px; border-radius: 50%;
+  background: rgba(10,14,18,.55); color: #fff; display: grid; place-items: center; font-size: 22px; opacity: 0; pointer-events: none; }
+.flash.on { animation: flash .55s var(--ease); }
+@keyframes flash { 0% { opacity: .95; transform: scale(.8); } 100% { opacity: 0; transform: scale(1.25); } }
+.coach { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(5,8,10,.45); color: #fff; pointer-events: none;
+  font-size: 14px; font-weight: 500; text-align: center; transition: opacity .4s; }
+.coach .hand { font-size: 30px; display: block; animation: swipe 1.4s var(--ease) infinite; }
+@keyframes swipe { 0%, 100% { transform: translateX(-34px); } 50% { transform: translateX(34px); } }
+.coach.gone { opacity: 0; }
 .loading { position: absolute; inset: 0; display: grid; place-items: center; color: #cfd6dc; font-size: 14px; background: var(--stage); }
-
-/* transport */
-.controls { display: grid; grid-template-columns: 52px 1fr 52px; gap: 10px; align-items: center; padding: 10px 16px 4px; }
-.cbtn { width: 52px; height: 52px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); font-size: 18px; }
-.cbtn.play { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-size: 20px; }
-.scrub { position: relative; height: 52px; touch-action: none; }
+.mini { position: relative; height: 30px; margin: 8px 16px 0; border-radius: 7px; overflow: hidden; background: var(--stage); touch-action: pan-y; }
+.mini canvas { display: block; width: 100%; height: 100%; }
+.controls { display: grid; grid-template-columns: 48px 1fr 48px; gap: 12px; align-items: center; padding: 8px 16px 8px; }
+.cbtn { width: 48px; height: 48px; border-radius: 50%; background: var(--surface); border: 1px solid var(--line); font-size: 15px; }
+.cbtn.play { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-size: 18px; }
+.scrub { position: relative; height: 48px; touch-action: pan-y; }
 .scrub canvas { display: block; width: 100%; height: 100%; }
-.time { display: flex; justify-content: space-between; padding: 0 16px; font-size: 11.5px; color: var(--muted); }
+.scrub .times { position: absolute; left: 0; right: 0; bottom: -2px; display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); pointer-events: none; }
 
-/* answer cards */
-.sect { padding: 14px 16px 4px; }
-.sect h2 { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
-.vcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 12px 14px; margin-bottom: 10px; width: 100%; text-align: left; display: block; }
-.vcard .dir { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.vcard .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+/* ---------------------------------------------------------------- content */
+.pane { padding: 14px 16px 0; }
+.pane h2 { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 6px 0 10px; }
+.vcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; margin-bottom: 12px; width: 100%; text-align: left; display: block; }
+.vcard:active, .rrow:active, .gbtn:active { transform: scale(.985); }
+.vcard .dir { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; }
+.vcard .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .vcard .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
-.vcard .ln { font-size: 20px; font-weight: 600; display: flex; align-items: center; gap: 7px; }
+.vcard .ln { font-size: 21px; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-top: 2px; }
 .vcard .ln .dot { width: 11px; height: 11px; border-radius: 50%; }
 .vcard .v { font-size: 13px; color: var(--muted); }
-.tag { font-size: 11px; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; margin-left: 4px; color: var(--muted); }
-.hint { color: var(--muted); font-size: 12.5px; padding: 0 16px; margin: 6px 0 14px; }
-
-/* lanes race */
+.vcard .why { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; border-top: 1px solid var(--line); padding-top: 8px; }
+.tag { font-size: 10.5px; border: 1px solid var(--line); border-radius: 999px; padding: 0 7px; margin-left: 6px; color: var(--muted); text-transform: none; letter-spacing: 0; }
+.note { color: var(--muted); font-size: 12.5px; margin: 4px 0 16px; }
 .race { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; margin-bottom: 12px; }
 .race h3 { margin: 0 0 2px; font-size: 15px; }
-.race .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 10px; }
-.rrow { display: grid; grid-template-columns: 70px 1fr 58px; gap: 8px; align-items: center; margin: 7px 0; font-size: 13.5px; }
+.race .sub { color: var(--muted); font-size: 12.5px; margin-bottom: 8px; }
+.rrow { display: grid; grid-template-columns: 74px 1fr 52px; gap: 8px; align-items: center; width: 100%; min-height: 40px; font-size: 14px; text-align: left; }
 .rrow .track { height: 14px; border-radius: 7px; background: color-mix(in srgb, var(--fg) 7%, transparent); overflow: hidden; }
-.rrow .fill { height: 100%; border-radius: 7px; transition: width .45s ease; }
+.rrow .fill { height: 100%; border-radius: 7px; transition: width .45s var(--ease); }
 .rrow .val { text-align: right; }
-.rrow.lead .nm::after { content: " ▲"; font-size: 11px; }
+.rrow .crown { font-size: 11px; color: var(--muted); margin-left: 3px; visibility: hidden; }
+.rrow.lead .crown { visibility: visible; }
 .rrow.aux { opacity: .6; }
 .sentence { font-size: 13.5px; margin: 10px 0 0; }
-
-/* about cards */
-.cards { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 4px 16px 12px; scrollbar-width: none; }
+.guess { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; margin-bottom: 12px; }
+.guess h3 { margin: 0 0 4px; font-size: 15px; }
+.guess p { margin: 4px 0 10px; color: var(--muted); font-size: 13.5px; }
+.gbtns { display: flex; flex-wrap: wrap; gap: 8px; }
+.gbtn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
+.gbtn .dot { width: 10px; height: 10px; border-radius: 50%; }
+.reveal { font-size: 14px; }
+.reveal b { font-weight: 600; }
+.cards { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 16px 12px; margin: 0 -16px; scrollbar-width: none; }
 .cards::-webkit-scrollbar { display: none; }
-.card { flex: 0 0 82%; scroll-snap-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.card { flex: 0 0 84%; scroll-snap-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
 .card .n { font-size: 12px; color: var(--accent); font-weight: 600; }
 .card h3 { margin: 4px 0 6px; font-size: 17px; }
 .card p { margin: 0; color: var(--muted); font-size: 14px; }
+.dots { display: flex; justify-content: center; gap: 6px; margin: 0 0 12px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--line); }
+.dots i.on { background: var(--accent); }
 
-/* bottom sheet */
-.sheet { position: fixed; left: 0; right: 0; bottom: calc(var(--bar) + env(safe-area-inset-bottom)); z-index: 20; background: var(--surface);
-  border-radius: 18px 18px 0 0; box-shadow: 0 -10px 30px rgba(0,0,0,.25); padding: 8px 18px 18px; max-height: 62svh; overflow: auto;
-  transform: translateY(0); transition: transform .22s ease; touch-action: pan-y; }
-.sheet.closing { transform: translateY(110%); }
+/* ---------------------------------------------------------------- bottom sheet with snap points */
+.sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; height: 86svh; background: var(--surface);
+  border-radius: 20px 20px 0 0; box-shadow: 0 -12px 34px rgba(0,0,0,.28); display: flex; flex-direction: column;
+  transform: translateY(100%); will-change: transform; padding-bottom: calc(var(--bar) + env(safe-area-inset-bottom)); }
+.sheet.anim { transition: transform .32s var(--ease); }
+.sheet-head { flex: none; padding: 8px 18px 4px; touch-action: none; cursor: grab; }
 .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 2px auto 10px; }
-.sheet .x { position: absolute; right: 10px; top: 8px; width: 40px; height: 40px; color: var(--muted); font-size: 18px; }
-.sheet h3 { margin: 0 0 2px; font-size: 18px; display: flex; align-items: center; gap: 8px; }
-.sheet .big { font-size: 34px; font-weight: 600; margin: 6px 0 2px; }
+.sheet .x { position: absolute; right: 8px; top: 6px; width: 44px; height: 44px; color: var(--muted); font-size: 18px; }
+.sheet-body { flex: 1; overflow: auto; padding: 0 18px 18px; overscroll-behavior: contain; }
+.sheet h3 { margin: 0 0 2px; font-size: 18px; display: flex; align-items: center; gap: 8px; padding-right: 40px; }
+.sheet .big { font-size: 36px; font-weight: 600; margin: 6px 0 2px; line-height: 1.1; }
 .sheet .big small { font-size: 15px; color: var(--muted); font-weight: 400; }
-.kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 12px 0; font-size: 14px; }
+.sheet .sub { font-size: 13px; color: var(--muted); }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; margin: 14px 0; font-size: 14px; }
 .kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; }
-.sbtn { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 18px; border-radius: 999px;
-  background: var(--accent); color: var(--accent-fg); font-weight: 600; margin-right: 8px; }
+.sbtn { display: inline-flex; align-items: center; justify-content: center; min-height: 46px; padding: 0 18px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-fg); font-weight: 600; margin: 0 8px 8px 0; }
 .sbtn.ghost { background: transparent; color: var(--fg); border: 1px solid var(--line); }
-.ci { position: relative; height: 10px; background: color-mix(in srgb, var(--fg) 7%, transparent); border-radius: 5px; margin: 8px 0 2px; }
+.ci { position: relative; height: 10px; background: color-mix(in srgb, var(--fg) 7%, transparent); border-radius: 5px; margin: 10px 0 4px; }
 .ci .bar { position: absolute; top: 0; height: 10px; border-radius: 5px; opacity: .45; }
 .ci .pt { position: absolute; top: -3px; width: 4px; height: 16px; border-radius: 2px; background: var(--fg); }
+.spark { width: 100%; height: 56px; display: block; margin-top: 6px; }
 
-/* tab bar */
+/* ---------------------------------------------------------------- tab bar */
 .tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; display: grid; grid-template-columns: repeat(3, 1fr);
   height: calc(var(--bar) + env(safe-area-inset-bottom)); padding-bottom: env(safe-area-inset-bottom);
-  background: color-mix(in srgb, var(--surface) 92%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  background: color-mix(in srgb, var(--surface) 94%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
   border-top: 1px solid var(--line); }
 .tabbar button { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11.5px; color: var(--muted); }
-.tabbar button .ic { font-size: 19px; line-height: 1; }
+.tabbar .ic { font-size: 18px; line-height: 1; }
 .tabbar button[aria-current="page"] { color: var(--accent); font-weight: 600; }
 
-/* landscape: the whole road, full screen */
+#confetti { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+
+/* ---------------------------------------------------------------- landscape: the whole road, full screen */
 @media (orientation: landscape) and (max-height: 520px) {
-  body { padding-bottom: 0; }
-  .top, .clips, .mini, .tabbar, .tab:not(#tabWatch), #tabWatch > :not(.view):not(.controls) { display: none !important; }
-  .view { position: fixed; inset: 0; height: auto; z-index: 10; }
-  .controls { position: fixed; left: 0; right: 0; bottom: 0; z-index: 11; padding: 10px calc(16px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
-    background: linear-gradient(transparent, rgba(0,0,0,.55)); transition: opacity .3s; }
-  .controls.faded { opacity: 0; pointer-events: none; }
-  .rotate { display: none; }
+  body { padding-bottom: 0; overflow: hidden; }
+  .top, .clips, .mini, .tabbar, main, .sheet { display: none !important; }
+  .player { position: fixed; inset: 0; padding: 0; background: var(--stage); }
+  .view { position: absolute; inset: 0; height: auto; touch-action: none; }
+  .controls { position: absolute; left: 0; right: 0; bottom: 0; z-index: 2; padding: 10px calc(16px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+    background: linear-gradient(transparent, rgba(0,0,0,.6)); transition: opacity .3s; }
+  .controls .cbtn { background: rgba(255,255,255,.14); color: #fff; border-color: transparent; }
+  .controls .cbtn.play { background: var(--accent); }
+  .scrub .times { color: #cfd6dc; }
+  .player.faded .controls, .player.faded .chip, .player.faded .ovbtn { opacity: 0; pointer-events: none; }
 }
-@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; animation: none !important; } }
 </style>
 
 <div id="app">
@@ -152,85 +184,102 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   </header>
   <nav class="clips" id="clips" aria-label="Videos"></nav>
 
+  <section class="player" id="player" aria-label="Video player">
+    <div class="view" id="view">
+      <div class="world" id="world"><video id="vid" playsinline muted preload="auto"></video></div>
+      <canvas id="ov"></canvas>
+      <div class="chip answer" id="answer" hidden></div>
+      <button class="ovbtn" id="zoomBtn" aria-label="Show the whole road">⤢</button>
+      <div class="chip follow" id="follow" hidden></div>
+      <div class="flash" id="flash" aria-hidden="true"></div>
+      <button class="bigplay" id="bigPlay" aria-label="Play" hidden>▶</button>
+      <div class="coach" id="coach" hidden><div><span class="hand">👆</span>Swipe sideways to explore the road<br><small style="opacity:.8">tap a car to follow it</small></div></div>
+      <div class="loading" id="loading">Loading the video…</div>
+    </div>
+    <div class="mini" id="miniWrap" aria-label="The whole road; tap or drag to look there"><canvas id="mini"></canvas></div>
+    <div class="controls" id="controls">
+      <button class="cbtn play" id="play" aria-label="Play">▶</button>
+      <div class="scrub" id="scrub" aria-label="Timeline coloured by the fastest lane; drag to move in time">
+        <canvas id="scrubCv"></canvas><div class="times mono"><span id="tNow">0.0 s</span><span id="tDur"></span></div>
+      </div>
+      <button class="cbtn mono" id="rate" aria-label="Playback speed">1×</button>
+    </div>
+  </section>
+
   <main>
-    <section class="tab" id="tabWatch">
-      <div class="mini" id="miniWrap" aria-label="The whole road; drag to move the view"><canvas id="mini"></canvas></div>
-      <div class="view" id="view">
-        <div class="world" id="world"><video id="vid" playsinline muted preload="auto"></video></div>
-        <canvas id="ov" aria-label="Video with vehicles and lanes; tap a car or a lane"></canvas>
-        <div class="chip answer" id="answer" hidden></div>
-        <div class="chip follow" id="follow" hidden></div>
-        <div class="chip rotate" id="rotateHint" hidden>↻ Turn your phone for the whole road</div>
-        <button class="bigplay" id="bigPlay" aria-label="Play" hidden>▶</button>
-        <div class="loading" id="loading">Loading the video…</div>
-      </div>
-      <div class="controls" id="controls">
-        <button class="cbtn play" id="play" aria-label="Play">▶</button>
-        <div class="scrub" id="scrub" aria-label="Timeline, coloured by the fastest lane; drag to seek"><canvas id="scrubCv"></canvas></div>
-        <button class="cbtn mono" id="rate" aria-label="Playback speed">1×</button>
-      </div>
-      <div class="time mono"><span id="tNow">0.0 s</span><span id="tTxt">colour = fastest lane at that moment</span><span id="tDur"></span></div>
-      <div class="sect"><h2>Which lane is faster</h2><div id="verdict"></div></div>
-      <p class="hint">Tap a car to follow it, tap a lane to see its speed. Drag the video to look around; turn your phone for the whole road.</p>
+    <section class="pane tab" id="tabAnswer">
+      <h2>Which lane is faster</h2>
+      <div id="verdict"></div>
+      <p class="note">Tap a card for the lane's details. The timeline above is coloured by the lane that was fastest at each moment.</p>
     </section>
-
-    <section class="tab" id="tabLanes" hidden>
-      <div class="sect"><h2>Lane race · live with the video</h2><div id="race"></div></div>
-      <p class="hint" id="raceNote"></p>
+    <section class="pane tab" id="tabRace" hidden>
+      <div id="guess"></div>
+      <h2>Lane race · live with the video</h2>
+      <div id="race"></div>
+      <p class="note" id="raceNote"></p>
     </section>
-
-    <section class="tab" id="tabAbout" hidden>
-      <div class="sect"><h2>How it works</h2></div>
-      <div class="cards">
+    <section class="pane tab" id="tabAbout" hidden>
+      <h2>How it works</h2>
+      <div class="cards" id="aboutCards">
         <div class="card"><div class="n">1 · Spot</div><h3>Every vehicle, every frame</h3><p>A neural network (YOLO) finds the cars, trucks and buses in each video frame. No training on this road was needed.</p></div>
         <div class="card"><div class="n">2 · Track</div><h3>The same car over time</h3><p>A tracker links the boxes into one path per vehicle, even when it hides behind a tree or a truck for a moment.</p></div>
         <div class="card"><div class="n">3 · Lanes</div><h3>Lanes from where cars drive</h3><p>Cars keep to their lanes, so their paths reveal the lanes. Lane 1 is the leftmost in the direction of travel.</p></div>
-        <div class="card"><div class="n">4 · Metres</div><h3>From pixels to km/h</h3><p>The drone's wobble is removed, and pixels are turned into metres, so a far lane is not mistaken for a slow one.</p></div>
-        <div class="card"><div class="n">5 · Verdict</div><h3>Fastest only when it's real</h3><p>A lane's speed is total distance ÷ total time of all its cars. A lane is called clearly fastest only with a 10% lead in 90% of resamples; otherwise it is a "close call". On MiTra this matches the official ground truth within about 3%.</p></div>
+        <div class="card"><div class="n">4 · Metres</div><h3>From pixels to km/h</h3><p>The drone's wobble is removed and pixels become metres, so a far lane is not mistaken for a slow one.</p></div>
+        <div class="card"><div class="n">5 · Verdict</div><h3>Fastest only when it's real</h3><p>A lane's speed is the total distance ÷ total time of all its cars. "Clearly fastest" needs a 10% lead in 90% of resamples; otherwise it is a close call.</p></div>
       </div>
-      <p class="hint"><button class="linkbtn" id="toDesktop2">Full explanation and every detail: desktop view</button></p>
+      <div class="dots" id="aboutDots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+      <p class="note"><button class="linkbtn" id="toDesktop2">Every detail and the method: desktop view</button></p>
     </section>
   </main>
 
-  <div class="sheet" id="sheet" role="dialog" aria-modal="false" hidden>
-    <div class="grab"></div>
-    <button class="x" id="sheetX" aria-label="Close">✕</button>
-    <div id="sheetBody"></div>
+  <div class="sheet" id="sheet" role="dialog" aria-label="Details" hidden>
+    <div class="sheet-head" id="sheetHead"><div class="grab"></div><button class="x" id="sheetX" aria-label="Close">✕</button><div id="sheetTitle"></div></div>
+    <div class="sheet-body" id="sheetBody"></div>
   </div>
 
   <nav class="tabbar" aria-label="Sections">
-    <button data-tab="tabWatch" aria-current="page"><span class="ic">▶</span>Watch</button>
-    <button data-tab="tabLanes"><span class="ic">≡</span>Lanes</button>
+    <button data-tab="tabAnswer" aria-current="page"><span class="ic">◎</span>Answer</button>
+    <button data-tab="tabRace"><span class="ic">≡</span>Lane race</button>
     <button data-tab="tabAbout"><span class="ic">?</span>About</button>
   </nav>
+  <canvas id="confetti" hidden></canvas>
+  <div class="sr" aria-live="polite" id="live"></div>
 </div>
 
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
-  const vid = $("vid"), view = $("view"), world = $("world"), ov = $("ov"), mini = $("mini");
+  const vid = $("vid"), view = $("view"), world = $("world"), ov = $("ov"), mini = $("mini"), player = $("player");
   const PALETTE = ["--s1", "--s2", "--s3", "--s4", "--s5"];
   const css = (v) => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
   const laneCol = (num) => css(PALETTE[(num - 1) % PALETTE.length]);
+  const arrow = (d) => (d === "left" ? "←" : "→");
   const DIRW = { right: "→ Right-moving traffic", left: "← Left-moving traffic" };
+  const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
   const store = { get: (k) => { try { return localStorage.getItem(k); } catch (_) { return null; } },
-                  set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } } };
+                  set: (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } },
+                  del: (k) => { try { localStorage.removeItem(k); } catch (_) { /* private mode */ } } };
+  const buzz = (ms) => { if (navigator.vibrate) navigator.vibrate(ms); };
 
-  const S = { clips: [], clip: null, base: "", meta: null, byFrame: [], tracks: new Map(), info: new Map(),
-              n: 0, fps: 30, f: 0, k: 1, worldW: 0, worldH: 0, camX: 0, camY: 0, pano: false, userPano: null,
-              mode: "auto", followId: null, followLane: null, lostFrames: 0, lastT: 0, rateIdx: 1, token: 0 };
+  const S = {
+    clips: [], clip: null, base: "", meta: null, byFrame: [], tracks: new Map(), info: new Map(), n: 0, fps: 30, f: 0,
+    k: 0, kFit: 1, kFill: 1, worldW: 0, worldH: 0, camX: 0, camY: 0, vx: 0, glide: false, dragging: false,
+    mode: "auto", followId: null, followLane: null, lostFrames: 0, exploreUntil: 0, exploring: false,
+    laneTags: [], lastT: 0, rateIdx: 1, token: 0, sheet: null, sheetY: 0, sheetSnap: "half", layoutLand: null,
+  };
+  window.__LI = S;                                   // for automated checks
   const RATES = [0.5, 1, 2];
 
-  // ---------------------------------------------------------------- data
+  // ================================================================ data
   const getJSON = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error(`${u}: HTTP ${r.status}`); return r.json(); };
   const ls = () => S.meta && S.meta.lane_speed;
-  const laneById = (id) => (S.meta.lanes || []).find((l) => l.id === id);
-  const laneIdx = (id) => (S.meta.lanes || []).findIndex((l) => l.id === id);
-  const speedOf = (id) => ls() ? ls().lanes.find((l) => l.lane === id) : null;
-  function verdictLane(dir, t) { const a = ls().announcement[dir]; return a ? (a[t] || a[`${t}_candidate`]) : null; }
-  function closeCall(dir, t) { const a = ls().announcement[dir]; return a && !a[t]; }
+  const lanes = () => (S.meta && S.meta.lanes) || [];
+  const laneById = (id) => lanes().find((l) => l.id === id);
+  const laneIdx = (id) => lanes().findIndex((l) => l.id === id);
+  const speedOf = (id) => (ls() ? ls().lanes.find((l) => l.lane === id) : null);
+  const verdictLane = (dir, t) => { const a = ls() && ls().announcement[dir]; return a ? a[t] || a[`${t}_candidate`] : null; };
+  const closeCall = (dir, t) => { const a = ls() && ls().announcement[dir]; return !!a && !a[t]; };
   function mainDirection() {
-    // the direction whose fastest lane is fastest: the most interesting ride
     let best = null, v = -1;
     for (const d of Object.keys(ls().announcement)) { const l = speedOf(verdictLane(d, "fastest")); if (l && l.v_kmh > v) { v = l.v_kmh; best = d; } }
     return best;
@@ -245,18 +294,14 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   }
 
   async function loadClip(id) {
-    const token = ++S.token;
-    const c = S.clips.find((x) => x.id === id);
+    const token = ++S.token, c = S.clips.find((x) => x.id === id);
     S.clip = id; S.base = c.dir || "";
     for (const b of $("clips").querySelectorAll(".clip")) b.setAttribute("aria-pressed", b.dataset.c === id);
     $("loading").hidden = false; $("loading").textContent = "Loading the video…"; $("bigPlay").hidden = true;
-    closeSheet(true);
-    vid.pause();
-    const meta = await getJSON(S.base + "meta.json");
-    if (token !== S.token) return;
+    closeSheet(true); vid.pause();
+    const meta = await getJSON(S.base + "meta.json"); if (token !== S.token) return;
     const v = meta.variants[0];
-    const tags = await getJSON(S.base + v.file);
-    if (token !== S.token) return;
+    const tags = await getJSON(S.base + v.file); if (token !== S.token) return;
     S.meta = meta; S.fps = meta.fps; S.n = meta.frame_count;
     S.byFrame = Array.from({ length: S.n }, () => []); S.tracks = new Map(); S.info = new Map();
     for (const t of v.tracks) S.info.set(t.track_id, t);
@@ -266,127 +311,139 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       S.byFrame[f].push(r);
       let tr = S.tracks.get(r.id); if (!tr) S.tracks.set(r.id, (tr = [])); tr.push(r);
     }
-    S.mode = "auto"; S.followId = null; S.followLane = null; S.f = 0;
-    vid.src = S.base + "video.mp4";
-    vid.playbackRate = RATES[S.rateIdx];
-    vid.load();
+    S.mode = "auto"; S.followId = null; S.followLane = null; S.f = 0; S.exploring = false; S.k = 0;
+    vid.src = S.base + "video.mp4"; vid.playbackRate = RATES[S.rateIdx]; vid.load();
     history.replaceState(null, "", "#clip=" + id);
-    renderVerdict(); renderRace(); layout();
     $("tDur").textContent = (S.n / S.fps).toFixed(0) + " s";
+    renderVerdict(); renderRace(); renderGuess(); layout();
   }
-  vid.addEventListener("loadeddata", () => { $("loading").hidden = true; $("bigPlay").hidden = !vid.paused; layout(); });
-  vid.addEventListener("error", () => { $("loading").textContent = "The video could not be loaded."; });
+  vid.addEventListener("loadeddata", () => { $("loading").hidden = true; syncPlay(); layout(); frame(); maybeCoach(); });
+  vid.addEventListener("error", () => { $("loading").textContent = "The video could not be loaded. Check the connection and reload."; });
 
-  // ---------------------------------------------------------------- camera
+  // ================================================================ camera
   const landscape = () => matchMedia("(orientation: landscape) and (max-height: 520px)").matches;
   function layout() {
     if (!S.meta) return;
-    const c = S.meta.crop, W = view.clientWidth, H = view.clientHeight;
-    S.pano = S.userPano !== null ? S.userPano : landscape();
-    const fill = Math.max(H / c.h, W / c.w), fit = Math.min(W / c.w, H / c.h);
-    S.k = S.pano ? fit : fill;
-    S.worldW = c.w * S.k; S.worldH = c.h * S.k;
-    world.style.width = S.worldW + "px"; world.style.height = S.worldH + "px";
-    const dpr = devicePixelRatio || 1;
+    const c = S.meta.crop, W = view.clientWidth, H = view.clientHeight, dpr = devicePixelRatio || 1;
+    S.kFit = Math.min(W / c.w, H / c.h); S.kFill = Math.max(H / c.h, W / c.w);
+    if (!S.k || S.layoutLand !== landscape()) S.k = landscape() ? S.kFit : S.kFill;    // default per orientation
+    S.layoutLand = landscape();
+    setScale(Math.max(S.kFit, Math.min(S.kFill * 3, S.k)));
     ov.width = Math.round(W * dpr); ov.height = Math.round(H * dpr);
-    const mh = Math.round(Math.max(30, Math.min(70, (view.clientWidth - 32) * c.h / c.w)));
-    mini.style.height = mh + "px"; mini.width = Math.round(mini.clientWidth * dpr); mini.height = Math.round(mh * dpr);
+    mini.width = Math.round(mini.clientWidth * dpr); mini.height = Math.round(mini.clientHeight * dpr);
     const sc = $("scrubCv"); sc.width = Math.round(sc.clientWidth * dpr); sc.height = Math.round(sc.clientHeight * dpr);
-    $("rotateHint").hidden = landscape() || S.worldW <= W * 1.6 || store.get("li-rotated") === "1";
-    clampCam(); applyCam(); drawScrub();
+    updateZoomBtn(); clampCam(true); applyCam(); drawScrub(); draw(); drawMini();
   }
-  function clampCam() {
+  function setScale(k) {
+    S.k = k; S.worldW = S.meta.crop.w * k; S.worldH = S.meta.crop.h * k;
+    world.style.width = S.worldW + "px"; world.style.height = S.worldH + "px";
+  }
+  function bounds() {
     const W = view.clientWidth, H = view.clientHeight;
-    S.camX = S.worldW <= W ? (S.worldW - W) / 2 : Math.max(0, Math.min(S.worldW - W, S.camX));
-    S.camY = S.worldH <= H ? (S.worldH - H) / 2 : Math.max(0, Math.min(S.worldH - H, S.camY));
+    return { x0: S.worldW <= W ? (S.worldW - W) / 2 : 0, x1: S.worldW <= W ? (S.worldW - W) / 2 : S.worldW - W,
+             y0: S.worldH <= H ? (S.worldH - H) / 2 : 0, y1: S.worldH <= H ? (S.worldH - H) / 2 : S.worldH - H };
   }
-  const applyCam = () => { world.style.transform = `translate(${-S.camX}px, ${-S.camY}px)`; };
+  function clampCam(hard) {
+    const b = bounds();
+    if (hard) S.camX = Math.max(b.x0, Math.min(b.x1, S.camX));
+    S.camY = Math.max(b.y0, Math.min(b.y1, S.camY));
+  }
+  const applyCam = () => { world.style.transform = `translate3d(${-S.camX}px, ${-S.camY}px, 0)`; };
   const toScreen = (x, y) => [(x - S.meta.crop.x) * S.k - S.camX, (y - S.meta.crop.y) * S.k - S.camY];
   const toFrame = (sx, sy) => [(sx + S.camX) / S.k + S.meta.crop.x, (sy + S.camY) / S.k + S.meta.crop.y];
+  function zoomAround(k, sx, sy) {                  // keep the frame point under (sx, sy) in place
+    k = Math.max(S.kFit, Math.min(S.kFill * 3, k));
+    const [fx, fy] = toFrame(sx, sy);
+    setScale(k);
+    S.camX = (fx - S.meta.crop.x) * k - sx; S.camY = (fy - S.meta.crop.y) * k - sy;
+    clampCam(true); applyCam(); updateZoomBtn();
+  }
+  function animateZoom(k) {
+    const k0 = S.k, t0 = performance.now(), W = view.clientWidth, H = view.clientHeight;
+    const step = (t) => { const u = reduced ? 1 : Math.min(1, (t - t0) / 320), e = 1 - Math.pow(1 - u, 3);
+      zoomAround(k0 + (k - k0) * e, W / 2, H / 2); if (u < 1) requestAnimationFrame(step); };
+    requestAnimationFrame(step);
+  }
+  const wholeRoad = () => S.k <= S.kFit * 1.04;
+  function updateZoomBtn() {
+    const b = $("zoomBtn");
+    b.textContent = wholeRoad() ? "⊕" : "⤢";
+    b.setAttribute("aria-label", wholeRoad() ? "Zoom in to the cars" : "Show the whole road");
+    b.hidden = S.kFill <= S.kFit * 1.05;
+  }
+  $("zoomBtn").onclick = () => { buzz(5); animateZoom(wholeRoad() ? S.kFill : S.kFit); };
 
   function boxAt(id, f) {
-    const tr = S.tracks.get(id); if (!tr) return null;
-    let lo = 0, hi = tr.length - 1;                      // last box at or before f
-    if (tr[0].f > f) return null;
+    const tr = S.tracks.get(id); if (!tr || tr[0].f > f) return null;
+    let lo = 0, hi = tr.length - 1;
     while (lo < hi) { const m = (lo + hi + 1) >> 1; if (tr[m].f <= f) lo = m; else hi = m - 1; }
     return f - tr[lo].f <= Math.round(S.fps * 0.6) ? tr[lo] : null;
   }
-
-  // auto mode: ride along with a car in the fastest lane of the busiest-moving direction
   function pickCar(laneId) {
-    const li = laneIdx(laneId), f = S.f;
-    let best = null, score = -1;
-    for (const d of S.byFrame[f] || []) {
+    const li = laneIdx(laneId); let best = null, score = -1;
+    for (const d of S.byFrame[S.f] || []) {
       const t = S.info.get(d.id); if (!t || t.lane !== li) continue;
-      const left = t.last - S.meta.frame_first - f;       // frames still to come
-      if (left > score) { score = left; best = d.id; }
+      const left = t.last - S.meta.frame_first - S.f; if (left > score) { score = left; best = d.id; }
     }
     return best;
   }
   function updateFollow() {
     if (!ls()) return;
     if (S.mode === "auto" && !S.followLane) S.followLane = verdictLane(mainDirection(), "fastest");
-    if (S.mode === "free") return;
     const b = S.followId != null ? boxAt(S.followId, S.f) : null;
-    if (!b) {
-      S.lostFrames++;
-      if (S.followId == null || S.lostFrames > S.fps * 0.4) {
-        const lane = S.mode === "car" ? laneById((S.meta.lanes || [])[S.info.get(S.followId)?.lane]?.id)?.id : S.followLane;
-        S.followId = pickCar(S.followLane || lane);
-        if (S.mode === "car") S.mode = S.followLane ? "lane" : "auto";
-        S.lostFrames = 0;
-      }
-    } else S.lostFrames = 0;
-    renderFollowChip();
+    if (b) { S.lostFrames = 0; return; }
+    if (S.followId == null || ++S.lostFrames > S.fps * 0.4) {
+      if (S.mode === "car") { const t = S.info.get(S.followId); S.followLane = t && lanes()[t.lane] ? lanes()[t.lane].id : S.followLane; S.mode = "lane"; }
+      S.followId = pickCar(S.followLane); S.lostFrames = 0;
+    }
   }
-  function steerCamera(dt) {
-    if (S.mode === "free" || S.pano) return;
-    const b = S.followId != null ? boxAt(S.followId, S.f) : null;
-    if (!b) return;
-    const W = view.clientWidth, H = view.clientHeight;
-    const t = S.info.get(b.id), dir = t && t.px_per_s < 0 ? -1 : 1;
-    const [sx] = toScreen((b.x1 + b.x2) / 2, 0);
-    const want = S.camX + sx - W * (dir > 0 ? 0.38 : 0.62);   // a little room ahead of the car
-    const [, sy] = toScreen(0, (b.y1 + b.y2) / 2);
-    const wantY = S.camY + sy - H / 2;
-    const a = 1 - Math.exp(-dt / 0.35);
-    S.camX += (want - S.camX) * a; S.camY += (wantY - S.camY) * a;
-    clampCam(); applyCam();
+  function steer(dt) {
+    if (S.exploring && !vid.paused && performance.now() > S.exploreUntil) S.exploring = false;      // back to the car
+    if (S.glide) {                                                                                 // momentum after a swipe
+      S.camX -= S.vx * dt; S.vx *= Math.exp(-dt * 3.2);
+      const b = bounds();
+      if (S.camX < b.x0) { S.camX += (b.x0 - S.camX) * (1 - Math.exp(-dt * 14)); S.vx *= 0.6; }
+      if (S.camX > b.x1) { S.camX += (b.x1 - S.camX) * (1 - Math.exp(-dt * 14)); S.vx *= 0.6; }
+      if (Math.abs(S.vx) < 8 && S.camX >= b.x0 - 0.5 && S.camX <= b.x1 + 0.5) { S.glide = false; clampCam(true); }
+      applyCam(); return;
+    }
+    if (S.exploring || S.dragging) return;
+    const b0 = S.followId != null ? boxAt(S.followId, S.f) : null; if (!b0) return;
+    const W = view.clientWidth, H = view.clientHeight, t = S.info.get(b0.id), dir = t && t.px_per_s < 0 ? -1 : 1;
+    const [sx, sy] = toScreen((b0.x1 + b0.x2) / 2, (b0.y1 + b0.y2) / 2);
+    const a = 1 - Math.exp(-dt / 0.32);
+    S.camX += (sx - W * (dir > 0 ? 0.38 : 0.62)) * a;
+    S.camY += (sy - H / 2) * a;
+    clampCam(true); applyCam();
   }
 
-  // ---------------------------------------------------------------- drawing
-  function rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x, y, w, h, r) : ctx.rect(x, y, w, h); }
+  // ================================================================ drawing
+  const rr = (ctx, x, y, w, h, r) => { ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h); };
   function draw() {
     const ctx = ov.getContext("2d"), dpr = devicePixelRatio || 1, W = view.clientWidth, H = view.clientHeight;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
     if (!S.meta) return;
-    const L = ls(), lanes = S.meta.lanes || [];
-    const fastest = new Set(), slowest = new Set();
-    if (L) for (const d of Object.keys(L.announcement)) { fastest.add(verdictLane(d, "fastest")); slowest.add(verdictLane(d, "slowest")); }
-    const focusLane = S.sheetLane || null;
-    // lane bands
-    for (const ln of lanes) {
-      const col = laneCol(ln.number);
+    const L = ls(), fast = new Set();
+    if (L) for (const d of Object.keys(L.announcement)) fast.add(verdictLane(d, "fastest"));
+    const focus = S.sheet && S.sheet.lane;
+    for (const ln of lanes()) {
       ctx.beginPath();
-      ln.upper.forEach(([x, y], j) => { const [a, b] = toScreen(x, y); j ? ctx.lineTo(a, b) : ctx.moveTo(a, b); });
+      ln.upper.forEach(([x, y], j) => { const [a, b] = toScreen(x, y); if (j) ctx.lineTo(a, b); else ctx.moveTo(a, b); });
       [...ln.lower].reverse().forEach(([x, y]) => { const [a, b] = toScreen(x, y); ctx.lineTo(a, b); });
       ctx.closePath();
-      ctx.globalAlpha = focusLane ? (focusLane === ln.id ? 0.34 : 0.05) : fastest.has(ln.id) ? 0.24 : 0.12;
-      ctx.fillStyle = col; ctx.fill(); ctx.globalAlpha = 1;
+      ctx.globalAlpha = focus ? (focus === ln.id ? 0.36 : 0.05) : fast.has(ln.id) ? 0.22 : 0.1;
+      ctx.fillStyle = laneCol(ln.number); ctx.fill(); ctx.globalAlpha = 1;
     }
-    // vehicles: quiet outlines; the followed car in its lane's colour with its speed
-    const dets = S.byFrame[S.f] || [];
-    ctx.lineWidth = 1.4;
-    for (const d of dets) {
+    ctx.lineWidth = 1.3; ctx.strokeStyle = "rgba(255,255,255,.5)";
+    for (const d of S.byFrame[S.f] || []) {
       if (d.id === S.followId) continue;
       const [x1, y1] = toScreen(d.x1, d.y1), [x2, y2] = toScreen(d.x2, d.y2);
-      if (x2 < -20 || x1 > W + 20) continue;
-      ctx.strokeStyle = "rgba(255,255,255,.55)"; rr(ctx, x1, y1, x2 - x1, y2 - y1, 4); ctx.stroke();
+      if (x2 < -10 || x1 > W + 10) continue;
+      rr(ctx, x1, y1, x2 - x1, y2 - y1, 4); ctx.stroke();
     }
     const fb = S.followId != null ? boxAt(S.followId, S.f) : null;
     if (fb) {
-      const t = S.info.get(fb.id), ln = t && lanes[t.lane];
-      const col = ln ? laneCol(ln.number) : "#fff";
+      const t = S.info.get(fb.id), ln = t && lanes()[t.lane], col = ln ? laneCol(ln.number) : "#fff";
       const [x1, y1] = toScreen(fb.x1, fb.y1), [x2, y2] = toScreen(fb.x2, fb.y2);
       ctx.lineWidth = 3; ctx.strokeStyle = col; rr(ctx, x1 - 2, y1 - 2, x2 - x1 + 4, y2 - y1 + 4, 6); ctx.stroke();
       if (t && t.kmh != null) {
@@ -397,314 +454,410 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
         ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, bx + 6, by + 11);
       }
     }
-    // sticky lane labels at the left edge of the view
-    if (!S.pano) {
+    // lane tags pinned to the left edge (tap one for that lane's card)
+    S.laneTags = [];
+    if (!(wholeRoad() && landscape())) {
       ctx.font = "600 11px " + css("--font-sans");
       const [fx] = toFrame(8, 0);
-      let lastY = -99;
-      const items = lanes.map((ln) => {
-        const pts = ln.centre; let y = pts[0][1];
-        for (let j = 1; j < pts.length; j++) if (pts[j][0] >= fx) { const [ax, ay] = pts[j - 1], [bx, byy] = pts[j]; y = ay + (byy - ay) * ((fx - ax) / Math.max(1e-6, bx - ax)); break; }
+      const items = lanes().map((ln) => {
+        const p = ln.centre; let y = p[0][1];
+        for (let j = 1; j < p.length; j++) if (p[j][0] >= fx) { const [ax, ay] = p[j - 1], [bx, by] = p[j]; y = ay + (by - ay) * ((fx - ax) / Math.max(1e-6, bx - ax)); break; }
         return { ln, y: toScreen(0, y)[1] };
       }).sort((a, b) => a.y - b.y);
+      let lastY = -99;
       for (const { ln, y } of items) {
         if (y < 8 || y > H - 8 || y - lastY < 17) continue;
         lastY = y;
-        const sp = speedOf(ln.id), txt = `${ln.number}${ln.direction === "left" ? "←" : "→"}${sp && sp.v_kmh != null ? " " + Math.round(sp.v_kmh) : ""}`;
+        const sp = speedOf(ln.id), txt = `${ln.number}${arrow(ln.direction)}${sp && sp.v_kmh != null ? " " + Math.round(sp.v_kmh) : ""}`;
         const tw = ctx.measureText(txt).width;
-        ctx.fillStyle = "rgba(10,14,18,.72)"; rr(ctx, 6, y - 8, tw + 14, 16, 8); ctx.fill();
-        ctx.fillStyle = laneCol(ln.number); ctx.beginPath(); ctx.arc(12, y, 3, 0, 7); ctx.fill();
-        ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, 17, y + 0.5);
+        ctx.fillStyle = "rgba(10,14,18,.74)"; rr(ctx, 6, y - 8, tw + 15, 16, 8); ctx.fill();
+        ctx.fillStyle = laneCol(ln.number); ctx.beginPath(); ctx.arc(12.5, y, 3, 0, 7); ctx.fill();
+        ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, 18, y + 0.5);
+        S.laneTags.push({ id: ln.id, x0: 0, x1: tw + 30, y0: y - 14, y1: y + 14 });
       }
     }
   }
-
   function drawMini() {
-    if (!S.meta || mini.width === 0) return;
+    if (!S.meta || !mini.width) return;
     const ctx = mini.getContext("2d"), w = mini.width, h = mini.height, dpr = devicePixelRatio || 1;
     try { ctx.drawImage(vid, 0, 0, w, h); } catch (_) { ctx.fillStyle = "#0b0f12"; ctx.fillRect(0, 0, w, h); }
-    ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.fillRect(0, 0, w, h);
-    const c = S.meta.crop, sx = w / c.w, sy = h / c.h;
-    const fb = S.followId != null ? boxAt(S.followId, S.f) : null;
-    if (fb) { const t = S.info.get(fb.id), ln = t && S.meta.lanes[t.lane];
+    ctx.fillStyle = "rgba(0,0,0,.38)"; ctx.fillRect(0, 0, w, h);
+    const c = S.meta.crop, fb = S.followId != null ? boxAt(S.followId, S.f) : null;
+    if (fb) { const t = S.info.get(fb.id), ln = t && lanes()[t.lane];
       ctx.fillStyle = ln ? laneCol(ln.number) : "#fff"; ctx.beginPath();
-      ctx.arc(((fb.x1 + fb.x2) / 2 - c.x) * sx, ((fb.y1 + fb.y2) / 2 - c.y) * sy, 4 * dpr, 0, 7); ctx.fill(); }
-    if (S.worldW > view.clientWidth + 1) {
-      const x = S.camX / S.worldW * w, ww = view.clientWidth / S.worldW * w;
-      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2 * dpr; ctx.strokeRect(x + dpr, dpr, ww - 2 * dpr, h - 2 * dpr);
+      ctx.arc(((fb.x1 + fb.x2) / 2 - c.x) * w / c.w, ((fb.y1 + fb.y2) / 2 - c.y) * h / c.h, 4 * dpr, 0, 7); ctx.fill(); }
+    if (!wholeRoad()) {
+      const x = Math.max(0, S.camX / S.worldW * w), ww = Math.min(w, view.clientWidth / S.worldW * w);
+      ctx.strokeStyle = "#fff"; ctx.lineWidth = 2 * dpr; rr(ctx, x + dpr, dpr, ww - 2 * dpr, h - 2 * dpr, 4 * dpr); ctx.stroke();
     }
   }
-
-  // timeline coloured by the leading lane (of the main direction) in each rolling window
+  function leaderAt(dir, i) {
+    const L = ls(), tl = L.timeline[dir]; let lead = null, v = -1;
+    for (const l of L.lanes) if (l.direction === dir && !l.auxiliary && l.evidence_ok) { const x = (tl.v_kmh[l.lane] || [])[i]; if (x != null && x > v) { v = x; lead = l; } }
+    return lead;
+  }
+  const windowAt = (tl, t) => { let i = 0, bd = 1e9; tl.t0.forEach((t0, j) => { const d = Math.abs(t0 + tl.window_s / 2 - t); if (d < bd) { bd = d; i = j; } }); return i; };
   function drawScrub() {
-    const cv = $("scrubCv"); if (!cv.width) return;
+    const cv = $("scrubCv"); if (!cv.width || !S.meta) return;
     const ctx = cv.getContext("2d"), w = cv.width, h = cv.height, dpr = devicePixelRatio || 1;
     ctx.clearRect(0, 0, w, h);
-    const dur = S.n / S.fps, barY = h * 0.38, barH = h * 0.24;
-    ctx.fillStyle = css("--line"); rr(ctx, 0, barY, w, barH, barH / 2); ctx.fill();
+    const dur = S.n / S.fps, y = h * 0.28, bh = 8 * dpr;
+    ctx.fillStyle = css("--line"); rr(ctx, 0, y, w, bh, bh / 2); ctx.fill();
     const L = ls(), dir = L && mainDirection(), tl = L && dir && L.timeline[dir];
     if (tl && tl.t0.length) {
-      const lanes = L.lanes.filter((l) => l.direction === dir && !l.auxiliary && l.evidence_ok);
-      ctx.save(); rr(ctx, 0, barY, w, barH, barH / 2); ctx.clip();
-      for (let px = 0; px < w; px += 2 * dpr) {
-        const t = (px / w) * dur;
-        let i = 0, bd = 1e9;
-        tl.t0.forEach((t0, j) => { const dd = Math.abs(t0 + tl.window_s / 2 - t); if (dd < bd) { bd = dd; i = j; } });
-        let lead = null, v = -1;
-        for (const l of lanes) { const x = (tl.v_kmh[l.lane] || [])[i]; if (x != null && x > v) { v = x; lead = l; } }
-        if (lead) { ctx.fillStyle = laneCol(lead.number); ctx.fillRect(px, barY, 2 * dpr, barH); }
-      }
+      ctx.save(); rr(ctx, 0, y, w, bh, bh / 2); ctx.clip();
+      for (let px = 0; px < w; px += 2 * dpr) { const lead = leaderAt(dir, windowAt(tl, (px / w) * dur)); if (lead) { ctx.fillStyle = laneCol(lead.number); ctx.fillRect(px, y, 2 * dpr, bh); } }
       ctx.restore();
     }
-    const x = (S.f / Math.max(1, S.n - 1)) * w;
-    ctx.fillStyle = css("--fg"); rr(ctx, x - 2 * dpr, h * 0.18, 4 * dpr, h * 0.64, 2 * dpr); ctx.fill();
+    const x = Math.max(7 * dpr, Math.min(w - 7 * dpr, (S.f / Math.max(1, S.n - 1)) * w));
+    ctx.fillStyle = css("--surface"); ctx.strokeStyle = css("--fg"); ctx.lineWidth = 2 * dpr;
+    ctx.beginPath(); ctx.arc(x, y + bh / 2, 7 * dpr, 0, 7); ctx.fill(); ctx.stroke();
   }
 
-  // ---------------------------------------------------------------- chips, cards, race
-  function renderAnswer() {
+  // ================================================================ chips, cards, race, guess
+  function renderChips() {
     const L = ls(), el = $("answer");
-    if (!L) { el.hidden = true; return; }
-    const dir = S.followLane ? laneById(S.followLane)?.direction : mainDirection();
-    const id = verdictLane(dir, "fastest"), l = laneById(id), sp = speedOf(id);
-    if (!l || !sp) { el.hidden = true; return; }
-    el.hidden = false;
-    el.innerHTML = `<span class="dot" style="background:${laneCol(l.number)}"></span>Fastest: lane ${l.number} ${l.direction === "left" ? "←" : "→"} · ${sp.v_kmh.toFixed(0)} km/h${closeCall(dir, "fastest") ? " <small>· close call</small>" : ""}`;
-  }
-  function renderFollowChip() {
-    const el = $("follow");
-    if (S.pano) { el.hidden = true; return; }
-    if (S.mode === "free") { el.hidden = false; el.innerHTML = `Free view · <button id="resume">⟲ Follow again</button>`; $("resume").onclick = () => { S.mode = "auto"; S.followLane = null; S.followId = null; }; return; }
-    const t = S.followId != null && S.info.get(S.followId), ln = t && S.meta.lanes[t.lane];
-    if (!t || !ln) { el.hidden = true; return; }
-    el.hidden = false;
-    const why = S.mode === "auto" ? "Riding along in the fastest lane" : S.mode === "lane" ? `Following lane ${ln.number}` : "Following your car";
-    el.textContent = `${why} · lane ${ln.number} · ${t.kmh != null ? Math.round(t.kmh) + " km/h" : t.cls}`;
+    if (L) {
+      const dir = S.followLane && laneById(S.followLane) ? laneById(S.followLane).direction : mainDirection();
+      const l = laneById(verdictLane(dir, "fastest")), sp = l && speedOf(l.id);
+      el.hidden = !sp;
+      if (sp) el.innerHTML = `<span class="dot" style="background:${laneCol(l.number)}"></span>Fastest ${arrow(dir)} lane ${l.number} · ${Math.round(sp.v_kmh)} km/h${closeCall(dir, "fastest") ? " <small>· close call</small>" : ""}`;
+    } else el.hidden = true;
+    const f = $("follow");
+    if (S.exploring) {
+      const secs = Math.max(0, Math.ceil((S.exploreUntil - performance.now()) / 1000));
+      const html = `Exploring${!vid.paused && secs ? ` · back in ${secs} s` : ""} <button id="back">⟲ Back to the car</button>`;
+      if (f.dataset.html !== html) { f.innerHTML = html; f.dataset.html = html;
+        $("back").onclick = (e) => { e.stopPropagation(); S.exploring = false; S.glide = false; buzz(5); }; }
+      f.hidden = false; return;
+    }
+    f.dataset.html = "";
+    const t = S.followId != null && S.info.get(S.followId), ln = t && lanes()[t.lane];
+    if (!t || !ln || wholeRoad()) { f.hidden = true; return; }
+    f.hidden = false;
+    const who = S.mode === "auto" ? "Riding along in the fastest lane" : S.mode === "lane" ? `Following lane ${ln.number}` : "Following your car";
+    f.textContent = `${who} · ${t.kmh != null ? Math.round(t.kmh) + " km/h" : t.cls}`;
   }
 
   function renderVerdict() {
     const L = ls(), box = $("verdict");
-    if (!L) { box.innerHTML = `<p class="hint">Lane speeds are not computed for this video yet.</p>`; return; }
+    if (!L) { box.innerHTML = `<p class="note">Lane speeds are not computed for this video yet.</p>`; return; }
     box.innerHTML = Object.keys(L.announcement).sort().reverse().map((d) => {
+      const a = L.announcement[d];
       const cell = (t) => {
         const l = laneById(verdictLane(d, t)), sp = l && speedOf(l.id);
-        if (!l || !sp) return `<div><div class="k">${t}</div><div class="v">–</div></div>`;
+        if (!sp) return `<div><div class="k">${t}</div><div class="v">–</div></div>`;
         return `<div><div class="k">${t === "fastest" ? "▲ Fastest" : "▼ Slowest"}${closeCall(d, t) ? '<span class="tag">close</span>' : ""}</div>
           <div class="ln"><span class="dot" style="background:${laneCol(l.number)}"></span>Lane ${l.number}</div>
           <div class="v mono">${sp.v_kmh.toFixed(1)} km/h</div></div>`;
       };
-      return `<button class="vcard" data-dir="${d}"><div class="dir">${DIRW[d]}</div><div class="pair">${cell("fastest")}${cell("slowest")}</div></button>`;
+      const r = a.fastest_ratio, pct = r ? Math.round((r - 1) * 100) : null;
+      const why = a.fastest ? `Clear: ${pct}% ahead of the next lane, in ${Math.round(a.fastest_p * 100)}% of resamples.`
+        : pct != null && r < 1.1 ? `Close call: only ${pct}% ahead of the next lane (10% needed to call it clear).`
+        : pct != null ? `Leads by ${pct}%, but not consistently enough to call it clear (${Math.round(a.fastest_p * 100)}% of resamples).` : "";
+      return `<button class="vcard" data-dir="${d}"><div class="dir"><span>${DIRW[d]}</span><span>›</span></div>
+        <div class="pair">${cell("fastest")}${cell("slowest")}</div><p class="why">${why}</p></button>`;
     }).join("");
     for (const b of box.querySelectorAll(".vcard")) b.onclick = () => openLane(verdictLane(b.dataset.dir, "fastest"));
   }
 
-  function windowAt(tl, t) { let i = 0, bd = 1e9; tl.t0.forEach((t0, j) => { const dd = Math.abs(t0 + tl.window_s / 2 - t); if (dd < bd) { bd = dd; i = j; } }); return i; }
   function renderRace() {
     const L = ls(), box = $("race");
-    if (!L) { box.innerHTML = `<p class="hint">Lane speeds are not computed for this video yet.</p>`; return; }
+    if (!L) { box.innerHTML = `<p class="note">Lane speeds are not computed for this video yet.</p>`; $("raceNote").textContent = ""; return; }
     box.innerHTML = Object.keys(L.announcement).sort().reverse().map((d) => {
-      const lanes = L.lanes.filter((l) => l.direction === d && l.v_kmh != null).sort((a, b) => a.number - b.number);
-      const tl = L.timeline[d];
-      let share = "";
+      const rows = L.lanes.filter((l) => l.direction === d && l.v_kmh != null).sort((a, b) => a.number - b.number);
+      const tl = L.timeline[d]; let share = "";
       if (tl && tl.t0.length) {
-        const ranked = lanes.filter((l) => !l.auxiliary && l.evidence_ok), wins = {};
-        tl.t0.forEach((_, i) => { let lead = null, v = -1; for (const l of ranked) { const x = (tl.v_kmh[l.lane] || [])[i]; if (x != null && x > v) { v = x; lead = l; } } if (lead) wins[lead.lane] = (wins[lead.lane] || 0) + 1; });
+        const wins = {}; tl.t0.forEach((_, i) => { const l = leaderAt(d, i); if (l) wins[l.lane] = (wins[l.lane] || 0) + 1; });
         const top = Object.entries(wins).sort((a, b) => b[1] - a[1])[0];
-        if (top) share = `Lane ${laneById(top[0]).number} was fastest in ${Math.round(100 * top[1] / tl.t0.length)}% of the moments measured.`;
+        if (top) share = ` Lane ${laneById(top[0]).number} led ${Math.round(100 * top[1] / tl.t0.length)}% of the time.`;
       }
       const f = laneById(verdictLane(d, "fastest")), s = laneById(verdictLane(d, "slowest"));
-      return `<div class="race" data-dir="${d}"><h3>${DIRW[d]}</h3>
-        <div class="sub">Average speed in each lane right now (25 s around the playhead)</div>
-        ${lanes.map((l) => `<div class="rrow${l.auxiliary ? " aux" : ""}" data-lane="${l.lane}"><div class="nm">Lane ${l.number}${l.auxiliary ? " ramp" : ""}</div>
-          <div class="track"><div class="fill" style="background:${laneCol(l.number)};width:0%"></div></div><div class="val mono">–</div></div>`).join("")}
-        <p class="sentence">Over the whole video: ▲ lane ${f ? f.number : "–"} fastest${closeCall(d, "fastest") ? " (close call)" : ""}, ▼ lane ${s ? s.number : "–"} slowest${closeCall(d, "slowest") ? " (close call)" : ""}. ${share}</p></div>`;
+      return `<div class="race" data-dir="${d}"><h3>${DIRW[d]}</h3><div class="sub">Average speed in each lane around this moment</div>
+        ${rows.map((l) => `<button class="rrow${l.auxiliary ? " aux" : ""}" data-lane="${l.lane}"><span class="nm">Lane ${l.number}${l.auxiliary ? " ramp" : ""}<span class="crown">▲</span></span>
+          <span class="track"><span class="fill" style="display:block;background:${laneCol(l.number)};width:0%"></span></span><span class="val mono">–</span></button>`).join("")}
+        <p class="sentence">Whole video: ▲ lane ${f ? f.number : "–"} fastest${closeCall(d, "fastest") ? " (close call)" : ""}, ▼ lane ${s ? s.number : "–"} slowest${closeCall(d, "slowest") ? " (close call)" : ""}.${share}</p></div>`;
     }).join("");
     for (const r of box.querySelectorAll(".rrow")) r.onclick = () => openLane(r.dataset.lane);
-    $("raceNote").textContent = L.validation ? `Checked against the official MiTra ground truth: lane speeds within ${(L.validation.median_rel_err * 100).toFixed(1)}% (median).` : "No ground truth for this video; distances use an assumed lane width (3.6 m) and car length (4.5 m).";
+    $("raceNote").textContent = L.validation ? `Checked against the official MiTra ground truth: within ${(L.validation.median_rel_err * 100).toFixed(1)}% (median).`
+      : "No ground truth for this video; distances use an assumed lane width (3.6 m) and car length (4.5 m).";
     updateRace();
   }
   function updateRace() {
-    const L = ls(); if (!L || $("tabLanes").hidden) return;
+    const L = ls(); if (!L || $("tabRace").hidden) return;
     const t = S.f / S.fps;
     for (const blk of $("race").querySelectorAll(".race")) {
       const d = blk.dataset.dir, tl = L.timeline[d]; if (!tl) continue;
-      const i = windowAt(tl, t);
-      const rows = [...blk.querySelectorAll(".rrow")];
-      const vals = rows.map((r) => (tl.v_kmh[r.dataset.lane] || [])[i]);
-      const vmax = Math.max(1, ...vals.filter((v) => v != null));
-      let lead = -1, lv = -1;
-      rows.forEach((r, j) => { const sp = speedOf(r.dataset.lane); if (sp && !sp.auxiliary && vals[j] != null && vals[j] > lv) { lv = vals[j]; lead = j; } });
+      const i = windowAt(tl, t), rows = [...blk.querySelectorAll(".rrow")];
+      const vals = rows.map((r) => (tl.v_kmh[r.dataset.lane] || [])[i]), vmax = Math.max(1, ...vals.filter((v) => v != null));
+      const lead = leaderAt(d, i);
       rows.forEach((r, j) => {
-        r.classList.toggle("lead", j === lead);
+        r.classList.toggle("lead", !!lead && lead.lane === r.dataset.lane);
         r.querySelector(".fill").style.width = vals[j] == null ? "0%" : (100 * vals[j] / vmax).toFixed(1) + "%";
         r.querySelector(".val").textContent = vals[j] == null ? "–" : vals[j].toFixed(1);
       });
     }
   }
 
-  // ---------------------------------------------------------------- sheets
-  function openSheet(html) {
-    $("sheetBody").innerHTML = html; const s = $("sheet"); s.hidden = false; s.classList.remove("closing");
-    if (navigator.vibrate) navigator.vibrate(8);
+  // guess the fastest lane (main direction); confetti only for a clear answer
+  function renderGuess() {
+    const L = ls(), box = $("guess");
+    if (!L) { box.innerHTML = ""; return; }
+    const d = mainDirection(), a = L.announcement[d], key = `li-guess-${S.clip}`;
+    const opts = L.lanes.filter((l) => l.direction === d && !l.auxiliary && l.evidence_ok).sort((x, y) => x.number - y.number);
+    const g = store.get(key);
+    if (!g) {
+      box.innerHTML = `<div class="guess"><h3>Your guess</h3><p>${DIRW[d]}: which lane do you think is fastest? Watch the video, then pick.</p>
+        <div class="gbtns">${opts.map((l) => `<button class="gbtn" data-l="${l.lane}"><span class="dot" style="background:${laneCol(l.number)}"></span>Lane ${l.number}</button>`).join("")}</div></div>`;
+      for (const b of box.querySelectorAll(".gbtn")) b.onclick = () => { store.set(key, b.dataset.l); renderGuess(); reveal(b.dataset.l); };
+      return;
+    }
+    const best = laneById(verdictLane(d, "fastest")), mine = laneById(g), sp = speedOf(best.id), clear = !!a.fastest;
+    const right = g === best.id, pct = Math.round((a.fastest_ratio - 1) * 100);
+    const msg = right ? (clear ? `<b>Spot on.</b> Lane ${best.number} is clearly fastest at ${Math.round(sp.v_kmh)} km/h.`
+                               : `<b>Good eye.</b> Lane ${best.number} leads (${Math.round(sp.v_kmh)} km/h), but only by ${pct}%: a close call.`)
+                      : `<b>Not quite.</b> You picked lane ${mine ? mine.number : "?"}; lane ${best.number} is fastest at ${Math.round(sp.v_kmh)} km/h${clear ? "" : ` (close call, ${pct}% ahead)`}.`;
+    box.innerHTML = `<div class="guess"><h3>Your guess</h3><p class="reveal">${msg}</p><button class="gbtn" id="again">Guess again</button></div>`;
+    $("again").onclick = () => { store.del(key); renderGuess(); };
+  }
+  function reveal(g) {
+    const d = mainDirection(), a = ls().announcement[d], right = g === verdictLane(d, "fastest");
+    buzz(right ? [10, 40, 10] : 12);
+    if (right && a.fastest && !reduced) confetti();
+  }
+  function confetti() {
+    const cv = $("confetti"), ctx = cv.getContext("2d"), dpr = devicePixelRatio || 1;
+    cv.hidden = false; cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
+    const cols = PALETTE.map(css), P = Array.from({ length: 90 }, () => ({ x: innerWidth / 2, y: innerHeight * 0.45,
+      vx: (Math.random() - 0.5) * 9, vy: -Math.random() * 10 - 4, r: Math.random() * 6.28, c: cols[(Math.random() * cols.length) | 0] }));
+    const t0 = performance.now();
+    const step = (t) => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, innerWidth, innerHeight);
+      for (const p of P) { p.vy += 0.35; p.x += p.vx; p.y += p.vy; p.r += 0.2; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-4, -2, 8, 4); ctx.restore(); }
+      if (t - t0 < 1600) requestAnimationFrame(step); else cv.hidden = true;
+    };
+    requestAnimationFrame(step);
+  }
+
+  // ================================================================ bottom sheet with snap points (half / full / closed)
+  const sheet = $("sheet");
+  const snapY = (s) => { const H = sheet.offsetHeight, half = Math.min(H, innerHeight * 0.5); return s === "full" ? 0 : s === "half" ? H - half : H; };
+  function setSheetY(y, anim) { sheet.classList.toggle("anim", !!anim); sheet.style.transform = `translateY(${y}px)`; S.sheetY = y; }
+  function openSheet(title, body, info) {
+    $("sheetTitle").innerHTML = title; $("sheetBody").innerHTML = body; $("sheetBody").scrollTop = 0;
+    S.sheet = info || {};
+    const wasOpen = !sheet.hidden; sheet.hidden = false;
+    if (!wasOpen) { setSheetY(sheet.offsetHeight, false); void sheet.offsetHeight; }
+    setSheetY(snapY("half"), true); S.sheetSnap = "half"; buzz(6);
+    $("live").textContent = $("sheetTitle").textContent;
   }
   function closeSheet(now) {
-    const s = $("sheet"); S.sheetLane = null;
-    if (s.hidden) return;
-    if (now) { s.hidden = true; return; }
-    s.classList.add("closing"); setTimeout(() => { s.hidden = true; s.classList.remove("closing"); }, 220);
+    if (sheet.hidden) return;
+    S.sheet = null;
+    if (now) { sheet.hidden = true; return; }
+    setSheetY(sheet.offsetHeight, true);
+    setTimeout(() => { if (!S.sheet) sheet.hidden = true; }, 330);
   }
   $("sheetX").onclick = () => closeSheet();
-  (() => { let y0 = null; const s = $("sheet");
-    s.addEventListener("touchstart", (e) => { y0 = s.scrollTop === 0 ? e.touches[0].clientY : null; }, { passive: true });
-    s.addEventListener("touchend", (e) => { if (y0 != null && e.changedTouches[0].clientY - y0 > 70) closeSheet(); y0 = null; }, { passive: true }); })();
+  (() => {   // drag the handle: up = full, down = half or closed; flick velocity counts
+    let d = null;
+    const head = $("sheetHead");
+    head.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) return;
+      d = { y: e.clientY, y0: S.sheetY, t: performance.now(), v: 0, ly: e.clientY }; head.setPointerCapture(e.pointerId); sheet.classList.remove("anim"); });
+    head.addEventListener("pointermove", (e) => { if (!d) return; const now = performance.now();
+      d.v = (e.clientY - d.ly) / Math.max(1, now - d.t) * 1000; d.ly = e.clientY; d.t = now;
+      setSheetY(Math.max(-20, d.y0 + e.clientY - d.y)); });
+    const end = () => { if (!d) return; const y = S.sheetY + d.v * 0.18, H = sheet.offsetHeight;
+      const s = y < snapY("half") / 2 ? "full" : y < (snapY("half") + H) / 2 ? "half" : "closed";
+      d = null; if (s === "closed") closeSheet(); else { setSheetY(snapY(s), true); S.sheetSnap = s; } };
+    head.addEventListener("pointerup", end); head.addEventListener("pointercancel", end);
+    // pulling down when the content is at its top also moves the sheet
+    const body = $("sheetBody"); let t0 = null;
+    body.addEventListener("touchstart", (e) => { t0 = body.scrollTop <= 0 ? { y: e.touches[0].clientY, y0: S.sheetY } : null; }, { passive: true });
+    body.addEventListener("touchmove", (e) => { if (!t0) return; const dy = e.touches[0].clientY - t0.y; if (dy > 0) { sheet.classList.remove("anim"); setSheetY(t0.y0 + dy); } }, { passive: true });
+    body.addEventListener("touchend", () => { if (!t0) return; const moved = S.sheetY - t0.y0; t0 = null;
+      if (moved > 90) closeSheet(); else setSheetY(snapY(S.sheetSnap || "half"), true); }, { passive: true });
+  })();
 
   function openCar(id) {
     const t = S.info.get(id); if (!t) return;
-    const ln = S.meta.lanes[t.lane], tr = S.tracks.get(id) || [];
-    const secs = tr.length ? (tr[tr.length - 1].f - tr[0].f) / S.fps : 0;
-    const dist = t.kmh != null ? t.kmh / 3.6 * secs : null;
-    const sp = ln && speedOf(ln.id);
-    const cmp = sp && t.kmh != null ? (t.kmh >= sp.v_kmh ? `${Math.round(t.kmh - sp.v_kmh)} km/h faster than its lane's average` : `${Math.round(sp.v_kmh - t.kmh)} km/h slower than its lane's average`) : "";
-    S.mode = "car"; S.followId = id; S.lostFrames = 0;
-    openSheet(`<h3>${t.cls === "truck" ? "🚚" : t.cls === "bus" ? "🚌" : t.cls === "motorcycle" ? "🏍" : "🚗"} ${t.cls[0].toUpperCase() + t.cls.slice(1)} #${id}</h3>
-      <div class="big mono">${t.kmh != null ? t.kmh.toFixed(0) : "–"} <small>km/h average</small></div>
-      <div class="v" style="color:var(--muted);font-size:13px">${cmp}</div>
-      <dl class="kv"><dt>Lane</dt><dd>${ln ? `<span style="color:${laneCol(ln.number)}">●</span> Lane ${ln.number} ${ln.direction === "left" ? "←" : "→"}` : "not in a lane"}</dd>
-        <dt>On screen</dt><dd class="mono">${secs.toFixed(1)} s</dd>
-        ${dist != null ? `<dt>Distance seen</dt><dd class="mono">${dist.toFixed(0)} m</dd>` : ""}</dl>
-      <button class="sbtn" id="sFollow">Following ✓</button>${ln ? `<button class="sbtn ghost" id="sLane">Lane ${ln.number} details</button>` : ""}`);
+    const ln = lanes()[t.lane], tr = S.tracks.get(id) || [], secs = tr.length ? (tr[tr.length - 1].f - tr[0].f) / S.fps : 0;
+    const dist = t.kmh != null ? t.kmh / 3.6 * secs : null, sp = ln && speedOf(ln.id);
+    const diff = sp && t.kmh != null ? Math.round(t.kmh - sp.v_kmh) : null;
+    S.mode = "car"; S.followId = id; S.lostFrames = 0; S.exploring = false; S.glide = false;
+    const icon = { truck: "🚚", bus: "🚌", motorcycle: "🏍" }[t.cls] || "🚗";
+    openSheet(`<h3>${icon} ${t.cls[0].toUpperCase() + t.cls.slice(1)} · following</h3>`,
+      `<div class="big mono">${t.kmh != null ? Math.round(t.kmh) : "–"} <small>km/h average</small></div>
+      <div class="sub">${diff == null ? "" : diff === 0 ? "the same as its lane's average" : `${Math.abs(diff)} km/h ${diff > 0 ? "faster" : "slower"} than its lane's average`}</div>
+      <dl class="kv"><dt>Lane</dt><dd>${ln ? `<span style="color:${laneCol(ln.number)}">●</span> Lane ${ln.number} ${arrow(ln.direction)}` : "not in a lane"}</dd>
+        <dt>On screen</dt><dd class="mono">${secs.toFixed(1)} s</dd>${dist != null ? `<dt>Distance seen</dt><dd class="mono">${Math.round(dist)} m</dd>` : ""}</dl>
+      ${ln ? `<button class="sbtn ghost" id="sLane">Lane ${ln.number} details</button>` : ""}<button class="sbtn ghost" id="sStop">Stop following</button>`, { car: id });
     if ($("sLane")) $("sLane").onclick = () => openLane(ln.id);
-    $("sFollow").onclick = () => closeSheet();
-    if (vid.paused) frame();
+    $("sStop").onclick = () => { S.mode = "auto"; S.followLane = null; S.followId = null; closeSheet(); };
   }
-
   function openLane(id) {
     const ln = laneById(id), sp = speedOf(id), L = ls(); if (!ln) return;
-    S.sheetLane = id; S.followLane = id; S.mode = "lane"; S.followId = pickCar(id); S.lostFrames = 0;
+    S.followLane = id; S.mode = "lane"; S.followId = pickCar(id); S.lostFrames = 0; S.exploring = false; S.glide = false;
     const same = L ? L.lanes.filter((l) => l.direction === ln.direction && !l.auxiliary && l.v_kmh != null).sort((a, b) => b.v_kmh - a.v_kmh) : [];
     const rank = same.findIndex((l) => l.lane === id) + 1;
     const vmax = Math.max(...same.map((l) => (l.ci || [0, l.v_kmh])[1]), sp ? sp.v_kmh : 1) * 1.1;
-    const ci = sp && sp.ci ? `<div class="ci"><div class="bar" style="background:${laneCol(ln.number)};left:${100 * sp.ci[0] / vmax}%;width:${100 * (sp.ci[1] - sp.ci[0]) / vmax}%"></div><div class="pt" style="left:calc(${100 * sp.v_kmh / vmax}% - 2px)"></div></div>
-      <div style="font-size:12px;color:var(--muted)">95% range ${sp.ci[0].toFixed(1)}–${sp.ci[1].toFixed(1)} km/h</div>` : "";
-    const a = L && L.announcement[ln.direction];
-    const title = a && verdictLane(ln.direction, "fastest") === id ? `▲ Fastest${closeCall(ln.direction, "fastest") ? " (close call)" : ""}` :
-                  a && verdictLane(ln.direction, "slowest") === id ? `▼ Slowest${closeCall(ln.direction, "slowest") ? " (close call)" : ""}` : "";
-    openSheet(`<h3><span style="color:${laneCol(ln.number)}">●</span> Lane ${ln.number} ${ln.direction === "left" ? "←" : "→"} ${sp && sp.auxiliary ? "· ramp" : ""}</h3>
-      <div style="font-size:13px;color:var(--muted)">${title}${rank && !(sp && sp.auxiliary) ? ` · ${rank} of ${same.length} by speed` : sp && sp.auxiliary ? "measured, not ranked (on-ramp)" : ""}</div>
-      <div class="big mono">${sp && sp.v_kmh != null ? sp.v_kmh.toFixed(1) : "–"} <small>km/h average</small></div>${ci}
+    const isF = verdictLane(ln.direction, "fastest") === id, isS = verdictLane(ln.direction, "slowest") === id;
+    const badge = isF ? `▲ Fastest${closeCall(ln.direction, "fastest") ? " · close call" : ""}` : isS ? `▼ Slowest${closeCall(ln.direction, "slowest") ? " · close call" : ""}` : "";
+    const tl = L && L.timeline[ln.direction], vals = tl ? (tl.v_kmh[id] || []) : [];
+    let spark = "";
+    if (vals.filter((v) => v != null).length > 1) {
+      const vm = Math.max(...vals.filter((v) => v != null)) * 1.1 || 1, n = vals.length;
+      const pts = vals.map((v, i) => v == null ? null : `${(i / (n - 1) * 300).toFixed(1)},${(52 - v / vm * 48).toFixed(1)}`).filter(Boolean).join(" ");
+      spark = `<div class="sub" style="margin-top:12px">Speed over the video</div><svg class="spark" viewBox="0 0 300 56" preserveAspectRatio="none"><polyline points="${pts}" fill="none" stroke="${laneCol(ln.number)}" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>`;
+    }
+    openSheet(`<h3><span style="color:${laneCol(ln.number)}">●</span> Lane ${ln.number} ${arrow(ln.direction)}${sp && sp.auxiliary ? " · ramp" : ""}</h3>
+      <div class="sub">${badge}${badge && rank ? " · " : ""}${sp && sp.auxiliary ? "measured, not ranked (on-ramp)" : rank ? `${rank} of ${same.length} by speed` : ""}</div>`,
+      `<div class="big mono">${sp && sp.v_kmh != null ? sp.v_kmh.toFixed(1) : "–"} <small>km/h average</small></div>
+      ${sp && sp.ci ? `<div class="ci"><div class="bar" style="background:${laneCol(ln.number)};left:${100 * sp.ci[0] / vmax}%;width:${100 * (sp.ci[1] - sp.ci[0]) / vmax}%"></div><div class="pt" style="left:calc(${100 * sp.v_kmh / vmax}% - 2px)"></div></div>
+        <div class="sub">95% range ${sp.ci[0].toFixed(1)}–${sp.ci[1].toFixed(1)} km/h</div>` : ""}
+      ${spark}
       ${sp ? `<dl class="kv"><dt>Vehicles counted</dt><dd class="mono">${sp.vehicles}</dd><dt>Trucks and buses</dt><dd class="mono">${Math.round((sp.heavy_share || 0) * 100)}%</dd>
         <dt>Lane changes in / out</dt><dd class="mono">${sp.changes_in} / ${sp.changes_out}</dd>
         ${L.validation && L.validation.per_lane[id] != null ? `<dt>Ground truth</dt><dd class="mono">${L.validation.per_lane[id]} km/h</dd>` : ""}</dl>` : ""}
-      <button class="sbtn" id="sClose">Follow this lane</button>`);
-    $("sClose").onclick = () => closeSheet();
-    if (vid.paused) frame();
+      <p class="sub">The video now follows a car in this lane.</p>`, { lane: id });
   }
 
-  // ---------------------------------------------------------------- touch on the video
+  // ================================================================ gestures on the video
+  // touch-action: pan-y -> the browser keeps vertical scrolling; we get horizontal drags, taps and pinches.
   (() => {
-    let down = null, moved = false, lastTap = 0;
+    const P = new Map(); let g = null;
+    const dist = () => { const [a, b] = [...P.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
+    const mid = () => { const [a, b] = [...P.values()], r = view.getBoundingClientRect(); return [(a.x + b.x) / 2 - r.left, (a.y + b.y) / 2 - r.top]; };
     view.addEventListener("pointerdown", (e) => {
       if (e.target.closest("button")) return;
-      down = { x: e.clientX, y: e.clientY, cx: S.camX, cy: S.camY }; moved = false; view.setPointerCapture(e.pointerId);
+      P.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      S.glide = false; hideCoach();
+      if (P.size === 1) g = { type: "maybe", x0: e.clientX, y0: e.clientY, t0: performance.now(), cx: S.camX, lx: e.clientX, lt: performance.now(), v: 0 };
+      else if (P.size === 2) { g = { type: "pinch", d0: dist(), k0: S.k }; S.dragging = true; }
     });
     view.addEventListener("pointermove", (e) => {
-      if (!down) return;
-      const dx = e.clientX - down.x, dy = e.clientY - down.y;
-      if (!moved && Math.hypot(dx, dy) > 8) { moved = true; if (!S.pano) { S.mode = "free"; renderFollowChip(); } }
-      if (moved && !S.pano) { S.camX = down.cx - dx; S.camY = down.cy - dy; clampCam(); applyCam(); if (vid.paused) frame(); }
+      if (!P.has(e.pointerId) || !g) return;
+      P.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (g.type === "pinch" && P.size === 2) { const [mx, my] = mid(); zoomAround(g.k0 * dist() / g.d0, mx, my); startExplore(); return; }
+      const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+      if (g.type === "maybe" && Math.abs(dx) > 9 && Math.abs(dx) > Math.abs(dy)) {
+        g.type = "pan"; S.dragging = true; startExplore(); try { view.setPointerCapture(e.pointerId); } catch (_) { /* fine */ }
+      }
+      if (g.type === "pan") {
+        const b = bounds(); let x = g.cx - dx;
+        if (x < b.x0) x = b.x0 - (b.x0 - x) * 0.35;                   // soft edges
+        if (x > b.x1) x = b.x1 + (x - b.x1) * 0.35;
+        S.camX = x; applyCam();
+        const now = performance.now(), dt = Math.max(1, now - g.lt);
+        g.v = 0.8 * ((e.clientX - g.lx) / dt * 1000) + 0.2 * g.v; g.lx = e.clientX; g.lt = now;
+        S.exploreUntil = performance.now() + 3500;
+      }
     });
-    view.addEventListener("pointerup", (e) => {
-      if (!down) return;
-      const r = view.getBoundingClientRect(), sx = e.clientX - r.left, sy = e.clientY - r.top;
-      down = null;
-      if (moved) return;
-      const now = performance.now();
-      if (now - lastTap < 300) { S.userPano = !S.pano; layout(); lastTap = 0; return; }   // double tap: whole road / zoomed
-      lastTap = now;
-      setTimeout(() => { if (lastTap === now) tapAt(sx, sy); }, 260);
-    });
-    view.addEventListener("pointercancel", () => { down = null; });
+    const up = (e) => {
+      if (!P.has(e.pointerId)) return;
+      P.delete(e.pointerId);
+      if (!g) return;
+      if (g.type === "pinch") { if (P.size === 0) { g = null; S.dragging = false; } else g = { type: "none" }; return; }
+      if (g.type === "pan") { S.vx = g.v; S.glide = true; S.dragging = false; startExplore(); g = null; return; }
+      if (g.type === "maybe" && performance.now() - g.t0 < 600) {
+        const r = view.getBoundingClientRect(); tapAt(e.clientX - r.left, e.clientY - r.top);
+      }
+      g = null; S.dragging = false;
+    };
+    view.addEventListener("pointerup", up);
+    view.addEventListener("pointercancel", (e) => { P.delete(e.pointerId); g = null; S.dragging = false; });   // the page scrolled
   })();
+  function startExplore() { S.exploring = true; S.exploreUntil = performance.now() + 3500; }
+
   function tapAt(sx, sy) {
     if (!S.meta) return;
-    if (landscape()) { $("controls").classList.toggle("faded"); }
-    const [fx, fy] = toFrame(sx, sy), pad = 16 / S.k;
+    if (landscape()) { player.classList.toggle("faded"); if (player.classList.contains("faded")) return; }
+    for (const t of S.laneTags) if (sx >= t.x0 && sx <= t.x1 && sy >= t.y0 && sy <= t.y1) { openLane(t.id); return; }
+    const [fx, fy] = toFrame(sx, sy), pad = 18 / S.k;
     let best = null, bd = 1e9;
     for (const d of S.byFrame[S.f] || []) {
       if (fx < d.x1 - pad || fx > d.x2 + pad || fy < d.y1 - pad || fy > d.y2 + pad) continue;
       const dd = Math.hypot(fx - (d.x1 + d.x2) / 2, fy - (d.y1 + d.y2) / 2); if (dd < bd) { bd = dd; best = d.id; }
     }
     if (best != null) { openCar(best); return; }
-    for (const ln of S.meta.lanes || []) {
-      const poly = [...ln.upper, ...[...ln.lower].reverse()];
-      let inside = false;
-      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-        const [xi, yi] = poly[i], [xj, yj] = poly[j];
-        if ((yi > fy) !== (yj > fy) && fx < (xj - xi) * (fy - yi) / (yj - yi) + xi) inside = !inside;
-      }
-      if (inside) { openLane(ln.id); return; }
-    }
-    if (!landscape()) togglePlay();
+    if (!sheet.hidden) { closeSheet(); return; }
+    togglePlay(true);
   }
 
-  // road map: tap or drag to move the view
-  (() => {
-    const wrap = $("miniWrap"); let on = false;
-    const go = (e) => { const r = wrap.getBoundingClientRect(), u = (e.clientX - r.left) / r.width;
-      S.mode = "free"; S.camX = u * S.worldW - view.clientWidth / 2; clampCam(); applyCam(); renderFollowChip(); if (vid.paused) frame(); };
-    wrap.addEventListener("pointerdown", (e) => { on = true; wrap.setPointerCapture(e.pointerId); go(e); });
-    wrap.addEventListener("pointermove", (e) => { if (on) go(e); });
-    wrap.addEventListener("pointerup", () => { on = false; });
-  })();
+  // road map and timeline: tap or horizontal drag; vertical swipes still scroll the page
+  function hStrip(el, onPos, onStart, onEnd) {
+    let on = null;
+    el.addEventListener("pointerdown", (e) => { on = { x: e.clientX, y: e.clientY, armed: e.pointerType !== "touch" }; if (on.armed) { if (onStart) onStart(); onPos(e); } });
+    el.addEventListener("pointermove", (e) => { if (!on) return;
+      if (!on.armed && Math.abs(e.clientX - on.x) > 6 && Math.abs(e.clientX - on.x) > Math.abs(e.clientY - on.y)) {
+        on.armed = true; try { el.setPointerCapture(e.pointerId); } catch (_) { /* fine */ } if (onStart) onStart(); }
+      if (on.armed) onPos(e); });
+    el.addEventListener("pointerup", (e) => { if (!on) return; if (!on.armed) { if (onStart) onStart(); onPos(e); } on = null; if (onEnd) onEnd(); });
+    el.addEventListener("pointercancel", () => { if (on && on.armed && onEnd) onEnd(); on = null; });
+  }
+  hStrip($("miniWrap"), (e) => {
+    const r = $("miniWrap").getBoundingClientRect(), u = (e.clientX - r.left) / r.width;
+    if (wholeRoad()) zoomAround(S.kFill, view.clientWidth / 2, view.clientHeight / 2);
+    S.camX = u * S.worldW - view.clientWidth / 2; clampCam(true); applyCam(); startExplore();
+  });
+  let wasPlaying = false;
+  hStrip($("scrub"), (e) => {
+    const r = $("scrub").getBoundingClientRect(), u = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    vid.currentTime = (u * (S.n - 1) + 0.5) / S.fps;
+  }, () => { wasPlaying = !vid.paused; vid.pause(); }, () => { if (wasPlaying) vid.play().catch(() => {}); });
 
-  // scrubber
-  (() => {
-    const el = $("scrub"); let on = false, was = false;
-    const go = (e) => { const r = el.getBoundingClientRect(), u = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
-      vid.currentTime = (u * (S.n - 1) + 0.5) / S.fps; };
-    el.addEventListener("pointerdown", (e) => { on = true; was = !vid.paused; vid.pause(); el.setPointerCapture(e.pointerId); go(e); });
-    el.addEventListener("pointermove", (e) => { if (on) go(e); });
-    el.addEventListener("pointerup", () => { on = false; if (was) vid.play(); });
-  })();
-
-  // ---------------------------------------------------------------- playback
-  function togglePlay() { if (vid.paused) { vid.play().catch(() => {}); } else vid.pause(); }
-  $("play").onclick = togglePlay; $("bigPlay").onclick = togglePlay;
-  $("rate").onclick = () => { S.rateIdx = (S.rateIdx + 1) % RATES.length; vid.playbackRate = RATES[S.rateIdx]; $("rate").textContent = RATES[S.rateIdx] + "×"; };
-  const syncPlay = () => { const p = !vid.paused; $("play").textContent = p ? "❚❚" : "▶"; $("play").setAttribute("aria-label", p ? "Pause" : "Play"); $("bigPlay").hidden = p || !$("loading").hidden; };
+  // ================================================================ playback
+  function togglePlay(flash) {
+    if (vid.paused) vid.play().catch(() => {}); else vid.pause();
+    if (flash) { const f = $("flash"); f.textContent = vid.paused ? "❚❚" : "▶"; f.classList.remove("on"); void f.offsetWidth; f.classList.add("on"); }
+  }
+  $("play").onclick = () => togglePlay(false); $("bigPlay").onclick = () => { hideCoach(); togglePlay(false); };
+  $("rate").onclick = () => { S.rateIdx = (S.rateIdx + 1) % RATES.length; vid.playbackRate = RATES[S.rateIdx]; $("rate").textContent = RATES[S.rateIdx] + "×"; buzz(4); };
+  function syncPlay() {
+    const p = !vid.paused; $("play").textContent = p ? "❚❚" : "▶"; $("play").setAttribute("aria-label", p ? "Pause" : "Play");
+    $("bigPlay").hidden = p || !$("loading").hidden;
+  }
   vid.addEventListener("play", syncPlay); vid.addEventListener("pause", syncPlay);
-  vid.addEventListener("seeked", () => frame());
   vid.addEventListener("ended", () => { vid.currentTime = 0; vid.play().catch(() => {}); });
 
+  function maybeCoach() {
+    if (store.get("li-coach") || S.kFill <= S.kFit * 1.5 || landscape()) return;
+    const c = $("coach"); c.hidden = false; c.classList.remove("gone");
+    setTimeout(hideCoach, 3600);
+  }
+  function hideCoach() { const c = $("coach"); if (c.hidden) return; store.set("li-coach", "1"); c.classList.add("gone"); setTimeout(() => { c.hidden = true; }, 420); }
+
+  let lastF = -1;
   function frame() {
     if (!S.meta) return;
     S.f = Math.max(0, Math.min(S.n - 1, Math.round(vid.currentTime * S.fps)));
-    updateFollow(); draw(); drawMini(); drawScrub(); renderAnswer(); updateRace();
-    $("tNow").textContent = (S.f / S.fps).toFixed(1) + " s";
+    updateFollow(); draw(); drawMini(); renderChips();
+    if (S.f !== lastF) { drawScrub(); updateRace(); $("tNow").textContent = (S.f / S.fps).toFixed(1) + " s"; lastF = S.f; }
   }
   function loop(ts) {
     const dt = Math.min(0.1, (ts - S.lastT) / 1000 || 0.016); S.lastT = ts;
-    if (S.meta) { steerCamera(dt); if (!vid.paused || S.mode !== "free") frame(); }
+    if (S.meta) { steer(dt); frame(); }
     requestAnimationFrame(loop);
   }
   requestAnimationFrame(loop);
 
-  // ---------------------------------------------------------------- tabs, orientation, desktop switch
-  for (const b of document.querySelectorAll(".tabbar button")) b.onclick = () => {
-    for (const x of document.querySelectorAll(".tabbar button")) x.removeAttribute("aria-current");
-    b.setAttribute("aria-current", "page");
-    for (const t of document.querySelectorAll(".tab")) t.hidden = t.id !== b.dataset.tab;
-    closeSheet(true); if (b.dataset.tab === "tabWatch") layout(); updateRace(); scrollTo(0, 0);
-  };
+  // ================================================================ tabs, sticky shadow, orientation, desktop switch
   function showTab(id) {
-    for (const x of document.querySelectorAll(".tabbar button")) x.toggleAttribute("aria-current", x.dataset.tab === id);
-    for (const x of document.querySelectorAll(".tabbar button")) if (x.dataset.tab === id) x.setAttribute("aria-current", "page");
+    for (const x of document.querySelectorAll(".tabbar button")) { if (x.dataset.tab === id) x.setAttribute("aria-current", "page"); else x.removeAttribute("aria-current"); }
     for (const t of document.querySelectorAll(".tab")) t.hidden = t.id !== id;
+    updateRace();
+    const top = player.offsetTop; if (scrollY > top) scrollTo({ top, behavior: reduced ? "auto" : "smooth" });
   }
+  for (const b of document.querySelectorAll(".tabbar button")) b.onclick = () => { buzz(4); showTab(b.dataset.tab); };
+  addEventListener("scroll", () => player.classList.toggle("stuck", scrollY > player.offsetTop - 1), { passive: true });
+  $("aboutCards").addEventListener("scroll", () => {
+    const el = $("aboutCards"), i = Math.round(el.scrollLeft / (el.firstElementChild.offsetWidth + 12));
+    [...$("aboutDots").children].forEach((d, j) => d.classList.toggle("on", j === i));
+  }, { passive: true });
   addEventListener("resize", () => {
-    if (landscape()) { store.set("li-rotated", "1"); if ($("tabWatch").hidden) { closeSheet(true); showTab("tabWatch"); } }
-    S.userPano = null; layout();
+    player.classList.remove("faded"); layout();
+    if (!sheet.hidden && S.sheet) setSheetY(snapY(S.sheetSnap || "half"), false);
   });
-  setTimeout(() => { $("rotateHint").classList.add("gone"); setTimeout(() => { $("rotateHint").hidden = true; }, 700); }, 8000);
   const toDesktop = () => { store.set("lane-intel-view", "desktop"); location.reload(); };
   $("toDesktop").onclick = toDesktop; $("toDesktop2").onclick = toDesktop;
 

@@ -163,3 +163,20 @@ Why this is best for both UI and UX:
 * the whole road is always one glance away, on the mini-map or by rotating;
 * following a car makes the speed difference between lanes something you *feel*. Following a car in
   lane 1 and then one in lane 3 is the answer, shown rather than stated.
+
+## 8. Built: touch model (v2)
+
+After the first phone test ("touch feels sticky") the interaction layer was rebuilt on standard mobile patterns:
+
+| Problem in v1 | v2 |
+|---|---|
+| The video took every touch: a vertical swipe on it did not scroll the page | `touch-action: pan-y`: vertical always scrolls, horizontal pans the road |
+| Any 8 px drag switched to "Free view" for good | Panning is temporary: back to the car 3.5 s after the last touch (while playing); "⟲ Back to the car" anytime |
+| Taps waited 260 ms for a possible double-tap; a missed car paused the video | Instant taps; 18 px touch slop around cars; lane tags open lanes; empty road = play/pause with a visible flash |
+| The video scrolled away under the cards | Pinned player (video, road map, transport) with the content scrolling beneath |
+| Panning felt dead | Momentum and soft edges; two-finger pinch zoom; ⤢ / ⊕ button for whole road / zoom |
+| The card fought the page | Bottom sheet with snap points (half, full, closed) by dragging the handle or pulling down at the top; tapping the video closes it |
+
+Plus: a one-time swipe hint, haptic ticks where supported, "Guess the fastest lane" (confetti only for a clear answer),
+About cards with page dots, reduced-motion support. Checked with real touch events on an emulated iPhone 13
+(vertical swipe scrolls, horizontal swipe pans with momentum and returns, tap opens car card, sheet snaps, pinch zooms).
