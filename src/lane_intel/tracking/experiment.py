@@ -90,7 +90,7 @@ def markdown_table(results: dict[str, dict], configs: dict[str, TrackerConfig],
 
 
 def run(cfg: dict, dets_path: str | Path, out_dir: str | Path, names: list[str] | None = None,
-        params: QualityParams = QualityParams(), reference: str | None = None) -> dict:
+        params: QualityParams | None = None, reference: str | None = None) -> dict:
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     variants = load_variants(cfg["tracking"]["variants_file"])
@@ -108,6 +108,7 @@ def run(cfg: dict, dets_path: str | Path, out_dir: str | Path, names: list[str] 
     frame_range = (first, first + prov["frames"] - 1) if "frames" in prov else (int(dets.frame_idx.min()),
                                                                                  int(dets.frame_idx.max()))
     width = cfg["frame_size"][0]
+    params = params or QualityParams.scaled(width)
 
     results: dict[str, dict] = {}
     for name in names:

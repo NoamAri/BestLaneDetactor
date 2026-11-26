@@ -17,7 +17,7 @@ import pandas as pd
 
 from lane_intel.detect import meta_path
 from lane_intel.tracking.config import load_variants
-from lane_intel.tracking.quality import evaluate
+from lane_intel.tracking.quality import QualityParams, evaluate
 from lane_intel.tracking.runner import run_tracker
 
 
@@ -39,7 +39,8 @@ def main() -> None:
     last = first + prov["frames"] - 1 if "frames" in prov else int(dets.frame_idx.max())
 
     pts, stats, links = run_tracker(dets, vc, cfg["native_fps"], (first, last), cfg["frame_size"][0])
-    summary, _ = evaluate(pts, cfg["native_fps"], (first, last), cfg["frame_size"][0], stats)
+    summary, _ = evaluate(pts, cfg["native_fps"], (first, last), cfg["frame_size"][0], stats,
+                          QualityParams.scaled(cfg["frame_size"][0]))
     out = Path(a.out)
     out.parent.mkdir(parents=True, exist_ok=True)
     pts.to_parquet(out, index=False)

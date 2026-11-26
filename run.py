@@ -7,13 +7,14 @@
                              fixed rule -> data/out/tracking/<tag>/report.md (seconds)
     python run.py track      track with the configured variant -> data/interim/<tag>_points.parquet
     python run.py extract    detect + track in one go
-    python run.py viewer     bundle video + tags for the browser -> data/out/viewer/
+    python run.py viewer     build the viewer for every clip in configs/viewer.json -> data/out/viewer/
     python run.py serve      start the viewer at http://localhost:8000 and open the browser
     python run.py pages      copy the viewer and the architecture page into docs/ for GitHub Pages
     python run.py test       run the tests
     python run.py all        setup, clip, detect, tune, track, viewer, serve
 
-Options: --start 0 --dur 30 (window, seconds into the clip), --variant NAME (track step),
+Options: --cfg configs/<camera>.json (default T8_D1), --start 0 --dur 30 (window, seconds into the
+         clip), --variant NAME (track step), --only ID (viewer step: rebuild one clip),
          --clip-ss 300 --clip-len 180 (where to cut the clip from the full flight video).
 Only the Python standard library is used here, so it runs before the venv exists.
 """
@@ -111,8 +112,17 @@ def clip(a) -> None:
     print(f"Clip saved: {out}")
 
 
+def _cfg_path(a) -> Path:
+    return (ROOT / a.cfg) if not Path(a.cfg).is_absolute() else Path(a.cfg)
+
+
+def _is_mitra_default(a) -> bool:
+    return _cfg_path(a).resolve() == CFG.resolve()
+
+
 def _tag(a) -> str:
-    return f"T8_D1_{a.start:g}-{a.dur:g}s"
+    """Output names: <camera config name>_<start>-<duration>s, e.g. T8_D1_0-30s."""
+    return f"{_cfg_path(a).stem}_{a.start:g}-{a.dur:g}s"
 
 
 def _dets(a) -> Path:
@@ -128,8 +138,10 @@ def _experiment(a) -> Path:
 
 
 def _cfg_for_clip(a) -> Path:
-    """configs/T8_D1.json points at the default clip; write a variant if another clip was cut."""
+    """The camera config. For the MiTra default config, write a copy if another clip was cut."""
     import json
+    if not _is_mitra_default(a):
+        return _cfg_path(a)
     cfg = json.loads(CFG.read_text())
     want = str(clip_path(a.clip_ss).relative_to(ROOT)).replace("\\", "/")
     if cfg["video"] == want:
@@ -142,9 +154,13 @@ def _cfg_for_clip(a) -> Path:
 
 
 def detect(a) -> None:
+    import json
     need_venv(); need_ffmpeg()
-    if not clip_path(a.clip_ss).exists():
+    if _is_mitra_default(a) and not clip_path(a.clip_ss).exists():
         sys.exit("No clip yet. Run:  python run.py clip")
+    video = ROOT / json.loads(_cfg_path(a).read_text())["video"]
+    if not video.exists():
+        sys.exit(f"Video not found: {video}")
     out = _dets(a)
     if out.exists() and not a.force:
         print(f"Already detected: {out}  (use --force to redo)")
@@ -179,19 +195,13 @@ def extract(a) -> None:
 
 
 def viewer(a) -> None:
-    """Bundle the viewer: every tracker in tracking.viewer_variants if 'tune' ran, else the tracked points."""
-    import json
+    """Build the viewer for every clip in configs/viewer.json (run detect + tune for each first)."""
     need_venv(); need_ffmpeg()
-    cfg_path = _cfg_for_clip(a)
-    common = ["--cfg", cfg_path, "--start", a.start, "--duration", a.dur, "--out-dir", VIEWER]
-    if (_experiment(a) / "report.json").exists():
-        names = json.loads(Path(cfg_path).read_text())["tracking"].get("viewer_variants", ["@selected"])
-        sh([PY, "-W", "ignore", "-m", "lane_intel.export_viewer", "--experiment", _experiment(a),
-            "--variants", ",".join(names), *common])
-    elif _points(a).exists():
-        sh([PY, "-W", "ignore", "-m", "lane_intel.export_viewer", "--points", _points(a), *common])
-    else:
-        sys.exit("Nothing to show yet. Run:  python run.py tune   (or: python run.py track)")
+    cmd = [PY, "-W", "ignore", "-m", "lane_intel.viewer_site", "--spec", ROOT / "configs" / "viewer.json",
+           "--out", VIEWER]
+    if a.only:
+        cmd += ["--only", a.only]
+    sh(cmd)
 
 
 def serve(a) -> None:
@@ -216,24 +226,31 @@ def _wrap_page(fragment: str) -> str:
 
 
 def pages(a) -> None:
-    """Mirror the viewer bundle and the architecture page into docs/ for GitHub Pages."""
-    if not (VIEWER / "index.html").exists():
-        sys.exit("No viewer bundle yet. Run:  python run.py viewer")
+    """Mirror the viewer site (all clips) and the architecture page into docs/ for GitHub Pages."""
     import json
+    if not (VIEWER / "clips.json").exists():
+        sys.exit("No viewer site yet. Run:  python run.py viewer")
     docs = ROOT / "docs"
     docs.mkdir(exist_ok=True)
-    meta = json.loads((VIEWER / "meta.json").read_text())
-    wanted = ["index.html", "video.mp4", "meta.json"] + [v["file"] for v in meta["variants"]]
-    for f in docs.iterdir():                             # drop anything the current bundle does not use
-        if f.is_file() and f.name not in wanted and f.name not in ("architecture.html", ".nojekyll"):
+    wanted = ["index.html", "clips.json"]                # exactly the files the site references
+    for c in json.loads((VIEWER / "clips.json").read_text()):
+        meta = json.loads((VIEWER / c["dir"] / "meta.json").read_text())
+        wanted += [c["dir"] + f for f in ["video.mp4", "meta.json", *[v["file"] for v in meta["variants"]]]]
+    keep = set(wanted) | {"architecture.html", ".nojekyll"}
+    for f in sorted(docs.rglob("*"), reverse=True):     # drop anything else (older layouts, removed clips)
+        rel = f.relative_to(docs).as_posix()
+        if f.is_file() and rel not in keep:
             f.unlink()
-    for name in wanted:                                  # copy exactly the files the bundle references
-        shutil.copy2(VIEWER / name, docs / name)
+        elif f.is_dir() and not any(f.iterdir()):
+            f.rmdir()
+    for rel in wanted:
+        (docs / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(VIEWER / rel, docs / rel)
     (docs / ".nojekyll").write_text("")
     arch = ROOT / "app" / "architecture" / "index.html"
     if arch.exists():
         (docs / "architecture.html").write_text(_wrap_page(arch.read_text(encoding="utf-8")), encoding="utf-8")
-    print(f"GitHub Pages site written to {docs}. Commit and push it to update the site.")
+    print(f"GitHub Pages site written to {docs} ({len(wanted)} files). Commit and push it to update the site.")
 
 
 def test(a) -> None:
@@ -257,6 +274,8 @@ def main() -> None:
     ap.add_argument("--clip-len", type=float, default=180.0, help="clip length, s")
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--variant", default=None, help="track step: tracker variant (default: from the config)")
+    ap.add_argument("--cfg", default="configs/T8_D1.json", help="camera config (detect/tune/track)")
+    ap.add_argument("--only", default="", help="viewer step: rebuild only these clip ids")
     ap.add_argument("--force", action="store_true", help="redo detection even if the output exists")
     a = ap.parse_args()
     steps[a.step](a)

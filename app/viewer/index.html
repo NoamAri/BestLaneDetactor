@@ -46,6 +46,7 @@
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }   /* component display rules must not override hidden */
 body {
   background: var(--bg); color: var(--fg); font-family: var(--font-sans); font-size: 14px; line-height: 1.45;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -149,6 +150,7 @@ footer a { color: inherit; }
     <div class="keys"><kbd>←</kbd> <kbd>→</kbd> step · <kbd>Shift</kbd> ×10 · <kbd>Space</kbd> play · <kbd>+</kbd> <kbd>−</kbd> zoom · <kbd>V</kbd> tracker · <kbd>Esc</kbd> clear</div>
   </header>
 
+  <div class="vbar" id="cbar" role="group" aria-label="Video" hidden><span>Video</span></div>
   <div class="vbar" id="vbar" role="group" aria-label="Tracker variant"><span>Tracker</span></div>
   <p class="vnote" id="vnote"></p>
 
@@ -179,7 +181,7 @@ footer a { color: inherit; }
     <div class="readout">
       <div><span>Frame</span><span id="rFrame">–</span></div>
       <div><span>Clip time</span><span id="rClip">–</span></div>
-      <div><span>Flight time</span><span id="rFlight">–</span></div>
+      <div><span id="rTimeLabel">Flight time</span><span id="rFlight">–</span></div>
       <div><span>In view</span><span id="rCount">–</span></div>
     </div>
   </div>
@@ -287,9 +289,11 @@ footer a { color: inherit; }
     zoom: 1, follow: false, playing: false, sortK: "track_id", sortDir: 1, colors: {},
     layers: { boxes: true, ids: true, cls: false, conf: false, trails: true, breaks: false },
     variant: null, cache: new Map(), births: [], deaths: [], videoReady: false,
+    clips: null, clipId: null, base: "", loadToken: 0, blobUrl: null,
   };
-  const TRAIL = 30;          // trail length in frames (1 s)
-  const BREAK_SHOW = 45;     // a start/end marker stays visible for 1.5 s
+  const TRAIL_S = 1.0;       // trail length, seconds (converted with each clip's frame rate)
+  const BREAK_SHOW_S = 1.5;  // a start/end marker stays visible this long
+  const frames = (sec) => Math.max(1, Math.round(sec * S.meta.fps));
 
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
@@ -301,7 +305,10 @@ footer a { color: inherit; }
 
   // Direction of travel in the image. Below STOPPED_PX_S the average motion is within box jitter.
   const STOPPED_PX_S = 15;
-  const directionOf = (v) => (v > STOPPED_PX_S ? 1 : v < -STOPPED_PX_S ? -1 : 0);
+  const directionOf = (v) => {                     // threshold scales with the clip's resolution
+    const lim = STOPPED_PX_S * ((S.meta && S.meta.px_scale) || 1);
+    return v > lim ? 1 : v < -lim ? -1 : 0;
+  };
   const DIRECTION = { "1": ["→", "right"], "-1": ["←", "left"], "0": ["–", "stopped"] };
 
   const fmtT = (s) => {
@@ -318,14 +325,56 @@ footer a { color: inherit; }
   async function load() {
     readColors();
     try {
-      S.meta = await getJSON("meta.json");
-      buildVariantBar();
-      await loadVariant(S.meta.variants[0].name);
-      await loadVideo();
+      let clips = null;                                 // multi-clip site: clips.json lists the videos
+      try { const r = await fetch("clips.json"); if (r.ok) clips = await r.json(); } catch (_) { /* single clip */ }
+      S.clips = clips && clips.length ? clips : null;
+      if (S.clips) buildClipBar();
+      await loadClip(S.clips ? S.clips[0].id : null);
     } catch (e) {
-      fail(`Could not load the clip data: ${e.message}.<br>When running locally, serve this folder with ` +
-        `<code>make serve</code> and open <code>http://localhost:8000</code>.`);
+      loadFailed(e);
     }
+  }
+  function loadFailed(e) {
+    fail(`Could not load the clip data: ${e.message}.<br>When running locally, serve this folder with ` +
+      `<code>make serve</code> and open <code>http://localhost:8000</code>.`);
+  }
+
+  // ---------- clips (videos) ----------
+  function buildClipBar() {
+    const bar = $("cbar");
+    bar.hidden = S.clips.length < 2;
+    for (const c of S.clips) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.c = c.id;
+      b.setAttribute("aria-pressed", "false");
+      b.textContent = c.label;
+      b.onclick = () => loadClip(c.id).catch(loadFailed);
+      bar.appendChild(b);
+    }
+  }
+
+  // Switch to another video: its own meta, trackers and tags, from its folder.
+  async function loadClip(id) {
+    const token = ++S.loadToken;
+    play(false);
+    S.clipId = id;
+    S.base = id ? S.clips.find((c) => c.id === id).dir : "";
+    for (const b of $("cbar").querySelectorAll("button")) b.setAttribute("aria-pressed", b.dataset.c === id);
+    S.videoReady = false;
+    triedDirect = false;
+    S.cache = new Map();
+    S.sel = null;
+    S.frame = 0;
+    setStatus("Loading clip…");
+    const meta = await getJSON(S.base + "meta.json");
+    if (token !== S.loadToken) return;                 // another clip was chosen meanwhile
+    S.meta = meta;
+    $("rTimeLabel").textContent = meta.time_label || "Source time";
+    buildVariantBar();
+    await loadVariant(meta.variants[0].name);
+    if (token !== S.loadToken) return;
+    await loadVideo(token);
   }
 
   // ---------- tracker variants ----------
@@ -333,11 +382,11 @@ footer a { color: inherit; }
 
   function buildVariantBar() {
     const bar = $("vbar");
-    if (S.meta.variants.length < 2) {                // one tracker: nothing to switch between
-      bar.hidden = true;
-      $("vnote").hidden = true;
-      return;
-    }
+    for (const b of bar.querySelectorAll("button")) b.remove();
+    const single = S.meta.variants.length < 2;        // one tracker: nothing to switch between
+    bar.hidden = single;
+    $("vnote").hidden = single;
+    if (single) return;
     for (const v of S.meta.variants) {
       const b = document.createElement("button");
       b.type = "button";
@@ -356,7 +405,7 @@ footer a { color: inherit; }
     const v = variantOf(name);
     if (!S.cache.has(name)) {
       setStatus(`Loading tags for “${v.label}”…`);
-      S.cache.set(name, await getJSON(v.file));
+      S.cache.set(name, await getJSON(S.base + v.file));
     }
     const tags = S.cache.get(name), m = S.meta, n = m.frame_count;
     S.variant = name;
@@ -379,7 +428,7 @@ footer a { color: inherit; }
     for (const b of $("vbar").querySelectorAll("button")) b.setAttribute("aria-pressed", b.dataset.v === name);
     $("vnote").textContent = v.note || "";
     $("subtitle").textContent =
-      `Flight ${m.flight} · drone ${m.drone} · ${n} frames at ${m.fps.toFixed(2)} fps · ` +
+      `${m.label} · ${n} frames at ${m.fps.toFixed(2)} fps · ` +
       `${m.model} at ${m.imgsz}px · ${v.label}: ${S.tracks.size} tracks`;
     buildLegend();
     buildRegister();
@@ -427,8 +476,8 @@ footer a { color: inherit; }
   // depends on the web server supporting byte ranges (Safari and in-app browsers need that).
   // If blob playback is refused, fall back to streaming the file directly.
   let triedDirect = false;
-  async function loadVideo() {
-    const r = await fetch("video.mp4");
+  async function loadVideo(token) {
+    const r = await fetch(S.base + "video.mp4");
     if (!r.ok) throw new Error(`video.mp4: HTTP ${r.status}`);
     const total = +r.headers.get("Content-Length") || 0;
     const parts = [];
@@ -444,8 +493,11 @@ footer a { color: inherit; }
     } else {
       parts.push(new Uint8Array(await r.arrayBuffer()));
     }
+    if (token !== undefined && token !== S.loadToken) return;   // another clip was chosen meanwhile
     setStatus("Preparing video…");
-    vid.src = URL.createObjectURL(new Blob(parts, { type: "video/mp4" }));
+    if (S.blobUrl) URL.revokeObjectURL(S.blobUrl);
+    S.blobUrl = URL.createObjectURL(new Blob(parts, { type: "video/mp4" }));
+    vid.src = S.blobUrl;
   }
 
   vid.addEventListener("loadeddata", () => {
@@ -459,7 +511,7 @@ footer a { color: inherit; }
     if (!triedDirect && vid.src.startsWith("blob:")) {
       triedDirect = true;
       setStatus("Retrying video as a direct stream…");
-      vid.src = "video.mp4";
+      vid.src = S.base + "video.mp4";
       return;
     }
     fail(`The video could not be played here (${why}). Try Chrome, Edge or Firefox on a computer.`);
@@ -554,7 +606,7 @@ footer a { color: inherit; }
       ctx.lineWidth = 1.5 * dpr;
       for (const d of dets) {
         const pts = S.tracks.get(d.id);
-        const lo = d.id === sel ? 0 : S.frame - TRAIL;
+        const lo = d.id === sel ? 0 : S.frame - frames(TRAIL_S);
         ctx.beginPath();
         let first = true;
         for (const p of pts) {
@@ -603,10 +655,10 @@ footer a { color: inherit; }
     if (L.breaks) {
       const r = Math.max(7, 6 * S.zoom) * dpr;
       const mark = (b, color, cross) => {
-        const age = S.frame - b.f;
-        if (age < 0 || age > BREAK_SHOW) return;
+        const age = S.frame - b.f, show = frames(BREAK_SHOW_S);
+        if (age < 0 || age > show) return;
         const x = X(b.x), y = Y(b.y);
-        ctx.globalAlpha = 1 - (age / BREAK_SHOW) * 0.75;
+        ctx.globalAlpha = 1 - (age / show) * 0.75;
         ctx.strokeStyle = color; ctx.lineWidth = 2 * dpr;
         ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.stroke();
         const q = r * 0.5;

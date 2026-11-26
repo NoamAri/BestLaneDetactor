@@ -1,0 +1,19 @@
+{
+  "_about": "Clips offered by the browser viewer (python run.py viewer). The first one opens by default. See src/lane_intel/viewer_site.py.",
+  "clips": [
+    {
+      "id": "mitra_t8_d1",
+      "label": "MiTra · A50 Milan · drone D1 · 5:00–5:30",
+      "cfg": "configs/T8_D1.json",
+      "start": 0, "dur": 30,
+      "experiment": "data/out/tracking/T8_D1_0-30s"
+    },
+    {
+      "id": "slowest_car_1943pm",
+      "label": "Uploaded · slowest_car_1943pm (4 fps, 64 s)",
+      "cfg": "configs/slowest_car_1943pm.json",
+      "start": 0, "dur": 64.25,
+      "experiment": "data/out/tracking/slowest_car_1943pm_0-64.25s"
+    }
+  ]
+}

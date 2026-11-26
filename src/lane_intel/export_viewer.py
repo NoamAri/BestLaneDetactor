@@ -63,7 +63,7 @@ def encode_proxy(video: str, out: Path, start_s: float, duration_s: float,
 
 
 def track_summary(df: pd.DataFrame, fps: float, frame_range: tuple[int, int] | None = None,
-                  width: int = 3840, params: QualityParams = QualityParams()) -> list[dict]:
+                  width: int = 3840, params: QualityParams | None = None) -> list[dict]:
     """One record per track for the viewer's register and start/end markers.
 
     Start/end flags come from tracking.quality.track_table, so the viewer shows exactly the
@@ -74,7 +74,7 @@ def track_summary(df: pd.DataFrame, fps: float, frame_range: tuple[int, int] | N
         return []
     if frame_range is None:
         frame_range = (int(df.frame_idx.min()), int(df.frame_idx.max()))
-    tr = track_table(df, fps, frame_range, width, params)
+    tr = track_table(df, fps, frame_range, width, params or QualityParams.scaled(width))
     conf = df.groupby("track_id").conf.mean()
     span = tr.span_s.to_numpy()
     px_per_s = np.where(span > 0, (tr.x_last - tr.x_first) / np.where(span > 0, span, 1), 0.0)
@@ -106,11 +106,17 @@ def wrap_page(fragment: str) -> str:
 
 
 def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, start: float,
-                 duration: float, crop_y: tuple[int, int], width: int, crf: int = 32) -> dict:
-    """Write video.mp4, tags_<variant>.json, meta.json and index.html; return meta.
+                 duration: float, crop_y: tuple[int, int] | None = None, width: int | None = None,
+                 crf: int = 32, write_page: bool = True) -> dict:
+    """Write video.mp4, tags_<variant>.json, meta.json (and index.html); return meta.
 
-    The first variant is the one the viewer opens with.
+    The first variant is the one the viewer opens with. crop_y / width default to the camera
+    config's ``viewer`` block. write_page=False when the clip is part of a multi-clip site
+    (viewer_site.py writes one index.html at the site root).
     """
+    vcfg = cfg.get("viewer", {})
+    crop_y = tuple(crop_y or vcfg.get("crop_y") or (0, cfg["frame_size"][1]))
+    width = width or vcfg.get("width") or cfg["frame_size"][0]
     if not variants:
         raise ValueError("need at least one variant")
     fps = cfg["native_fps"]
@@ -143,7 +149,9 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
 
     det = cfg.get("detector", {})
     meta = {
-        "flight": cfg["flight"], "drone": cfg["drone"],
+        "label": cfg.get("label") or f"Flight {cfg.get('flight')} · drone {cfg.get('drone')}",
+        "time_label": cfg.get("time_label", "Source time"),
+        "px_scale": W / 3840,          # pixel thresholds in the viewer were set on 3840 px frames
         "fps": fps, "clip_offset_s": cfg["clip_offset_s"],
         "frame_first": f0, "frame_count": f1 - f0,
         "frame_size": cfg["frame_size"],
@@ -151,12 +159,12 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
         "video_size": [vw, vh],
         "classes": classes,
         "model": Path(det.get("model", "?")).name, "imgsz": det.get("imgsz"),
-        "edge_px": QualityParams().edge_px,
+        "edge_px": QualityParams.scaled(W).edge_px,
         "variants": meta_variants,
     }
     (out / "meta.json").write_text(json.dumps(meta))
 
-    if VIEWER_SRC.exists():
+    if write_page and VIEWER_SRC.exists():
         (out / "index.html").write_text(wrap_page(VIEWER_SRC.read_text()))
     print(f"viewer bundle -> {out}  ({len(variants)} variant(s), video {vw}x{vh})")
     return meta
@@ -193,8 +201,8 @@ def main() -> None:
     ap.add_argument("--out-dir", required=True)
     ap.add_argument("--start", type=float, default=0.0)
     ap.add_argument("--duration", type=float, required=True)
-    ap.add_argument("--crop-y", type=int, nargs=2, default=[1040, 1660])
-    ap.add_argument("--width", type=int, default=2560)
+    ap.add_argument("--crop-y", type=int, nargs=2, default=None, help="default: config viewer.crop_y")
+    ap.add_argument("--width", type=int, default=None, help="default: config viewer.width")
     ap.add_argument("--crf", type=int, default=32)
     a = ap.parse_args()
     cfg = json.load(open(a.cfg))
@@ -203,7 +211,7 @@ def main() -> None:
     else:
         names = [n.strip() for n in a.variants.split(",") if n.strip()] or ["@selected"]
         variants = variants_from_experiment(a.experiment, names)
-    build_bundle(cfg, variants, a.out_dir, a.start, a.duration, tuple(a.crop_y), a.width, a.crf)
+    build_bundle(cfg, variants, a.out_dir, a.start, a.duration, a.crop_y, a.width, a.crf)
 
 
 if __name__ == "__main__":

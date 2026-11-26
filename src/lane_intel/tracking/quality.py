@@ -55,6 +55,21 @@ class QualityParams:
     def to_dict(self) -> dict:
         return asdict(self)
 
+    @classmethod
+    def scaled(cls, width: int, reference_width: int = 3840) -> "QualityParams":
+        """Defaults with every pixel threshold scaled to an image ``width`` px wide.
+
+        The defaults were set on 3840 px wide MiTra frames, where a car is about 75 px long.
+        A smaller or lower-resolution image shows vehicles proportionally smaller.
+        """
+        k = width / reference_width
+        d = cls()
+        return cls(edge_px=d.edge_px * k, window_margin_frames=d.window_margin_frames, short_s=d.short_s,
+                   velocity_window_s=d.velocity_window_s, restart_max_gap_s=d.restart_max_gap_s,
+                   restart_dy_px=d.restart_dy_px * k, restart_dx_base_px=d.restart_dx_base_px * k,
+                   restart_dx_per_s=d.restart_dx_per_s * k, jump_frac=d.jump_frac,
+                   jump_slack_px_per_s=d.jump_slack_px_per_s * k)
+
 
 def _velocity(t: np.ndarray, x: np.ndarray) -> float:
     """Least-squares slope of x over t (px/s); 0 when fewer than 3 observations."""

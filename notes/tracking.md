@@ -323,3 +323,22 @@ opt-in diagnostics layer.
    `python -m lane_intel.tracking.audit --cfg configs/T8_D1.json --experiment data/out/tracking/T8_D1_30-30s_step3 --variant s3_stitch_2s --n 20 --seed 1 --out notes/audits/T8_D1_30-30s_s3_stitch_2s_seed1`
 2. If it fails, add an appearance check to the stitcher (colour histogram of the clearest box of each
    piece): both failure modes above change colour. That would be a new, pre-registered variant.
+
+## 7. Second camera: uploaded clip `slowest_car_1943pm`
+
+Source: a user-uploaded video (1050×450, **4 fps**, 64.25 s, MPEG-4 Part 2), oblique view from a
+building; red marker dots on one car are burned in. Config: `configs/slowest_car_1943pm.json`.
+
+* **Detection** at imgsz 2112 (2× the width: small vehicles) found 28–35 vehicles per test frame
+  against 19–27 at native size; 9,785 boxes in 257 frames, 7,427 with confidence ≥ 0.25.
+* **The MiTra tracker does not transfer.** `r2_botsort_first005` gave a track ID to only 59% of the
+  clear boxes: at 4 fps vehicles move far between frames, so BoT-SORT's overlap-based matching rarely
+  confirms a track. Rule of section 2.4, applied on this clip against the plain baseline, stitching
+  variants excluded (not accepted on MiTra; their pixel settings are not scaled for this video):
+  selected **`r2_bt_conf015_buf4s`** (ByteTrack, faint floor 0.15, 4 s memory): fragmentation
+  171 → 148, IDs 156 → 147, clear-box coverage 93.2%. Report: `notes/runs/slowest_car_1943pm_0-64.25s_report.md`.
+* Pixel thresholds of the quality metrics are scaled to the image width (`QualityParams.scaled`).
+  The identity-jump count is high on this clip (83 for the baseline) and the check was never
+  validated at 4 fps; treat it as unverified here.
+* Lesson: **choose the tracker per camera** (frame rate and resolution change what works); the
+  `tune` step does that in seconds.

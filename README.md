@@ -15,13 +15,24 @@ python run.py clip       # 3-min 4K clip of drone D1, read straight out of the r
 python run.py detect     # YOLO once on the first 30 s (minutes on a GPU, ~12 min on CPU)
 python run.py tune       # every tracker variant on the saved detections + comparison report (seconds)
 python run.py track      # final tracks with the configured tracker
-python run.py viewer     # bundle video + tags (several trackers) for the browser
+python run.py viewer     # build the viewer for every clip in configs/viewer.json
 python run.py serve      # opens http://localhost:8000
 ```
 
 `python run.py all` runs these in order. Other windows: `--start 30 --dur 60` on each step.
 On Linux/macOS the same steps exist as `make` targets (`make detect tune track viewer serve`,
 variables `START`, `DUR`, `CLIP_SS`).
+
+## Add another video
+
+The viewer offers every clip listed in `configs/viewer.json` (a Video selector appears with two or more).
+
+1. Put the file under `data/raw/` and write a camera config next to `configs/T8_D1.json`
+   (example: `configs/slowest_car_1943pm.json`): `video`, `native_fps`, `frame_size`, `band_y`
+   (rows with road), `detector.imgsz` (larger than the width for small vehicles), `label`, `viewer.crop_y`/`width`.
+2. `python run.py detect --cfg configs/<camera>.json --start 0 --dur <seconds>`
+3. `python run.py tune --cfg configs/<camera>.json --start 0 --dur <seconds>`
+4. Add the clip to `configs/viewer.json`, then `python run.py viewer` (or `--only <id>`) and `python run.py pages`.
 
 ## Pipeline
 
@@ -31,8 +42,9 @@ variables `START`, `DUR`, `CLIP_SS`).
 | 1 · Detection | `lane_intel.detect` | `<tag>_detections.parquet`: every box with conf ≥ 0.05 + provenance `.meta.json` |
 | 2 · Tracking | `lane_intel.tracking` | `<tag>_points.parquet`: `t, frame_idx, track_id, cls, conf, x1..y2, x_px, y_px` |
 | Tracker experiment | `lane_intel.tracking.experiment` | `data/out/tracking/<tag>/report.md`, per-variant points and diagnostics |
-| Viewer bundle | `lane_intel.export_viewer` | `video.mp4`, `tags_<variant>.json`, `meta.json`, `index.html` |
-| Viewer | `app/viewer/index.html` | frame stepping, tracker switch, break markers, quality panel, track register |
+| Viewer bundle (one clip) | `lane_intel.export_viewer` | `video.mp4`, `tags_<variant>.json`, `meta.json` |
+| Viewer site (all clips) | `lane_intel.viewer_site` | `index.html`, `clips.json`, `clips/<id>/…` from `configs/viewer.json` |
+| Viewer | `app/viewer/index.html` | video selector, frame stepping, tracks with speed and direction, quality panel, register |
 | Local server | `lane_intel.serve` | static files with HTTP Range (needed for video seeking) |
 
 Detection runs once; tracking reads the saved detections, so tracker settings are compared on

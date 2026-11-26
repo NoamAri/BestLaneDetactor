@@ -653,6 +653,7 @@ make test</div>
       <div class="phase"><span class="st done">Done</span><div><b>Data access.</b> Remote byte-range reads of the 75 GB zip; 3-min clip; D1 ground-truth CSV downloaded.</div></div>
       <div class="phase"><span class="st done">Done</span><div><b>Phase 4 · detection.</b> <code>video.py</code>, <code>detect.py</code> → saved boxes with provenance. About 96 vehicles tagged per frame; 110 in ground truth.</div></div>
       <div class="phase"><span class="st done">Done</span><div><b>Tracking steps 0–2.</b> Tracking package, quality metrics, 15 variants, held-out confirmation; BoT-SORT setting chosen (section 7).</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Second video.</b> An uploaded clip (1050×450, 4 fps) runs through the same pipeline with its own camera config; the viewer lets you pick the video.</div></div>
       <div class="phase"><span class="st done">Done</span><div><b>Inspection tooling.</b> Viewer with tracker switch and break markers, local server, GitHub Pages and claude.ai hosting, this page.</div></div>
       <div class="phase"><span class="st todo">In progress</span><div><b>Tracking step 3 · stitching.</b> <code>stitch.py</code> and <code>audit.py</code> built and tested. Joins cut breaks by 25–55%, but audits rejected the 5 s and loose settings (wrong joins under the trees and in queues). Next: audit the 2 s setting; if it fails, add a colour check. Not used yet.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Tracking steps 4–5.</b> Occlusion zones for the trees and gantry; removal of short junk tracks.</div></div>
@@ -912,6 +913,21 @@ make test</div>
       ],
       related: ["experiment", "quality", "viewer", "serve", "docs"], why: [] },
 
+    { id: "site", dir: "src/lane_intel/", name: "viewer_site.py", role: "module", lines: 100,
+      summary: "Builds the viewer for several videos at once, so you can choose which clip to look at.",
+      what: [
+        "Reads <code>configs/viewer.json</code>: one entry per clip (id, label, camera config, time window, and the tracking experiment or points file to show).",
+        "Writes one folder per clip (<code>clips/&lt;id&gt;/video.mp4, meta.json, tags_&lt;variant&gt;.json</code>), a <code>clips.json</code> index, and one <code>index.html</code>. The viewer reads <code>clips.json</code> and shows a Video selector when there are two or more clips.",
+        "Each camera brings its own settings: crop and output width for the browser video, label, time label (flight time or video time), and a pixel scale so thresholds tuned on 3840 px frames shrink for smaller videos.",
+      ],
+      inputs: ["configs/viewer.json", "camera configs", "tracking experiments / points files"],
+      outputs: ["data/out/viewer/ (index.html, clips.json, clips/&lt;id&gt;/…)"],
+      fns: [
+        ["build_site(spec, out, only)", "Builds every clip (or only some with <code>--only</code>), removes clips no longer listed and files of the old single-clip layout, writes the index and the page."],
+        ["site_files(out)", "Exactly the files the site needs, for publishing."],
+      ],
+      related: ["export", "viewer", "run", "docs"], why: [] },
+
     { id: "serve", dir: "src/lane_intel/", name: "serve.py", role: "module", lines: 111,
       summary: "A tiny local web server that supports the partial-file requests browsers need to jump inside a video.",
       what: ["Python's <code>http.server</code> ignores <code>Range</code> headers, so a video served by it cannot seek. This server answers <code>206 Partial Content</code> with exactly the requested bytes."],
@@ -926,6 +942,7 @@ make test</div>
     { id: "viewer", dir: "app/viewer/", name: "index.html", role: "ui", lines: 806,
       summary: "The inspector you use in the browser: plays the road strip and draws every vehicle's box, ID and trail on top, frame by frame, for whichever tracker you pick.",
       what: [
+        "<b>Video selector</b> at the top when the site has more than one clip (<code>clips.json</code>): each clip loads its own video, trackers and tags from its folder.",
         "<b>Tracker switch</b> above the video, shown only when the bundle carries more than one tracker (<code>tracking.viewer_variants</code>; the default bundle has just the chosen one): one button per tracker with its ID count; <kbd>V</kbd> cycles; switching keeps the current frame.",
         "<b>Break markers</b>: a green + where a track starts mid-image and a red × where one ends, visible for 1.5 s. The timeline shows the same events as green and red ticks under the vehicle count.",
         "<b>Tracking quality panel</b>: IDs, mid-image starts and ends, short tracks, restart pairs, identity jumps and clear-box coverage, each with its change against the first tracker (green = better, red = worse).",

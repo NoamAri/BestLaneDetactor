@@ -69,10 +69,8 @@ $(POINTS): $(DETS) $(CFG) $(TRACKING_SRC)
 
 extract: detect track
 
-viewer: $(EXP)/report.json app/viewer/index.html src/lane_intel/export_viewer.py
-	$(PY) -W ignore -m lane_intel.export_viewer --cfg $(CFG) --experiment $(EXP) \
-	  --variants "$$($(PY) -c "import json; print(','.join(json.load(open('$(CFG)'))['tracking']['viewer_variants']))")" \
-	  --start $(START) --duration $(DUR) --out-dir $(VIEWER)
+viewer: app/viewer/index.html src/lane_intel/export_viewer.py src/lane_intel/viewer_site.py configs/viewer.json
+	$(PY) -W ignore -m lane_intel.viewer_site --spec configs/viewer.json --out $(VIEWER)
 
 serve:
 	@echo "Open http://localhost:$(PORT)"
