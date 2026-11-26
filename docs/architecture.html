@@ -1086,10 +1086,12 @@ make test</div>
   ];
 
   const byId = Object.fromEntries(FILES.map((f) => [f.id, f]));
-  const tree = document.getElementById("tree");
-  const detail = document.getElementById("detail");
+  // Standalone: the page's own document. Inside the app's "How it works" tab: the tab's shadow root.
+  const root = window.__archRoot || document;
+  const tree = root.getElementById("tree");
+  const detail = root.getElementById("detail");
 
-  document.getElementById("legend").innerHTML = Object.values(ROLES)
+  root.getElementById("legend").innerHTML = Object.values(ROLES)
     .map((r) => `<span><i class="dot" style="background:${r.color}"></i>${r.label}</span>`).join("");
 
   // tree grouped by directory, in repo order
@@ -1122,12 +1124,12 @@ make test</div>
       (f.why.length ? `<div class="why"><h4>Why it's built this way</h4>${list(f.why)}</div>` : "") +
       (f.related.length ? `<h3>Connected files</h3><div class="links">${f.related.map((r) =>
         `<button type="button" data-go="${r}">${byId[r].dir === "/" ? "" : byId[r].dir}${byId[r].name}</button>`).join("")}</div>` : "");
-    if (scroll) document.querySelector(".explorer").scrollIntoView({ behavior: "smooth", block: "start" });
+    if (scroll) root.querySelector(".explorer").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   tree.addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) show(b.dataset.id); });
   detail.addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (b) show(b.dataset.go); });
-  for (const n of document.querySelectorAll("#flow .node")) {
+  for (const n of root.querySelectorAll("#flow .node")) {
     n.addEventListener("click", () => show(n.dataset.file, true));
     n.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); show(n.dataset.file, true); } });
   }

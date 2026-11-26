@@ -61,6 +61,14 @@ body {
   padding-block: 16px 32px;
 }
 .app { display: grid; gap: 14px; max-width: 1600px; margin: 0 auto; }
+.tabpane { display: grid; gap: 14px; min-width: 0; }
+.topbar { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px 16px;
+  border-bottom: 1px solid var(--line); padding-bottom: 10px; }
+.tabs, .theme { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+.tabs button { font-weight: 500; }
+.theme span { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-right: 4px; }
+.status-line { color: var(--muted); margin: 0; }
+#archHost { min-width: 0; }
 header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 20px; }
 h1 { font-size: 20px; font-weight: 600; margin: 0; letter-spacing: -.01em; text-wrap: balance; }
 h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 10px; }
@@ -150,6 +158,25 @@ footer a { color: inherit; }
 </style>
 
 <div class="app">
+  <div class="topbar">
+    <nav class="tabs" aria-label="Sections">
+      <button type="button" id="tabBtnInspector" aria-pressed="true">Inspector</button>
+      <button type="button" id="tabBtnHow" aria-pressed="false">How it works</button>
+    </nav>
+    <div class="theme" role="group" aria-label="Colour theme">
+      <span>Theme</span>
+      <button type="button" data-theme-choice="auto" aria-pressed="true">Auto</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false">Light</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">Dark</button>
+    </div>
+  </div>
+
+  <div id="tabHow" class="tabpane" hidden>
+    <div id="archHost"></div>
+    <p class="status-line" id="archStatus">Loading…</p>
+  </div>
+
+  <div id="tabInspector" class="tabpane">
   <header>
     <div>
       <h1>Lane Intel Inspector</h1>
@@ -296,6 +323,7 @@ footer a { color: inherit; }
     Video and ground truth: <a href="https://opara.zih.tu-dresden.de/items/68482417-ddc5-40ac-885a-83124bd459e8">MiTra dataset</a>
     (A50 motorway, Milan), CC BY 4.0. Vehicle tags: YOLO26s detections linked by the tracker chosen above, computed by this project.
   </footer>
+  </div>
 </div>
 
 <script>
@@ -936,7 +964,73 @@ footer a { color: inherit; }
   new MutationObserver(() => { readColors(); if (S.meta) refresh(); })
     .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
+  // ---------- theme: Auto follows the system; Light / Dark override it (remembered per browser) ----------
+  const THEME_KEY = "lane-intel-theme";
+  function applyTheme(choice) {
+    const html = document.documentElement;
+    if (choice === "light" || choice === "dark") html.setAttribute("data-theme", choice);
+    else html.removeAttribute("data-theme");
+    const host = $("archHost");
+    if (choice === "light" || choice === "dark") host.setAttribute("data-theme", choice); else host.removeAttribute("data-theme");
+    for (const b of document.querySelectorAll("[data-theme-choice]")) b.setAttribute("aria-pressed", b.dataset.themeChoice === choice);
+    try { localStorage.setItem(THEME_KEY, choice); } catch (_) { /* storage blocked: still works for this visit */ }
+  }
+  for (const b of document.querySelectorAll("[data-theme-choice]")) b.onclick = () => applyTheme(b.dataset.themeChoice);
+  let savedTheme = "auto";
+  try { savedTheme = localStorage.getItem(THEME_KEY) || "auto"; } catch (_) { /* default */ }
+  applyTheme(savedTheme);
+
+  // ---------- tabs: Inspector / How it works (#how-it-works in the address) ----------
+  let archLoaded = false;
+  function showTab(which) {
+    const how = which === "how";
+    $("tabHow").hidden = !how;
+    $("tabInspector").hidden = how;
+    $("tabBtnHow").setAttribute("aria-pressed", how);
+    $("tabBtnInspector").setAttribute("aria-pressed", !how);
+    if (how) { play(false); loadArchitecture(); }
+    else { draw(); drawTimeline(); }
+    const want = how ? "#how-it-works" : "";
+    if (location.hash !== want) history.replaceState(null, "", want || location.pathname + location.search);
+  }
+  $("tabBtnHow").onclick = () => showTab("how");
+  $("tabBtnInspector").onclick = () => showTab("inspector");
+  window.addEventListener("hashchange", () => showTab(location.hash === "#how-it-works" ? "how" : "inspector"));
+
+  // The architecture page (architecture.html, also a standalone page) runs inside a shadow root so its
+  // styles and the inspector's cannot clash. Its theme tokens move from :root to :host.
+  async function loadArchitecture() {
+    if (archLoaded) return;
+    archLoaded = true;
+    try {
+      const r = await fetch("architecture.html");
+      if (!r.ok) throw new Error(`architecture.html: HTTP ${r.status}`);
+      const doc = new DOMParser().parseFromString(await r.text(), "text/html");
+      const css = [...doc.querySelectorAll("style")].map((st) => st.textContent).join("\n")
+        .replace(/:root\[data-theme="dark"\]/g, ':host([data-theme="dark"])')
+        .replace(/:root\[data-theme="light"\]/g, ':host([data-theme="light"])')
+        .replace(/:root:not\(\[data-theme="light"\]\)/g, ':host(:not([data-theme="light"]))')
+        .replace(/:root:not\(\[data-theme="dark"\]\)/g, ':host(:not([data-theme="dark"]))')
+        .replace(/:root/g, ":host")
+        .replace(/(^|[\s}])body\s*\{/g, "$1.arch-body {");
+      const code = [...doc.querySelectorAll("script")].map((sc) => sc.textContent).join("\n");
+      doc.querySelectorAll("script, style, title, meta, link").forEach((el) => el.remove());
+      const host = $("archHost");
+      const shadow = host.shadowRoot || host.attachShadow({ mode: "open" });
+      shadow.innerHTML = `<style>${css}</style><div class="arch-body">${doc.body.innerHTML}</div>`;
+      window.__archRoot = shadow;
+      const sc = document.createElement("script");
+      sc.textContent = code;
+      document.body.appendChild(sc);
+      $("archStatus").hidden = true;
+    } catch (e) {
+      archLoaded = false;
+      $("archStatus").textContent = `Could not load the project explanation (${e.message}).`;
+    }
+  }
+
   load();
+  if (location.hash === "#how-it-works") showTab("how");
 })();
 </script>
 
