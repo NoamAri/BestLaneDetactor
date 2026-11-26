@@ -47,7 +47,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .clip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 
 /* ---------------------------------------------------------------- pinned player */
-.player { position: sticky; top: 0; z-index: 15; background: var(--bg); padding-top: env(safe-area-inset-top); }
+.player { position: sticky; top: env(safe-area-inset-top); z-index: 15; background: var(--bg); }
+.notch { position: fixed; left: 0; right: 0; top: 0; height: env(safe-area-inset-top); background: var(--bg); z-index: 16; }
 .player.stuck { box-shadow: 0 8px 18px -12px rgba(0,0,0,.45); }
 .view { position: relative; height: clamp(190px, 34svh, 360px); background: var(--stage); overflow: hidden;
   touch-action: pan-y; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
@@ -132,12 +133,18 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   border-radius: 20px 20px 0 0; box-shadow: 0 -12px 34px rgba(0,0,0,.28); display: flex; flex-direction: column;
   transform: translateY(100%); will-change: transform; padding-bottom: calc(var(--bar) + env(safe-area-inset-bottom)); }
 .sheet.anim { transition: transform .32s var(--ease); }
-.sheet-head { flex: none; padding: 8px 18px 4px; touch-action: none; cursor: grab; }
+.sheet-head { flex: none; padding: 8px 18px 2px; touch-action: none; cursor: grab; }
+.sheet .more { color: var(--muted); font-size: 12px; text-align: center; margin: 2px 0 8px; }
 .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 2px auto 10px; }
 .sheet .x { position: absolute; right: 8px; top: 6px; width: 44px; height: 44px; color: var(--muted); font-size: 18px; }
 .sheet-body { flex: 1; overflow: auto; padding: 0 18px 18px; overscroll-behavior: contain; }
+.carhead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 2px 0 4px; }
+.carhead .big { margin: 0; }
+.carhead .cmp { font-size: 13px; color: var(--muted); }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted); margin: 6px 0 12px; }
+.facts b { color: var(--fg); font-weight: 500; }
 .sheet h3 { margin: 0 0 2px; font-size: 18px; display: flex; align-items: center; gap: 8px; padding-right: 40px; }
-.sheet .big { font-size: 36px; font-weight: 600; margin: 6px 0 2px; line-height: 1.1; }
+.sheet .big { font-size: 34px; font-weight: 600; margin: 6px 0 2px; line-height: 1.1; }
 .sheet .big small { font-size: 15px; color: var(--muted); font-weight: 400; }
 .sheet .sub { font-size: 13px; color: var(--muted); }
 .kv { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; margin: 14px 0; font-size: 14px; }
@@ -184,6 +191,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   </header>
   <nav class="clips" id="clips" aria-label="Videos"></nav>
 
+  <div class="notch" aria-hidden="true"></div>
   <section class="player" id="player" aria-label="Video player">
     <div class="view" id="view">
       <div class="world" id="world"><video id="vid" playsinline muted preload="auto"></video></div>
@@ -265,7 +273,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     clips: [], clip: null, base: "", meta: null, byFrame: [], tracks: new Map(), info: new Map(), n: 0, fps: 30, f: 0,
     k: 0, kFit: 1, kFill: 1, worldW: 0, worldH: 0, camX: 0, camY: 0, vx: 0, glide: false, dragging: false,
     mode: "auto", followId: null, followLane: null, lostFrames: 0, exploreUntil: 0, exploring: false,
-    laneTags: [], lastT: 0, rateIdx: 1, token: 0, sheet: null, sheetY: 0, sheetSnap: "half", layoutLand: null,
+    laneTags: [], lastT: 0, rateIdx: 1, token: 0, sheet: null, sheetY: 0, sheetSnap: "peek", layoutLand: null,
   };
   window.__LI = S;                                   // for automated checks
   const RATES = [0.5, 1, 2];
@@ -311,7 +319,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       S.byFrame[f].push(r);
       let tr = S.tracks.get(r.id); if (!tr) S.tracks.set(r.id, (tr = [])); tr.push(r);
     }
-    S.mode = "auto"; S.followId = null; S.followLane = null; S.f = 0; S.exploring = false; S.k = 0;
+    S.mode = "auto"; S.followId = null; S.followLane = null; S.f = 0; S.exploring = false; S.k = 0; S.started = false;
     vid.src = S.base + "video.mp4"; vid.playbackRate = RATES[S.rateIdx]; vid.load();
     history.replaceState(null, "", "#clip=" + id);
     $("tDur").textContent = (S.n / S.fps).toFixed(0) + " s";
@@ -641,15 +649,29 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
   // ================================================================ bottom sheet with snap points (half / full / closed)
   const sheet = $("sheet");
-  const snapY = (s) => { const H = sheet.offsetHeight, half = Math.min(H, innerHeight * 0.5); return s === "full" ? 0 : s === "half" ? H - half : H; };
+  // Snap points are screen positions of the sheet's top edge. The video is never covered:
+  //   peek     = a compact card (title, speed, key facts, actions) above the tab bar
+  //   expanded = up to just under the video
+  const barH = () => document.querySelector(".tabbar").offsetHeight;
+  const videoBottom = () => view.getBoundingClientRect().bottom;
+  function topFor(s) {
+    const minTop = videoBottom() + 6;
+    if (s === "expanded") return minTop;
+    const blk = $("sheetBody").firstElementChild;
+    const peek = Math.min(innerHeight - barH() - minTop, $("sheetHead").offsetHeight + (blk ? blk.offsetHeight : 120) + 14);
+    return Math.max(minTop, innerHeight - barH() - peek);
+  }
+  const snapY = (s) => s === "closed" ? sheet.offsetHeight : topFor(s) - (innerHeight - sheet.offsetHeight);
   function setSheetY(y, anim) { sheet.classList.toggle("anim", !!anim); sheet.style.transform = `translateY(${y}px)`; S.sheetY = y; }
   function openSheet(title, body, info) {
     $("sheetTitle").innerHTML = title; $("sheetBody").innerHTML = body; $("sheetBody").scrollTop = 0;
     S.sheet = info || {};
+    // bring the player to the top so the whole video stays visible above the card
+    if (scrollY < player.offsetTop - 1) scrollTo({ top: player.offsetTop, behavior: "auto" });
     const wasOpen = !sheet.hidden; sheet.hidden = false;
     if (!wasOpen) { setSheetY(sheet.offsetHeight, false); void sheet.offsetHeight; }
-    setSheetY(snapY("half"), true); S.sheetSnap = "half"; buzz(6);
-    $("live").textContent = $("sheetTitle").textContent;
+    requestAnimationFrame(() => { setSheetY(snapY("peek"), true); S.sheetSnap = "peek"; });
+    buzz(6); $("live").textContent = $("sheetTitle").textContent;
   }
   function closeSheet(now) {
     if (sheet.hidden) return;
@@ -666,9 +688,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       d = { y: e.clientY, y0: S.sheetY, t: performance.now(), v: 0, ly: e.clientY }; head.setPointerCapture(e.pointerId); sheet.classList.remove("anim"); });
     head.addEventListener("pointermove", (e) => { if (!d) return; const now = performance.now();
       d.v = (e.clientY - d.ly) / Math.max(1, now - d.t) * 1000; d.ly = e.clientY; d.t = now;
-      setSheetY(Math.max(-20, d.y0 + e.clientY - d.y)); });
-    const end = () => { if (!d) return; const y = S.sheetY + d.v * 0.18, H = sheet.offsetHeight;
-      const s = y < snapY("half") / 2 ? "full" : y < (snapY("half") + H) / 2 ? "half" : "closed";
+      setSheetY(Math.max(snapY("expanded") - 12, d.y0 + e.clientY - d.y)); });
+    const end = () => { if (!d) return;
+      if (Math.abs(S.sheetY - d.y0) < 4 && Math.abs(d.v) < 50) {            // a tap on the handle toggles
+        const s = S.sheetSnap === "peek" ? "expanded" : "peek"; d = null; setSheetY(snapY(s), true); S.sheetSnap = s; return; }
+      const y = S.sheetY + d.v * 0.18, ye = snapY("expanded"), yp = snapY("peek"), yc = snapY("closed");
+      const s = y < (ye + yp) / 2 ? "expanded" : y < (yp + yc) / 2 ? "peek" : "closed";
       d = null; if (s === "closed") closeSheet(); else { setSheetY(snapY(s), true); S.sheetSnap = s; } };
     head.addEventListener("pointerup", end); head.addEventListener("pointercancel", end);
     // pulling down when the content is at its top also moves the sheet
@@ -676,7 +701,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     body.addEventListener("touchstart", (e) => { t0 = body.scrollTop <= 0 ? { y: e.touches[0].clientY, y0: S.sheetY } : null; }, { passive: true });
     body.addEventListener("touchmove", (e) => { if (!t0) return; const dy = e.touches[0].clientY - t0.y; if (dy > 0) { sheet.classList.remove("anim"); setSheetY(t0.y0 + dy); } }, { passive: true });
     body.addEventListener("touchend", () => { if (!t0) return; const moved = S.sheetY - t0.y0; t0 = null;
-      if (moved > 90) closeSheet(); else setSheetY(snapY(S.sheetSnap || "half"), true); }, { passive: true });
+      if (moved > 90) closeSheet(); else setSheetY(snapY(S.sheetSnap || "peek"), true); }, { passive: true });
   })();
 
   function openCar(id) {
@@ -687,11 +712,11 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     S.mode = "car"; S.followId = id; S.lostFrames = 0; S.exploring = false; S.glide = false;
     const icon = { truck: "🚚", bus: "🚌", motorcycle: "🏍" }[t.cls] || "🚗";
     openSheet(`<h3>${icon} ${t.cls[0].toUpperCase() + t.cls.slice(1)} · following</h3>`,
-      `<div class="big mono">${t.kmh != null ? Math.round(t.kmh) : "–"} <small>km/h average</small></div>
-      <div class="sub">${diff == null ? "" : diff === 0 ? "the same as its lane's average" : `${Math.abs(diff)} km/h ${diff > 0 ? "faster" : "slower"} than its lane's average`}</div>
-      <dl class="kv"><dt>Lane</dt><dd>${ln ? `<span style="color:${laneCol(ln.number)}">●</span> Lane ${ln.number} ${arrow(ln.direction)}` : "not in a lane"}</dd>
-        <dt>On screen</dt><dd class="mono">${secs.toFixed(1)} s</dd>${dist != null ? `<dt>Distance seen</dt><dd class="mono">${Math.round(dist)} m</dd>` : ""}</dl>
-      ${ln ? `<button class="sbtn ghost" id="sLane">Lane ${ln.number} details</button>` : ""}<button class="sbtn ghost" id="sStop">Stop following</button>`, { car: id });
+      `<div class="peekblk"><div class="carhead"><div class="big mono">${t.kmh != null ? Math.round(t.kmh) : "–"} <small>km/h</small></div>
+        <div class="cmp">${diff == null ? "" : diff === 0 ? "same as its lane's average" : `${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)} km/h ${diff > 0 ? "faster" : "slower"} than lane ${ln.number}'s average`}</div></div>
+      <div class="facts"><span>${ln ? `<span style="color:${laneCol(ln.number)}">●</span> <b>Lane ${ln.number} ${arrow(ln.direction)}</b>` : "not in a lane"}</span>
+        <span><b class="mono">${secs.toFixed(1)} s</b> on screen</span>${dist != null ? `<span><b class="mono">${Math.round(dist)} m</b> seen</span>` : ""}</div>
+      ${ln ? `<button class="sbtn ghost" id="sLane">Lane ${ln.number} details</button>` : ""}<button class="sbtn ghost" id="sStop">Stop following</button></div>`, { car: id });
     if ($("sLane")) $("sLane").onclick = () => openLane(ln.id);
     $("sStop").onclick = () => { S.mode = "auto"; S.followLane = null; S.followId = null; closeSheet(); };
   }
@@ -712,14 +737,15 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     }
     openSheet(`<h3><span style="color:${laneCol(ln.number)}">●</span> Lane ${ln.number} ${arrow(ln.direction)}${sp && sp.auxiliary ? " · ramp" : ""}</h3>
       <div class="sub">${badge}${badge && rank ? " · " : ""}${sp && sp.auxiliary ? "measured, not ranked (on-ramp)" : rank ? `${rank} of ${same.length} by speed` : ""}</div>`,
-      `<div class="big mono">${sp && sp.v_kmh != null ? sp.v_kmh.toFixed(1) : "–"} <small>km/h average</small></div>
+      `<div class="peekblk"><div class="big mono">${sp && sp.v_kmh != null ? sp.v_kmh.toFixed(1) : "–"} <small>km/h average</small></div>
       ${sp && sp.ci ? `<div class="ci"><div class="bar" style="background:${laneCol(ln.number)};left:${100 * sp.ci[0] / vmax}%;width:${100 * (sp.ci[1] - sp.ci[0]) / vmax}%"></div><div class="pt" style="left:calc(${100 * sp.v_kmh / vmax}% - 2px)"></div></div>
-        <div class="sub">95% range ${sp.ci[0].toFixed(1)}–${sp.ci[1].toFixed(1)} km/h</div>` : ""}
+        <div class="sub">95% range ${sp.ci[0].toFixed(1)}–${sp.ci[1].toFixed(1)} km/h · the video follows a car in this lane</div>` : ""}
+      <div class="more">drag up for more ↑</div></div>
       ${spark}
       ${sp ? `<dl class="kv"><dt>Vehicles counted</dt><dd class="mono">${sp.vehicles}</dd><dt>Trucks and buses</dt><dd class="mono">${Math.round((sp.heavy_share || 0) * 100)}%</dd>
         <dt>Lane changes in / out</dt><dd class="mono">${sp.changes_in} / ${sp.changes_out}</dd>
         ${L.validation && L.validation.per_lane[id] != null ? `<dt>Ground truth</dt><dd class="mono">${L.validation.per_lane[id]} km/h</dd>` : ""}</dl>` : ""}
-      <p class="sub">The video now follows a car in this lane.</p>`, { lane: id });
+      `, { lane: id });
   }
 
   // ================================================================ gestures on the video
@@ -815,7 +841,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   $("rate").onclick = () => { S.rateIdx = (S.rateIdx + 1) % RATES.length; vid.playbackRate = RATES[S.rateIdx]; $("rate").textContent = RATES[S.rateIdx] + "×"; buzz(4); };
   function syncPlay() {
     const p = !vid.paused; $("play").textContent = p ? "❚❚" : "▶"; $("play").setAttribute("aria-label", p ? "Pause" : "Play");
-    $("bigPlay").hidden = p || !$("loading").hidden;
+    if (p) S.started = true;                       // the big button is only the first invitation to play
+    $("bigPlay").hidden = p || S.started || !$("loading").hidden;
   }
   vid.addEventListener("play", syncPlay); vid.addEventListener("pause", syncPlay);
   vid.addEventListener("ended", () => { vid.currentTime = 0; vid.play().catch(() => {}); });
@@ -856,7 +883,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   }, { passive: true });
   addEventListener("resize", () => {
     player.classList.remove("faded"); layout();
-    if (!sheet.hidden && S.sheet) setSheetY(snapY(S.sheetSnap || "half"), false);
+    if (!sheet.hidden && S.sheet) setSheetY(snapY(S.sheetSnap || "peek"), false);
   });
   const toDesktop = () => { store.set("lane-intel-view", "desktop"); location.reload(); };
   $("toDesktop").onclick = toDesktop; $("toDesktop2").onclick = toDesktop;
