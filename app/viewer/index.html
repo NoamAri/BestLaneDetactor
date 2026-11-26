@@ -290,12 +290,39 @@ kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--li
         `${meta.model} at ${meta.imgsz}px · ${S.tracks.size} tracks`;
       buildLegend();
       buildRegister();
-      vid.src = "video.mp4";
+      await loadVideo();
     } catch (e) {
-      $("status").innerHTML =
-        `Could not load the clip data (${e.message}).<br>Serve this folder over HTTP, for example ` +
-        `<code>make serve</code>, then open <code>http://localhost:8000</code>.`;
+      fail(`Could not load the clip data: ${e.message}.<br>When running locally, serve this folder with ` +
+        `<code>make serve</code> and open <code>http://localhost:8000</code>.`);
     }
+  }
+
+  function setStatus(msg) { $("status").hidden = false; $("status").innerHTML = msg; }
+  function fail(msg) { setStatus(msg); console.error(msg.replace(/<[^>]+>/g, "")); }
+
+  // Download the whole video into memory and play it from a blob: URL. Seeking a blob never
+  // depends on the web server supporting byte ranges (Safari and in-app browsers need that).
+  // If blob playback is refused, fall back to streaming the file directly.
+  let triedDirect = false;
+  async function loadVideo() {
+    const r = await fetch("video.mp4");
+    if (!r.ok) throw new Error(`video.mp4: HTTP ${r.status}`);
+    const total = +r.headers.get("Content-Length") || 0;
+    const parts = [];
+    let got = 0;
+    if (r.body && r.body.getReader) {
+      const rd = r.body.getReader();
+      for (;;) {
+        const { done, value } = await rd.read();
+        if (done) break;
+        parts.push(value); got += value.length;
+        setStatus(`Loading video… ${(got / 1e6).toFixed(1)}${total ? " / " + (total / 1e6).toFixed(1) : ""} MB`);
+      }
+    } else {
+      parts.push(new Uint8Array(await r.arrayBuffer()));
+    }
+    setStatus("Preparing video…");
+    vid.src = URL.createObjectURL(new Blob(parts, { type: "video/mp4" }));
   }
 
   vid.addEventListener("loadeddata", () => {
@@ -303,8 +330,15 @@ kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--li
     setFrame(0, true);
   });
   vid.addEventListener("error", () => {
-    $("status").hidden = false;
-    $("status").textContent = "The video file could not be played in this browser.";
+    const codes = { 1: "aborted", 2: "network error", 3: "decode error", 4: "format or source not supported" };
+    const why = vid.error ? codes[vid.error.code] || "code " + vid.error.code : "unknown";
+    if (!triedDirect && vid.src.startsWith("blob:")) {
+      triedDirect = true;
+      setStatus("Retrying video as a direct stream…");
+      vid.src = "video.mp4";
+      return;
+    }
+    fail(`The video could not be played here (${why}). Try Chrome, Edge or Firefox on a computer.`);
   });
 
   // ---------- frame sync ----------
