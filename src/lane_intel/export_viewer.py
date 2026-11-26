@@ -53,30 +53,19 @@ def track_summary(df: pd.DataFrame, fps: float) -> list[dict]:
     return s.drop(columns=["x_first", "x_last", "y_first", "y_last"]).to_dict("records")
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--cfg", required=True)
-    ap.add_argument("--points", required=True)
-    ap.add_argument("--out-dir", required=True)
-    ap.add_argument("--start", type=float, default=0.0)
-    ap.add_argument("--duration", type=float, required=True)
-    ap.add_argument("--crop-y", type=int, nargs=2, default=[1040, 1660])
-    ap.add_argument("--width", type=int, default=2560)
-    ap.add_argument("--crf", type=int, default=32)
-    a = ap.parse_args()
-
-    cfg = json.load(open(a.cfg))
+def build_bundle(cfg: dict, df: pd.DataFrame, out_dir: str | Path, start: float, duration: float,
+                 crop_y: tuple[int, int], width: int, crf: int = 32) -> dict:
+    """Write video.mp4, detections.json, meta.json and index.html into out_dir; return meta."""
     fps = cfg["native_fps"]
     W = cfg["frame_size"][0]
-    out = Path(a.out_dir)
+    out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
 
-    crop = (0, a.crop_y[0], W, a.crop_y[1] - a.crop_y[0])
-    vw, vh = encode_proxy(cfg["video"], out / "video.mp4", a.start, a.duration, crop, a.width, a.crf)
+    crop = (0, crop_y[0], W, crop_y[1] - crop_y[0])
+    vw, vh = encode_proxy(cfg["video"], out / "video.mp4", start, duration, crop, width, crf)
 
-    df = pd.read_parquet(a.points)
-    f0 = round(a.start * fps)
-    f1 = f0 + round(a.duration * fps)
+    f0 = round(start * fps)
+    f1 = f0 + round(duration * fps)
     df = df[(df.frame_idx >= f0) & (df.frame_idx < f1)].copy()
     classes = sorted(df.cls.unique())
     cidx = {c: i for i, c in enumerate(classes)}
@@ -111,6 +100,23 @@ def main() -> None:
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1, viewport-fit=cover\">"
             "</head><body>\n" + body + "\n</body></html>\n")
     print(f"viewer bundle -> {out}  ({len(df)} tags, {df.track_id.nunique()} tracks, video {vw}x{vh})")
+    return meta
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--cfg", required=True)
+    ap.add_argument("--points", required=True)
+    ap.add_argument("--out-dir", required=True)
+    ap.add_argument("--start", type=float, default=0.0)
+    ap.add_argument("--duration", type=float, required=True)
+    ap.add_argument("--crop-y", type=int, nargs=2, default=[1040, 1660])
+    ap.add_argument("--width", type=int, default=2560)
+    ap.add_argument("--crf", type=int, default=32)
+    a = ap.parse_args()
+    cfg = json.load(open(a.cfg))
+    build_bundle(cfg, pd.read_parquet(a.points), a.out_dir, a.start, a.duration,
+                 tuple(a.crop_y), a.width, a.crf)
 
 
 if __name__ == "__main__":
