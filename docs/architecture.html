@@ -124,6 +124,15 @@ th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--lin
 th { font-size: 11.5px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }
 td:first-child { font-family: var(--font-mono); white-space: nowrap; }
 tr:last-child td { border-bottom: 0; }
+.exp td { vertical-align: middle; }
+.exp td:first-child { white-space: normal; font-family: var(--font-sans); }
+.exp .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.barcell { min-width: 170px; position: relative; }
+.bar { display: inline-block; height: 12px; border-radius: 2px; vertical-align: middle; }  /* 2.6 px per % */
+.bar.ok { background: var(--accent); }
+.bar.no { background: var(--muted); opacity: .45; }
+.bv { font-family: var(--font-mono); font-size: 12px; margin-left: 8px; vertical-align: middle; }
+.exp tr.win td { background: var(--accent-soft); }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 18px; align-items: start; }
 .grid2 > * { min-width: 0; }
 .cmd { font-family: var(--font-mono); font-size: 13px; background: var(--code-bg); border-radius: var(--r); padding: 12px 14px; overflow-x: auto; white-space: pre; }
@@ -148,19 +157,19 @@ tr:last-child td { border-bottom: 0; }
     <h1>Lane Intel Code Map</h1>
     <p class="lede">
       The project turns a 4K drone video of the A50 motorway in Milan into a list of vehicles with an ID, a class and a
-      box in every frame, then shows that list on top of the video so you can check it frame by frame. Later phases will
-      turn the same list into per-lane speeds and decide which lane is measurably fastest.
+      box in every frame, then shows that list on top of the video so you can check it frame by frame and compare
+      trackers. Later phases will turn the same list into per-lane speeds and decide which lane is measurably fastest.
     </p>
     <p class="muted">
-      Every stage reads files written by the stage before it. Detection runs once and saves its results, so the viewer
-      and future metrics never need to rerun the model.
+      Every stage reads files written by the stage before it. Detection runs once and saves every box; tracking reads
+      those boxes, so tracker settings are compared on identical input in seconds and nothing downstream reruns the model.
     </p>
     <div class="stats">
-      <div><b>5</b><span>Python modules</span></div>
-      <div><b>373</b><span>lines of pipeline code</span></div>
-      <div><b>675</b><span>lines of viewer (HTML/CSS/JS)</span></div>
-      <div><b>12</b><span>tests, all passing</span></div>
-      <div><b>85,774</b><span>vehicle tags in the first 30 s</span></div>
+      <div><b>11</b><span>Python modules</span></div>
+      <div><b>1,068</b><span>lines of pipeline code</span></div>
+      <div><b>806</b><span>lines of viewer (HTML/CSS/JS)</span></div>
+      <div><b>29</b><span>tests, all passing</span></div>
+      <div><b>15</b><span>tracker variants compared</span></div>
     </div>
   </header>
 
@@ -168,13 +177,13 @@ tr:last-child td { border-bottom: 0; }
   <section>
     <div class="prose">
       <p class="eyebrow">1 · How data moves</p>
-      <h2>From a remote 75 GB zip to boxes in your browser</h2>
+      <h2>From a remote 75 GB zip to tracked vehicles in your browser</h2>
       <p>Each box is a file or a program. Arrows say what travels between them. Click any box to open its explanation in the explorer below.</p>
     </div>
     <figure>
       <div class="fig">
-        <svg id="flow" viewBox="0 0 1120 500" role="img"
-             aria-label="Pipeline: the MiTra server's video zip is cut into a clip, decoded and cropped by video.py, detected and tracked by extract.py into points.parquet, bundled by export_viewer.py, and served to the browser viewer three ways.">
+        <svg id="flow" viewBox="0 0 1120 660" role="img"
+             aria-label="Pipeline: the MiTra server's zip is cut into a clip, decoded and cropped by video.py, detected once by detect.py into detections.parquet; the tracking package turns saved detections into tracks and compares tracker variants; export_viewer bundles the video and tracks; three hosts serve the browser viewer.">
           <defs>
             <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
               <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
@@ -184,143 +193,180 @@ tr:last-child td { border-bottom: 0; }
             </marker>
           </defs>
 
-          <!-- lane labels -->
-          <text x="20" y="22" font-size="11" fill="currentColor" opacity=".6" letter-spacing="1.2">RUNS ONCE PER CLIP (HEAVY)</text>
-          <text x="20" y="282" font-size="11" fill="currentColor" opacity=".6" letter-spacing="1.2">RUNS IN SECONDS (LIGHT)</text>
-          <line x1="20" y1="262" x2="1100" y2="262" stroke="currentColor" stroke-opacity=".15" stroke-dasharray="4 4"/>
+          <!-- band labels -->
+          <text x="20" y="22" font-size="11" fill="currentColor" opacity=".6" letter-spacing="1.2">1 · DETECTION: RUNS ONCE PER WINDOW (SLOW)</text>
+          <line x1="20" y1="232" x2="1100" y2="232" stroke="currentColor" stroke-opacity=".15" stroke-dasharray="4 4"/>
+          <text x="20" y="252" font-size="11" fill="currentColor" opacity=".6" letter-spacing="1.2">2 · TRACKING: SECONDS, REPEATABLE ON THE SAME DETECTIONS</text>
+          <line x1="20" y1="420" x2="1100" y2="420" stroke="currentColor" stroke-opacity=".15" stroke-dasharray="4 4"/>
+          <text x="20" y="440" font-size="11" fill="currentColor" opacity=".6" letter-spacing="1.2">3 · PACKAGING FOR THE BROWSER: SECONDS</text>
 
-          <!-- config -->
+          <!-- camera config -->
           <g class="node" data-file="config" tabindex="0">
-            <rect x="420" y="36" width="270" height="44" rx="6" fill="none" stroke="#9a6a00" stroke-width="1.5"/>
-            <text x="555" y="55" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">configs/T8_D1.json</text>
-            <text x="555" y="71" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">band rows, model, fps, clip offset</text>
+            <rect x="420" y="34" width="270" height="44" rx="6" fill="none" stroke="#9a6a00" stroke-width="1.5"/>
+            <text x="555" y="53" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">configs/T8_D1.json</text>
+            <text x="555" y="69" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">band rows, detector, chosen tracker</text>
           </g>
-          <path d="M500 80 V128" stroke="#9a6a00" stroke-dasharray="3 3" fill="none" marker-end="url(#ahm)"/>
-          <path d="M610 80 V128" stroke="#9a6a00" stroke-dasharray="3 3" fill="none" marker-end="url(#ahm)"/>
-          <path d="M690 58 H1110 V344 H1102" stroke="#9a6a00" stroke-dasharray="3 3" fill="none" marker-end="url(#ahm)"/>
-          <text x="845" y="52" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">settings read by every stage</text>
+          <path d="M600 78 V106" stroke="#9a6a00" stroke-dasharray="3 3" fill="none" marker-end="url(#ahm)"/>
+          <path d="M690 56 H760 V106" stroke="#9a6a00" stroke-dasharray="3 3" fill="none" marker-end="url(#ahm)"/>
+          <text x="845" y="50" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">read by every stage</text>
 
-          <!-- row 1 -->
+          <!-- row A: detection -->
           <g class="node" data-file="data" tabindex="0">
-            <rect x="20" y="132" width="150" height="64" rx="6" fill="none" stroke="currentColor" stroke-opacity=".5" stroke-width="1.5"/>
-            <text x="95" y="157" text-anchor="middle" font-size="12.5" font-weight="600" fill="currentColor">MiTra server</text>
-            <text x="95" y="174" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">Tracking_Logs_Videos</text>
-            <text x="95" y="188" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">_T8.zip · 75 GB</text>
+            <rect x="20" y="110" width="150" height="64" rx="6" fill="none" stroke="currentColor" stroke-opacity=".5" stroke-width="1.5"/>
+            <text x="95" y="135" text-anchor="middle" font-size="12.5" font-weight="600" fill="currentColor">MiTra server</text>
+            <text x="95" y="152" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">Tracking_Logs_Videos</text>
+            <text x="95" y="166" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">_T8.zip · 75 GB</text>
           </g>
           <g class="node" data-file="run" tabindex="0">
-            <rect x="214" y="132" width="150" height="64" rx="6" fill="none" stroke="#0b7a4b" stroke-width="1.5"/>
-            <text x="289" y="157" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">run.py clip</text>
-            <text x="289" y="174" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">ffmpeg reads only</text>
-            <text x="289" y="188" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">drone D1's bytes</text>
+            <rect x="204" y="110" width="150" height="64" rx="6" fill="none" stroke="#0b7a4b" stroke-width="1.5"/>
+            <text x="279" y="135" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">run.py clip</text>
+            <text x="279" y="152" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">ffmpeg reads only</text>
+            <text x="279" y="166" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">drone D1's bytes</text>
           </g>
           <g class="node" data-file="data" tabindex="0">
-            <rect x="408" y="132" width="150" height="64" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
-            <text x="483" y="157" text-anchor="middle" font-size="12" class="mono" fill="currentColor">data/raw/</text>
-            <text x="483" y="174" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">T8_D1_dev_300s.mp4</text>
-            <text x="483" y="188" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">3 min · 4K · 2.26 GB</text>
+            <rect x="388" y="110" width="150" height="64" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
+            <text x="463" y="135" text-anchor="middle" font-size="12" class="mono" fill="currentColor">data/raw/</text>
+            <text x="463" y="152" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">T8_D1_dev_300s.mp4</text>
+            <text x="463" y="166" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">3 min · 4K · 2.26 GB</text>
           </g>
           <g class="node" data-file="video" tabindex="0">
-            <rect x="602" y="132" width="150" height="64" rx="6" fill="none" stroke="#2563a8" stroke-width="1.5"/>
-            <text x="677" y="157" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">video.py</text>
-            <text x="677" y="174" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">decode + cut the</text>
-            <text x="677" y="188" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">road strip</text>
+            <rect x="572" y="110" width="140" height="64" rx="6" fill="none" stroke="#2563a8" stroke-width="1.5"/>
+            <text x="642" y="135" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">video.py</text>
+            <text x="642" y="152" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">decode + cut the</text>
+            <text x="642" y="166" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">road strip</text>
           </g>
-          <g class="node" data-file="extract" tabindex="0">
-            <rect x="796" y="132" width="150" height="64" rx="6" fill="none" stroke="#2563a8" stroke-width="2.2"/>
-            <text x="871" y="157" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">extract.py</text>
-            <text x="871" y="174" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">YOLO26s finds boxes</text>
-            <text x="871" y="188" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">ByteTrack links IDs</text>
+          <g class="node" data-file="detect" tabindex="0">
+            <rect x="746" y="110" width="160" height="64" rx="6" fill="none" stroke="#2563a8" stroke-width="2.2"/>
+            <text x="826" y="135" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">detect.py</text>
+            <text x="826" y="152" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">YOLO26s, every box</text>
+            <text x="826" y="166" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">with conf ≥ 0.05</text>
           </g>
           <g class="node" data-file="data" tabindex="0">
-            <rect x="970" y="132" width="130" height="64" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
-            <text x="1035" y="157" text-anchor="middle" font-size="11" class="mono" fill="currentColor">points.parquet</text>
-            <text x="1035" y="174" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">1 row per box</text>
-            <text x="1035" y="188" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">per frame</text>
+            <rect x="940" y="110" width="160" height="64" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
+            <text x="1020" y="135" text-anchor="middle" font-size="11.5" class="mono" fill="currentColor">detections.parquet</text>
+            <text x="1020" y="152" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">boxes, no IDs</text>
+            <text x="1020" y="166" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">+ .meta.json provenance</text>
           </g>
-          <!-- row 1 arrows -->
-          <line x1="170" y1="164" x2="212" y2="164" stroke="currentColor" marker-end="url(#ah)"/>
-          <text x="191" y="124" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">byte range</text>
-          <text x="191" y="111" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">HTTP</text>
-          <line x1="364" y1="164" x2="406" y2="164" stroke="currentColor" marker-end="url(#ah)"/>
-          <text x="385" y="124" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">copy,</text>
-          <text x="385" y="111" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">no re-encode</text>
-          <line x1="558" y1="164" x2="600" y2="164" stroke="currentColor" marker-end="url(#ah)"/>
-          <line x1="752" y1="164" x2="794" y2="164" stroke="currentColor" marker-end="url(#ah)"/>
-          <text x="773" y="216" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">3840×512 px</text>
-          <text x="773" y="229" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">per frame</text>
-          <line x1="946" y1="164" x2="968" y2="164" stroke="currentColor" marker-end="url(#ah)"/>
+          <line x1="170" y1="142" x2="202" y2="142" stroke="currentColor" marker-end="url(#ah)"/>
+          <text x="186" y="100" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">byte range</text>
+          <line x1="354" y1="142" x2="386" y2="142" stroke="currentColor" marker-end="url(#ah)"/>
+          <text x="370" y="100" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">copy</text>
+          <line x1="538" y1="142" x2="570" y2="142" stroke="currentColor" marker-end="url(#ah)"/>
+          <line x1="712" y1="142" x2="744" y2="142" stroke="currentColor" marker-end="url(#ah)"/>
+          <text x="728" y="194" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">3840×512</text>
+          <text x="728" y="207" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">per frame</text>
+          <line x1="906" y1="142" x2="938" y2="142" stroke="currentColor" marker-end="url(#ah)"/>
 
-          <!-- ground truth, dashed -->
           <g class="node" data-file="data" tabindex="0">
-            <rect x="20" y="210" width="190" height="40" rx="6" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="4 3"/>
-            <text x="115" y="227" text-anchor="middle" font-size="11.5" class="mono" fill="currentColor" opacity=".8">data/raw/gt/T8_D1.csv</text>
-            <text x="115" y="242" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">ground truth · not wired in yet</text>
+            <rect x="20" y="186" width="190" height="36" rx="6" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="4 3"/>
+            <text x="115" y="201" text-anchor="middle" font-size="11" class="mono" fill="currentColor" opacity=".8">data/raw/gt/T8_D1.csv</text>
+            <text x="115" y="215" text-anchor="middle" font-size="10" fill="currentColor" opacity=".6">ground truth · not wired in yet</text>
           </g>
-          <line x1="95" y1="196" x2="95" y2="208" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="3 3"/>
+          <line x1="95" y1="174" x2="95" y2="184" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="3 3"/>
 
-          <!-- row 2 -->
-          <line x1="1035" y1="196" x2="1035" y2="308" stroke="currentColor" marker-end="url(#ah)"/>
+          <!-- row B: tracking -->
+          <line x1="1020" y1="174" x2="1020" y2="268" stroke="currentColor" marker-end="url(#ah)"/>
+          <text x="1028" y="228" font-size="10.5" fill="currentColor" opacity=".75">same boxes</text>
+          <text x="1028" y="241" font-size="10.5" fill="currentColor" opacity=".75">for every variant</text>
+          <g class="node" data-file="tracking" tabindex="0">
+            <rect x="880" y="270" width="220" height="80" rx="6" fill="none" stroke="#2563a8" stroke-width="2.2"/>
+            <text x="990" y="292" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">tracking/</text>
+            <text x="990" y="310" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">runner · quality · experiment</text>
+            <text x="990" y="326" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">ByteTrack / OC-SORT / BoT-SORT</text>
+            <text x="990" y="341" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">links boxes into vehicles</text>
+          </g>
+          <g class="node" data-file="tvariants" tabindex="0">
+            <rect x="880" y="368" width="220" height="38" rx="6" fill="none" stroke="#9a6a00" stroke-width="1.5"/>
+            <text x="990" y="384" text-anchor="middle" font-size="11.5" class="mono" fill="currentColor">configs/tracking.json</text>
+            <text x="990" y="398" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">the variants under test</text>
+          </g>
+          <line x1="990" y1="368" x2="990" y2="352" stroke="#9a6a00" stroke-dasharray="3 3" marker-end="url(#ahm)"/>
+          <g class="node" data-file="experiment" tabindex="0">
+            <rect x="580" y="270" width="250" height="80" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
+            <text x="705" y="292" text-anchor="middle" font-size="11.5" class="mono" fill="currentColor">data/out/tracking/&lt;tag&gt;/</text>
+            <text x="596" y="311" font-size="11" class="mono" fill="currentColor" opacity=".75">report.md · report.json</text>
+            <text x="596" y="326" font-size="11" class="mono" fill="currentColor" opacity=".75">points_&lt;variant&gt;.parquet</text>
+            <text x="596" y="341" font-size="11" fill="currentColor" opacity=".75">+ per-variant break and jump lists</text>
+          </g>
+          <line x1="880" y1="300" x2="832" y2="300" stroke="currentColor" marker-end="url(#ah)"/>
+          <text x="856" y="290" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">tune</text>
+          <g class="node" data-file="data" tabindex="0">
+            <rect x="290" y="270" width="240" height="80" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
+            <text x="410" y="292" text-anchor="middle" font-size="11.5" class="mono" fill="currentColor">&lt;tag&gt;_points.parquet</text>
+            <text x="410" y="311" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">one row per tracked box,</text>
+            <text x="410" y="326" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">chosen tracker only</text>
+            <text x="410" y="341" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">input for speeds (later phases)</text>
+          </g>
+          <path d="M880 334 H858 V360 H410 V352" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
+          <text x="560" y="376" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">track (chosen variant)</text>
+          <g>
+            <rect x="20" y="282" width="220" height="56" rx="6" fill="none" stroke="currentColor" stroke-opacity=".4" stroke-dasharray="4 3"/>
+            <text x="130" y="306" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".75">phases 5–8: per-lane speed,</text>
+            <text x="130" y="322" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".75">flow, status (not built yet)</text>
+          </g>
+          <line x1="290" y1="310" x2="242" y2="310" stroke="currentColor" stroke-opacity=".5" stroke-dasharray="3 3" marker-end="url(#ah)"/>
+
+          <!-- row C: packaging -->
+          <path d="M705 350 V412 H1015 V466" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
+          <text x="1023" y="446" font-size="10.5" fill="currentColor" opacity=".75">several variants</text>
           <g class="node" data-file="export" tabindex="0">
-            <rect x="930" y="312" width="170" height="64" rx="6" fill="none" stroke="#2563a8" stroke-width="1.5"/>
-            <text x="1015" y="337" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">export_viewer.py</text>
-            <text x="1015" y="354" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">light video + tags</text>
-            <text x="1015" y="368" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">for the browser</text>
+            <rect x="930" y="468" width="170" height="64" rx="6" fill="none" stroke="#2563a8" stroke-width="1.5"/>
+            <text x="1015" y="493" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">export_viewer.py</text>
+            <text x="1015" y="510" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">light video + tags</text>
+            <text x="1015" y="524" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">per tracker</text>
           </g>
-          <line x1="930" y1="344" x2="862" y2="344" stroke="currentColor" marker-end="url(#ah)"/>
+          <line x1="930" y1="500" x2="882" y2="500" stroke="currentColor" marker-end="url(#ah)"/>
           <g class="node" data-file="data" tabindex="0">
-            <rect x="690" y="300" width="170" height="90" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
-            <text x="775" y="320" text-anchor="middle" font-size="12" class="mono" fill="currentColor">data/out/viewer/</text>
-            <text x="706" y="339" font-size="11" class="mono" fill="currentColor" opacity=".75">video.mp4  11 MB</text>
-            <text x="706" y="354" font-size="11" class="mono" fill="currentColor" opacity=".75">detections.json</text>
-            <text x="706" y="369" font-size="11" class="mono" fill="currentColor" opacity=".75">meta.json</text>
-            <text x="706" y="384" font-size="11" class="mono" fill="currentColor" opacity=".75">index.html</text>
+            <rect x="690" y="452" width="190" height="96" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
+            <text x="785" y="472" text-anchor="middle" font-size="12" class="mono" fill="currentColor">data/out/viewer/</text>
+            <text x="704" y="491" font-size="11" class="mono" fill="currentColor" opacity=".75">video.mp4  11 MB</text>
+            <text x="704" y="506" font-size="11" class="mono" fill="currentColor" opacity=".75">tags_&lt;variant&gt;.json</text>
+            <text x="704" y="521" font-size="11" class="mono" fill="currentColor" opacity=".75">meta.json</text>
+            <text x="704" y="536" font-size="11" class="mono" fill="currentColor" opacity=".75">index.html</text>
           </g>
-
-          <!-- three ways out -->
           <g class="node" data-file="serve" tabindex="0">
-            <rect x="420" y="296" width="190" height="40" rx="6" fill="none" stroke="#2563a8" stroke-width="1.5"/>
-            <text x="515" y="313" text-anchor="middle" font-size="12" class="mono" fill="currentColor">serve.py</text>
-            <text x="515" y="328" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">localhost:8000 · supports seeking</text>
+            <rect x="420" y="452" width="200" height="40" rx="6" fill="none" stroke="#2563a8" stroke-width="1.5"/>
+            <text x="520" y="469" text-anchor="middle" font-size="12" class="mono" fill="currentColor">serve.py</text>
+            <text x="520" y="484" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">localhost:8000 · supports seeking</text>
           </g>
           <g class="node" data-file="docs" tabindex="0">
-            <rect x="420" y="346" width="190" height="40" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
-            <text x="515" y="363" text-anchor="middle" font-size="12" class="mono" fill="currentColor">run.py pages → docs/</text>
-            <text x="515" y="378" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">GitHub Pages, public URL</text>
+            <rect x="420" y="502" width="200" height="40" rx="6" fill="none" stroke="#7a5b3a" stroke-width="1.5"/>
+            <text x="520" y="519" text-anchor="middle" font-size="12" class="mono" fill="currentColor">run.py pages → docs/</text>
+            <text x="520" y="534" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">GitHub Pages, public URL</text>
           </g>
           <g class="node" data-file="viewer" tabindex="0">
-            <rect x="420" y="396" width="190" height="40" rx="6" fill="none" stroke="#a3489a" stroke-width="1.5"/>
-            <text x="515" y="413" text-anchor="middle" font-size="12" fill="currentColor">claude.ai artifact</text>
-            <text x="515" y="428" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">private link, signed in</text>
+            <rect x="420" y="552" width="200" height="40" rx="6" fill="none" stroke="#a3489a" stroke-width="1.5"/>
+            <text x="520" y="569" text-anchor="middle" font-size="12" fill="currentColor">claude.ai artifact</text>
+            <text x="520" y="584" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">private link, signed in</text>
           </g>
-          <path d="M690 330 H650 V316 H612" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
-          <path d="M690 345 H650 V366 H612" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
-          <path d="M690 360 H660 V416 H612" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
-          <text x="651" y="446" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">same 4 files, 3 hosts</text>
+          <path d="M690 478 H655 V472 H622" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
+          <path d="M690 500 H655 V522 H622" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
+          <path d="M690 520 H665 V572 H622" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
 
           <g class="node" data-file="viewer" tabindex="0">
-            <rect x="20" y="320" width="330" height="96" rx="6" fill="none" stroke="#a3489a" stroke-width="2.2"/>
-            <text x="185" y="345" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">app/viewer/index.html</text>
-            <text x="185" y="364" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">in your browser: video + canvas overlay,</text>
-            <text x="185" y="380" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">frame stepping, track inspector, register</text>
-            <text x="185" y="402" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">no server logic: it only reads the 4 files</text>
+            <rect x="20" y="470" width="340" height="104" rx="6" fill="none" stroke="#a3489a" stroke-width="2.2"/>
+            <text x="190" y="494" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">app/viewer/index.html</text>
+            <text x="190" y="513" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">in your browser: video + canvas overlay,</text>
+            <text x="190" y="529" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">tracker switch, break markers, quality panel,</text>
+            <text x="190" y="545" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">frame stepping, track register</text>
+            <text x="190" y="565" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">no server logic: it only reads the bundle files</text>
           </g>
-          <line x1="420" y1="316" x2="352" y2="350" stroke="currentColor" marker-end="url(#ah)"/>
-          <line x1="420" y1="366" x2="352" y2="368" stroke="currentColor" marker-end="url(#ah)"/>
-          <line x1="420" y1="416" x2="352" y2="386" stroke="currentColor" marker-end="url(#ah)"/>
-          <text x="386" y="458" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">HTTP GET</text>
+          <line x1="420" y1="472" x2="362" y2="500" stroke="currentColor" marker-end="url(#ah)"/>
+          <line x1="420" y1="522" x2="362" y2="522" stroke="currentColor" marker-end="url(#ah)"/>
+          <line x1="420" y1="572" x2="362" y2="545" stroke="currentColor" marker-end="url(#ah)"/>
 
-          <!-- tests -->
           <g class="node" data-file="tests" tabindex="0">
-            <rect x="760" y="430" width="340" height="44" rx="6" fill="none" stroke="#5b6875" stroke-dasharray="4 3"/>
-            <text x="930" y="449" text-anchor="middle" font-size="12" class="mono" fill="currentColor">tests/ · 12 tests</text>
-            <text x="930" y="465" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">check video.py, export_viewer.py, serve.py on a fake video</text>
+            <rect x="690" y="600" width="410" height="44" rx="6" fill="none" stroke="#5b6875" stroke-dasharray="4 3"/>
+            <text x="895" y="619" text-anchor="middle" font-size="12" class="mono" fill="currentColor">tests/ · 29 tests</text>
+            <text x="895" y="635" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">video, tracking scenarios with known answers, metrics, export, server</text>
           </g>
         </svg>
       </div>
       <figcaption>
-        Top half: the heavy work, done once per clip (about 12 minutes per 30 s of video on this CPU). Bottom half: packaging for the browser,
-        which takes seconds and can be redone any time without rerunning detection. The dashed ground-truth file is downloaded but not used by any code yet;
-        it becomes the reference for validation in a later phase.
+        Band 1 is the heavy work, done once per window (about 12 minutes per 30 s of video on this CPU). It saves every box YOLO finds, with no IDs.
+        Band 2 links those boxes into vehicles; because it reads saved boxes, any tracker setting can be tried in seconds and every setting sees exactly
+        the same input. Band 3 packages the video and the tracks of several trackers for the browser. The dashed ground-truth file is downloaded but not
+        used by any code yet; it becomes the reference for validation in a later phase.
       </figcaption>
     </figure>
   </section>
@@ -359,14 +405,14 @@ tr:last-child td { border-bottom: 0; }
             </marker>
           </defs>
           <!-- load path -->
-          <text x="20" y="22" font-size="11" fill="currentColor" opacity=".6" letter-spacing="1.2">ON LOAD (ONCE)</text>
+          <text x="20" y="22" font-size="11" fill="currentColor" opacity=".6" letter-spacing="1.2">ON LOAD, AND WHEN YOU SWITCH TRACKER</text>
           <rect x="20" y="36" width="170" height="52" rx="6" fill="none" stroke="currentColor" stroke-opacity=".5"/>
           <text x="105" y="58" text-anchor="middle" font-size="12" class="mono" fill="currentColor">meta.json</text>
-          <text x="105" y="75" text-anchor="middle" font-size="12" class="mono" fill="currentColor">detections.json</text>
+          <text x="105" y="75" text-anchor="middle" font-size="11.5" class="mono" fill="currentColor">tags_&lt;variant&gt;.json</text>
           <line x1="190" y1="62" x2="244" y2="62" stroke="currentColor" marker-end="url(#ah2)"/>
           <rect x="246" y="36" width="200" height="52" rx="6" fill="none" stroke="#a3489a"/>
-          <text x="346" y="58" text-anchor="middle" font-size="12" class="mono" fill="currentColor">load()</text>
-          <text x="346" y="75" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">indexes boxes by frame and by track</text>
+          <text x="346" y="58" text-anchor="middle" font-size="12" class="mono" fill="currentColor">loadVariant()</text>
+          <text x="346" y="75" text-anchor="middle" font-size="11" fill="currentColor" opacity=".7">per tracker: index by frame + track</text>
           <line x1="446" y1="62" x2="500" y2="62" stroke="currentColor" marker-end="url(#ah2)"/>
           <rect x="502" y="36" width="200" height="52" rx="6" fill="none" stroke="currentColor" stroke-opacity=".5"/>
           <text x="602" y="58" text-anchor="middle" font-size="12" class="mono" fill="currentColor">S.byFrame[f]</text>
@@ -409,7 +455,7 @@ tr:last-child td { border-bottom: 0; }
           <text x="932" y="240" font-size="11" class="mono" fill="currentColor" opacity=".8">draw()  boxes, IDs, trails</text>
           <text x="932" y="258" font-size="11" class="mono" fill="currentColor" opacity=".8">drawTimeline()</text>
           <text x="932" y="276" font-size="11" class="mono" fill="currentColor" opacity=".8">readouts + panels</text>
-          <text x="932" y="294" font-size="11" class="mono" fill="currentColor" opacity=".8">followSel() when zoomed</text>
+          <text x="932" y="294" font-size="11" class="mono" fill="currentColor" opacity=".8">break markers + quality</text>
           <path d="M702 62 H1008 V194" stroke="currentColor" stroke-opacity=".5" stroke-dasharray="3 3" fill="none" marker-end="url(#ah2)"/>
           <text x="855" y="56" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">boxes for frame N</text>
         </svg>
@@ -488,7 +534,11 @@ tr:last-child td { border-bottom: 0; }
     </div>
     <div class="grid2">
       <div>
-        <h3>points.parquet <span class="muted" style="font-weight:400">· written by extract.py</span></h3>
+        <h3>detections.parquet <span class="muted" style="font-weight:400">· written by detect.py</span></h3>
+        <p>One row per box YOLO found, confidence ≥ 0.05, <b>no IDs</b>: <code>t, frame_idx, cls, cls_id, conf, x1, y1, x2, y2</code>
+          (full-frame pixels). Next to it, <code>.meta.json</code> records the video, window, band, detector settings, device,
+          runtime, box counts and library versions.</p>
+        <h3>points.parquet <span class="muted" style="font-weight:400">· written by the tracking package</span></h3>
         <div class="tbl"><table>
           <thead><tr><th>Column</th><th>Meaning</th></tr></thead>
           <tbody>
@@ -505,14 +555,18 @@ tr:last-child td { border-bottom: 0; }
         </table></div>
       </div>
       <div>
-        <h3>detections.json <span class="muted" style="font-weight:400">· for the browser</span></h3>
+        <h3>tags_&lt;variant&gt;.json <span class="muted" style="font-weight:400">· for the browser, one per tracker</span></h3>
         <p>One array, one record per line, integers only to keep it at about 3 MB:</p>
         <div class="cmd">[frame, track_id, class_index, conf_%, x1, y1, x2, y2]
 [449,   11,      1,           79,     2105, 1316, 2184, 1351]</div>
         <h3>meta.json</h3>
         <p><code>fps</code>, <code>clip_offset_s</code>, <code>frame_first</code>, <code>frame_count</code>, <code>crop</code> (which part of the full frame the video shows),
-          <code>video_size</code>, <code>classes</code>, model name, and <code>tracks</code>: one summary per track (first and last frame, observations, majority class,
-          mean confidence, duration, image motion in px/s).</p>
+          <code>video_size</code>, <code>classes</code>, model name, and <code>variants</code>: per tracker its label, note, quality numbers and one summary
+          per track (first and last frame, observations, majority class, mean confidence, duration, image motion in px/s,
+          mid-image start/end flags and positions).</p>
+        <h3>report.json <span class="muted" style="font-weight:400">· tracking experiment</span></h3>
+        <p>Per variant: the resolved config, the quality summary and guard verdicts; plus the selected variant, the thresholds,
+          the selection rule and the detections' provenance.</p>
       </div>
     </div>
   </section>
@@ -527,40 +581,93 @@ tr:last-child td { border-bottom: 0; }
     <div class="grid2">
       <div class="cmd">python run.py setup     # .venv, packages, yolo26s.pt
 python run.py clip      # 3-min clip from the remote zip
-python run.py extract   # detect + track first 30 s
+python run.py detect    # YOLO once on 0-30 s (slow)
+python run.py tune      # all trackers + report (seconds)
+python run.py track     # chosen tracker -> points
 python run.py viewer    # build data/out/viewer/
 python run.py serve     # http://localhost:8000
-python run.py pages     # copy viewer to docs/
-python run.py test      # 12 tests</div>
+python run.py pages     # copy to docs/
+python run.py test      # 29 tests</div>
       <div class="cmd">make setup
 make clip
-make extract  START=0 DUR=30
-make viewer   START=0 DUR=30
+make detect START=0 DUR=30
+make tune   START=0 DUR=30
+make track  START=0 DUR=30
+make viewer START=0 DUR=30
 make serve
 make test</div>
     </div>
   </section>
 
-  <!-- ===================================================== 7. status -->
+  <!-- ===================================================== 7. tracking experiment -->
   <section>
     <div class="prose">
-      <p class="eyebrow">7 · Where this sits in the plan</p>
+      <p class="eyebrow">7 · Tracking experiment (steps 0–2)</p>
+      <h2>Fewer broken tracks without more wrong merges</h2>
+      <p>
+        Fifteen tracker settings ran on the same saved detections. The score is <b>fragmentation</b>: tracks that start or end in
+        the middle of the image, which on this road can only be breaks. Two guards reject a setting that gets there by merging
+        different vehicles (identity jumps) or by dropping boxes (coverage). The rule, and how the held-out window decides,
+        were committed to git before the results.
+      </p>
+    </div>
+    <div class="tbl">
+      <table class="exp">
+        <thead><tr><th>Variant</th><th>Step</th><th>Fragmentation, tuning 0–30 s</th><th>Jumps</th><th>Fragmentation, held-out 30–60 s</th><th>Jumps</th></tr></thead>
+        <tbody>
+            <tr class=""><td><code>baseline</code><br><span class="muted">original run</span></td><td>0</td><td class="barcell"><span class="bar ok" style="width:0px"></span><span class="bv">0%</span></td><td class="num">19</td><td class="barcell"><span class="bar ok" style="width:0px"></span><span class="bv">0%</span></td><td class="num">21</td></tr>
+            <tr class=""><td><code>s1_lowconf</code><br><span class="muted">faint boxes into ByteTrack</span></td><td>1</td><td class="barcell"><span class="bar no" style="width:44px"></span><span class="bv">-17%</span></td><td class="num">28</td><td class="barcell"><span class="bar ok" style="width:31px"></span><span class="bv">-12%</span></td><td class="num">26</td></tr>
+            <tr class=""><td><code>s2_bt_buf4s</code><br><span class="muted">+ 4 s memory</span></td><td>2</td><td class="barcell"><span class="bar no" style="width:55px"></span><span class="bv">-21%</span></td><td class="num">29</td><td class="barcell"><span class="bar ok" style="width:36px"></span><span class="bv">-14%</span></td><td class="num">27</td></tr>
+            <tr class=""><td><code>s2_ocsort_buf4s</code><br><span class="muted">OC-SORT</span></td><td>2</td><td class="barcell"><span class="bar no" style="width:120px"></span><span class="bv">-46%</span></td><td class="num">44</td><td class="barcell"><span class="bar no" style="width:107px"></span><span class="bv">-41%</span></td><td class="num">38</td></tr>
+            <tr class=""><td><code>s2_botsort_buf4s</code><br><span class="muted">BoT-SORT, defaults</span></td><td>2</td><td class="barcell"><span class="bar ok" style="width:8px"></span><span class="bv">-3%</span></td><td class="num">0</td><td class="barcell"><span class="bar ok" style="width:10px"></span><span class="bv">-4%</span></td><td class="num">2</td></tr>
+            <tr class="win"><td><code>r2_botsort_first005</code><br><span class="muted">BoT-SORT, loose first match</span></td><td>2b</td><td class="barcell"><span class="bar ok" style="width:55px"></span><span class="bv">-21%</span></td><td class="num">6</td><td class="barcell"><span class="bar ok" style="width:47px"></span><span class="bv">-18%</span></td><td class="num">10</td></tr>
+            <tr class=""><td><code>r2_ocsort_iou03</code><br><span class="muted">OC-SORT, IoU 0.3</span></td><td>2b</td><td class="barcell"><span class="bar no" style="width:62px"></span><span class="bv">-24%</span></td><td class="num">23</td><td class="barcell"><span class="bar no" style="width:68px"></span><span class="bv">-26%</span></td><td class="num">27</td></tr>
+            <tr class=""><td><code>r2_bt_conf015_buf4s</code><br><span class="muted">ByteTrack, faint floor 0.15</span></td><td>2b</td><td class="barcell"><span class="bar no" style="width:34px"></span><span class="bv">-13%</span></td><td class="num">28</td><td class="barcell"><span class="bar ok" style="width:31px"></span><span class="bv">-12%</span></td><td class="num">15</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">Bars: change in fragmentation against that window's baseline (478 and 547), drawn at one scale (2.6 px per percentage point). Green bars passed both guards on that window, grey failed.
+      Identity jumps: guard limit about 25 on each window. Selected row highlighted. Full tables: <code>notes/tracking.md</code>.</p>
+    <div class="grid2" style="margin-top:14px">
+      <div class="why">
+        <h4>Decision</h4>
+        <ul>
+          <li><b>BoT-SORT with a loose first match</b> (<code>r2_botsort_first005</code>): confident boxes continue a track at overlap × confidence ≥ 0.05; faint boxes (0.10–0.5) need 50% overlap and never start a track; 4 s memory.</li>
+          <li>On video it was not tuned on: <b>18% fewer breaks, 13% fewer IDs, half the identity errors</b>, same coverage.</li>
+        </ul>
+      </div>
+      <div class="why" style="background:var(--code-bg)">
+        <h4 style="color:var(--muted)">What was learned</h4>
+        <ul>
+          <li>Faint boxes recover partly hidden cars, but in a jam they also overlap neighbours. A video audit confirmed 8 of 8 flagged jumps were real swaps.</li>
+          <li>A longer memory alone barely helps: matching is by overlap, and a car that moved while hidden no longer overlaps its prediction.</li>
+          <li>OC-SORT cuts the most breaks, by re-linking after long gaps, but often to the wrong vehicle.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== 8. status -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">8 · Where this sits in the plan</p>
       <h2>Built so far, and what comes next</h2>
     </div>
     <div class="phases">
       <div class="phase"><span class="st done">Done</span><div><b>Data access.</b> Remote byte-range reads of the 75 GB zip; 3-min clip; D1 ground-truth CSV downloaded.</div></div>
-      <div class="phase"><span class="st done">Done</span><div><b>Phase 4 · detect + track.</b> <code>video.py</code>, <code>extract.py</code> → <code>points.parquet</code>. About 96 vehicles tagged per frame; 110 in ground truth.</div></div>
-      <div class="phase"><span class="st done">Done</span><div><b>Inspection tooling.</b> <code>export_viewer.py</code>, <code>serve.py</code>, the viewer, GitHub Pages and claude.ai hosting.</div></div>
-      <div class="phase"><span class="st todo">Next</span><div><b>Tracking quality.</b> 386 IDs for about 110 vehicles in 30 s: tracks break behind trucks and under trees. Tune ByteTrack and mask the tree-covered stretch.</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Phase 4 · detection.</b> <code>video.py</code>, <code>detect.py</code> → saved boxes with provenance. About 96 vehicles tagged per frame; 110 in ground truth.</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Tracking steps 0–2.</b> Tracking package, quality metrics, 15 variants, held-out confirmation; BoT-SORT setting chosen (section 7).</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Inspection tooling.</b> Viewer with tracker switch and break markers, local server, GitHub Pages and claude.ai hosting, this page.</div></div>
+      <div class="phase"><span class="st todo">Next</span><div><b>Tracking steps 3–5.</b> <code>stitch.py</code>: offline re-linking of break → restart pairs (about 100 per 30 s left); occlusion zones for the trees and gantry; removal of short junk tracks.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phase 0 · ground truth check.</b> <code>gt_mitra.py</code>: per-lane 60 s speed windows from the CSV, the fit test, choice of direction.</div></div>
-      <div class="phase"><span class="st todo">Planned</span><div><b>Phases 2–3 · calibration.</b> <code>calibrate.py</code>, <code>stabilize.py</code>: pixels → metres (fills <code>x_w</code>, <code>y_w</code>), lane polygons (fills <code>lane_frame</code>), drone drift.</div></div>
+      <div class="phase"><span class="st todo">Planned</span><div><b>Phases 2–3 · calibration.</b> <code>calibrate.py</code>, <code>stabilize.py</code>: pixels → metres (fills <code>x_w</code>, <code>y_w</code>), lane polygons (fills <code>lane_frame</code>), drone drift. Unlocks tracking step 6: IDF1 against MiTra's true IDs.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phases 5–8 · measurements.</b> <code>tracks.py</code> (km/h per track), <code>metrics.py</code>, <code>status.py</code>, <code>validate.py</code>, <code>persistence.py</code>.</div></div>
     </div>
   </section>
 
   <footer class="muted" style="font-size:13px">
     Video and ground truth: <a href="https://opara.zih.tu-dresden.de/items/68482417-ddc5-40ac-885a-83124bd459e8">MiTra dataset</a>, CC BY 4.0.
-    Line counts and figures as of commit 614ca8d.
+    Figures from the tracking experiment of 26 Nov 2026 (notes/tracking.md).
   </footer>
 </div>
 
@@ -577,231 +684,277 @@ make test</div>
 
   const FILES = [
     // ------------------------------------------------------------- root
-    { id: "readme", dir: "/", name: "README.md", role: "config", lines: 50,
-      summary: "The front page of the repo: what the project is, how to run it on Windows, macOS or Linux, and notes on the data.",
-      what: [
-        "Quick start with the five <code>run.py</code> steps, the same steps through <code>make</code>, a table of the pipeline stages and their outputs, and data facts (video size, frame rate, ground-truth columns).",
-      ],
-      inputs: [], outputs: [], fns: [], related: ["run", "makefile"], why: [] },
+    { id: "readme", dir: "/", name: "README.md", role: "config", lines: 52,
+      summary: "The front page of the repo: what the project is, how to run it on any OS, the pipeline table and data notes.",
+      what: ["Quick start with the <code>run.py</code> steps (setup, clip, detect, tune, track, viewer, serve), the same steps as <code>make</code> targets, a table of every stage and its output, and links to the tracking notes and this page."],
+      inputs: [], outputs: [], fns: [], related: ["run", "makefile", "notes"], why: [] },
 
-    { id: "run", dir: "/", name: "run.py", role: "entry", lines: 203,
-      summary: "The one command you run. It sets up the venv, downloads the clip, runs detection, builds the viewer, serves it and copies it for GitHub Pages, on any operating system.",
+    { id: "run", dir: "/", name: "run.py", role: "entry", lines: 263,
+      summary: "The one command you run. Each pipeline step is a sub-command, and it works the same on Windows, macOS and Linux.",
       what: [
-        "Each step is a function, picked by the first argument: <code>python run.py extract</code>. It uses only the Python standard library, so it can run before the virtual environment exists, and it then launches the pipeline modules with the venv's own Python (<code>.venv/Scripts/python.exe</code> on Windows, <code>.venv/bin/python</code> elsewhere).",
-        "Every step checks its prerequisites first (ffmpeg on PATH, venv present, clip downloaded, detections present) and stops with the exact command to run if something is missing. Steps whose output already exists are skipped.",
+        "Each step is a function picked by the first argument: <code>python run.py detect</code>. It uses only the Python standard library, so it runs before the virtual environment exists, then launches pipeline modules with the venv's Python (<code>.venv/Scripts/python.exe</code> on Windows, <code>.venv/bin/python</code> elsewhere).",
+        "Every step checks its prerequisites (ffmpeg, venv, clip, detections) and stops with the exact command to run if something is missing. Steps whose output exists are skipped unless you pass <code>--force</code>.",
+        "Output names come from the window: <code>--start 0 --dur 30</code> gives the tag <code>T8_D1_0-30s</code> (start, then length).",
       ],
-      inputs: ["command-line step + options (--start, --dur, --clip-ss, --clip-len, --port, --force)", "configs/T8_D1.json"],
-      outputs: [".venv/", "data/models/yolo26s.pt", "data/raw/T8_D1_dev_300s.mp4", "data/interim/*_points.parquet", "data/out/viewer/", "docs/"],
+      inputs: ["step + options: --start, --dur, --variant, --clip-ss, --clip-len, --port, --force", "configs/T8_D1.json"],
+      outputs: [".venv/", "data/models/yolo26s.pt", "data/raw/T8_D1_dev_300s.mp4", "data/interim/&lt;tag&gt;_detections.parquet", "data/out/tracking/&lt;tag&gt;/", "data/interim/&lt;tag&gt;_points.parquet", "data/out/viewer/", "docs/"],
       fns: [
-        ["sh(cmd)", "Prints a command, then runs it from the repo root and stops on failure. Every external call goes through here so you can see exactly what ran."],
-        ["need_ffmpeg() / need_venv()", "Guards. need_ffmpeg prints the install command for your OS (winget on Windows, brew or apt elsewhere)."],
-        ["clip_path(ss)", "Where a clip cut at second <i>ss</i> lives: <code>data/raw/T8_D1_dev_300s.mp4</code> for the default."],
-        ["setup(a)", "Creates <code>.venv</code> with <code>venv.EnvBuilder</code>, upgrades pip, installs the CUDA build of PyTorch if <code>nvidia-smi</code> exists (PyPI's Windows wheel is CPU-only), installs the project with <code>pip install -e .[dev]</code>, downloads <code>yolo26s.pt</code> into <code>data/models/</code>, and prints whether a GPU is usable."],
-        ["clip(a)", "Runs ffmpeg with the <code>subfile</code> protocol: it opens the remote zip over HTTPS but only reads bytes 59 to 12,377,194,959, which is drone D1's video stored uncompressed inside the zip. <code>-ss 300 -t 180 -c copy</code> copies 3 minutes without re-encoding. It writes to a <code>.part.mp4</code> file and renames it at the end, so an interrupted download never looks finished. Inside the Claude cloud sandbox it also routes ffmpeg through the sandbox proxy."],
-        ["_tag(a) / _points(a)", "Name the detection output after its window: <code>T8_D1_0-30s_points.parquet</code>."],
-        ["_cfg_for_clip(a)", "If you cut a clip at a different start time, writes a copy of the config pointing at that clip with the right <code>clip_offset_s</code>."],
-        ["extract(a)", "Runs <code>python -m lane_intel.extract</code> for the chosen window. Skips if the parquet exists unless you pass --force."],
-        ["viewer(a)", "Runs <code>python -m lane_intel.export_viewer</code> to build <code>data/out/viewer/</code>."],
-        ["serve(a)", "Starts <code>lane_intel.serve</code> on port 8000 and opens your browser after 1.5 s."],
-        ["pages(a)", "Copies the four viewer files to <code>docs/</code> and adds <code>.nojekyll</code>, ready for GitHub Pages."],
-        ["test(a)", "Runs pytest inside the venv."],
-        ["all_steps(a)", "setup → clip → extract → viewer → serve."],
+        ["setup", "Creates <code>.venv</code>, installs the CUDA build of PyTorch if an NVIDIA GPU is present (PyPI's Windows wheel is CPU-only), installs the project (<code>pip install -e .[dev]</code>), downloads <code>yolo26s.pt</code>, prints whether a GPU is usable."],
+        ["clip", "ffmpeg's <code>subfile</code> protocol reads only bytes 59 to 12,377,194,959 of the remote zip (drone D1's video, stored uncompressed). <code>-ss 300 -t 180 -c copy</code> copies 3 minutes without re-encoding into a <code>.part.mp4</code> that is renamed when complete."],
+        ["detect", "Runs <code>lane_intel.detect</code> on the window: the slow YOLO step, once."],
+        ["tune", "Runs <code>lane_intel.tracking.experiment</code>: every variant in <code>configs/tracking.json</code> on the saved detections, the comparison report and the selection rule. Seconds."],
+        ["track", "Runs <code>python -m lane_intel.tracking</code> with the configured variant (or <code>--variant</code>) and writes the window's points file."],
+        ["extract", "detect then track, for one-shot use."],
+        ["viewer", "If <code>tune</code> ran, bundles every tracker listed in <code>tracking.viewer_variants</code> (with <code>@selected</code> resolved from the report); otherwise bundles the single points file."],
+        ["serve", "Starts <code>lane_intel.serve</code> on port 8000 and opens your browser."],
+        ["pages", "Mirrors the viewer bundle into <code>docs/</code> (removing files from older layouts) and writes <code>docs/architecture.html</code> from this page."],
+        ["test / all", "pytest in the venv; <code>all</code> = setup → clip → detect → tune → track → viewer → serve."],
       ],
-      related: ["makefile", "extract", "export", "serve", "pyproject", "config"],
-      why: [
-        "Standard library only, because it has to create the venv that holds everything else.",
-        "Byte-range reading means the 3-minute clip costs about 2.2 GB of download instead of 75 GB.",
-      ] },
+      related: ["makefile", "detect", "tracking", "experiment", "export", "serve"],
+      why: ["Standard library only, because it has to create the venv that holds everything else.",
+            "Byte-range reading makes the 3-minute clip a 2.2 GB download instead of 75 GB."] },
 
-    { id: "makefile", dir: "/", name: "Makefile", role: "entry", lines: 63,
-      summary: "The same steps as run.py for Linux and macOS, written as make targets that rebuild only what is out of date.",
+    { id: "makefile", dir: "/", name: "Makefile", role: "entry", lines: 87,
+      summary: "The same steps as run.py for Linux and macOS, as make targets that rebuild only what is out of date.",
       what: [
-        "Targets: <code>setup</code>, <code>models</code>, <code>clip</code>, <code>extract</code>, <code>viewer</code>, <code>serve</code>, <code>test</code>, <code>all</code>. Variables <code>START</code>, <code>DUR</code>, <code>CFG</code>, <code>CLIP_SS</code> pick the window and clip. Every recipe uses <code>.venv/bin/python</code>.",
-        "Outputs are real files, so make compares timestamps: changing <code>extract.py</code> or the config makes <code>make extract</code> run again; otherwise it does nothing.",
+        "Targets: <code>setup</code>, <code>clip</code>, <code>detect</code>, <code>tune</code>, <code>track</code>, <code>extract</code>, <code>viewer</code>, <code>serve</code>, <code>pages</code>, <code>test</code>, <code>all</code>. Variables <code>START</code>, <code>DUR</code>, <code>CFG</code>, <code>CLIP_SS</code>.",
+        "Detection depends only on <code>detect.py</code> and <code>video.py</code>, <b>not</b> on the camera config, so changing the tracker never triggers a 12-minute YOLO rerun. Tracking targets depend on <code>configs/tracking.json</code> and the tracking package, so editing a variant reruns only tracking.",
       ],
-      inputs: ["variables on the command line, e.g. <code>make extract START=30 DUR=60</code>"], outputs: ["same as run.py"],
-      fns: [], related: ["run"],
-      why: ["Kept alongside run.py because make's dependency tracking is handy on Linux; Windows users use run.py."] },
+      inputs: ["e.g. <code>make tune START=30 DUR=30</code>"], outputs: ["same files as run.py"], fns: [], related: ["run"],
+      why: ["Force a detection rerun with <code>make -B detect</code>."] },
 
-    { id: "pyproject", dir: "/", name: "pyproject.toml", role: "config", lines: 28,
-      summary: "Declares the Python package lane-intel, its dependencies, and where its code lives.",
-      what: [
-        "Package name <code>lane-intel</code>, Python 3.11+. Dependencies: ultralytics (YOLO), supervision (detection containers), trackers (ByteTrack), opencv-python, numpy, pandas, pyarrow (parquet), scipy. Dev extras: pytest, remotezip.",
-        "The <code>src/</code> layout means the importable package is <code>src/lane_intel</code>. Installing with <code>pip install -e .</code> (editable) makes <code>import lane_intel</code> work everywhere while your edits take effect immediately.",
-      ],
-      inputs: [], outputs: [], fns: [], related: ["run", "init"],
-      why: ["ByteTrack moved out of supervision into the separate <code>trackers</code> package in recent versions, so both are listed."] },
+    { id: "pyproject", dir: "/", name: "pyproject.toml", role: "config", lines: 30,
+      summary: "Declares the Python package lane-intel, its dependencies, and the test settings.",
+      what: ["Dependencies: ultralytics (YOLO), supervision (detection containers), trackers (ByteTrack, OC-SORT, BoT-SORT), opencv-python, numpy, pandas, pyarrow (parquet), scipy (optimal matching). Dev extras: pytest, remotezip.",
+             "The <code>src/</code> layout plus an editable install (<code>pip install -e .</code>) makes <code>import lane_intel</code> work everywhere while edits take effect immediately. Pytest hides a deprecation warning that supervision prints on import."],
+      inputs: [], outputs: [], fns: [], related: ["run"], why: [] },
 
     { id: "gitignore", dir: "/", name: ".gitignore", role: "config", lines: 5,
       summary: "Keeps big and machine-specific files out of git: data/, model weights, the venv, caches.",
-      what: ["Ignores <code>data/</code> (the 2.2 GB clip, the 337 MB CSV, parquet files), <code>*.pt</code> (model weights), <code>.venv/</code>, <code>__pycache__/</code> and <code>*.egg-info/</code>."],
-      inputs: [], outputs: [], fns: [], related: ["data", "docs"],
-      why: ["<code>docs/</code> is deliberately not ignored: it holds the small viewer bundle that GitHub Pages serves."] },
+      what: ["Ignores <code>data/</code> (clip, CSV, parquet files, experiment outputs), <code>*.pt</code>, <code>.venv/</code>, <code>__pycache__/</code>, <code>*.egg-info/</code>. <code>docs/</code> is deliberately kept: it is the small public copy of the viewer."],
+      inputs: [], outputs: [], fns: [], related: ["data", "docs"], why: [] },
 
     // ------------------------------------------------------------- configs
-    { id: "config", dir: "configs/", name: "T8_D1.json", role: "config", lines: 24,
-      summary: "Everything specific to one camera (flight T8, drone D1) in one place. Code never hard-codes these values.",
+    { id: "config", dir: "configs/", name: "T8_D1.json", role: "config", lines: 34,
+      summary: "Everything specific to one camera (flight T8, drone D1) in one place.",
       what: [
-        "<code>video</code>: which clip to read. <code>clip_offset_s: 300.0</code>: clip time 0 is flight time 5:00. <code>native_fps: 29.97002997</code>, exactly 30000/1001. <code>frame_size</code>: 3840 × 2160.",
-        "<code>band_y: [1092, 1604]</code>: the rows that contain the road, 512 tall. <code>model</code>, <code>classes [2,3,5,7]</code> (car, motorcycle, bus, truck), <code>conf 0.25</code>, <code>imgsz 3840</code> (run at full width, no shrinking), <code>process_every 1</code> (every frame), <code>track_lost_buffer_s 1.0</code> (how long a lost vehicle keeps its ID).",
-        "Placeholders set to <code>null</code> for later phases: <code>direction</code>, <code>roi</code>, <code>lanes</code>, <code>calib_src_px</code>, <code>calib_dst_m</code>, <code>count_line_y_m</code>, <code>speed_limit_kmh</code>. <code>crs</code> is already set to EPSG:32632 because the ground truth uses UTM zone 32N metres.",
+        "<code>video</code>, <code>clip_offset_s: 300.0</code> (clip time 0 = flight time 5:00), <code>native_fps: 29.97002997</code> (exactly 30000/1001), <code>frame_size</code>, <code>band_y: [1092, 1604]</code> (the 512 road rows).",
+        "<code>detector</code>: model, classes [2, 3, 5, 7] (car, motorcycle, bus, truck), <code>imgsz 3840</code> (full width), <code>conf_min 0.05</code> (save faint boxes too; trackers decide what to use), <code>max_det 1000</code>.",
+        "<code>tracking</code>: the variants file, the chosen <code>variant</code>, and <code>viewer_variants</code> (which trackers the viewer offers; <code>@selected</code> = the experiment's pick).",
+        "Placeholders for later phases: <code>roi</code>, <code>lanes</code>, <code>calib_src_px</code>, <code>calib_dst_m</code>, <code>count_line_y_m</code>, <code>speed_limit_kmh</code>; <code>crs</code> EPSG:32632 because the ground truth is in UTM 32N.",
       ],
-      inputs: [], outputs: [], fns: [], related: ["video", "extract", "export"],
-      why: [
-        "imgsz 3840 on the strip found about 99 vehicles in a test frame; the whole frame shrunk to 1280 px found 27.",
-        "All manual per-camera work (calibration points, lane polygons) will be added here, so a second drone just needs a second file.",
-      ] },
+      inputs: [], outputs: [], fns: [], related: ["detect", "tracking", "tvariants", "export"],
+      why: ["All manual per-camera work will live here, so a second drone just needs a second file."] },
+
+    { id: "tvariants", dir: "configs/", name: "tracking.json", role: "config", lines: 114,
+      summary: "The tracker settings under test. Each variant is a named, fully specified experiment arm that changes one thing relative to its parent.",
+      what: [
+        "<code>baseline</code> reproduces the original run (faint floor 0.25, 1 s memory, ByteTrack). <code>s1_lowconf</code> lowers the floor to 0.10 (step 1). <code>s2_*</code> vary memory (2/4/6 s), overlap, the confident tier, and compare OC-SORT and BoT-SORT (step 2). <code>r2_*</code> are round 2, designed after auditing round 1 (step 2b).",
+        "Fields: <code>tracker</code>, <code>min_conf</code> (boxes below never reach the tracker), <code>lost_buffer_s</code> (memory for a lost vehicle), <code>params</code> (constructor arguments of the tracker class), <code>label</code>, <code>note</code>, <code>step</code>, <code>extends</code>.",
+      ],
+      inputs: [], outputs: [], fns: [], related: ["tconfig", "experiment", "notes"],
+      why: ["Inheritance keeps each variant's single change visible, so an effect can be attributed to one cause."] },
 
     // ------------------------------------------------------------- src
     { id: "init", dir: "src/lane_intel/", name: "__init__.py", role: "module", lines: 1,
-      summary: "Marks lane_intel as a Python package. It contains only a one-line description.",
-      what: ["Without it, <code>python -m lane_intel.extract</code> and <code>from lane_intel.video import iter_frames</code> would not resolve."],
+      summary: "Marks lane_intel as a Python package.",
+      what: ["Lets <code>python -m lane_intel.detect</code> and <code>from lane_intel.video import iter_frames</code> resolve."],
       inputs: [], outputs: [], fns: [], related: ["pyproject"], why: [] },
 
     { id: "video", dir: "src/lane_intel/", name: "video.py", role: "module", lines: 38,
       summary: "Reads the video one frame at a time, already cropped to the road strip, as numpy arrays.",
-      what: [
-        "It starts ffmpeg as a child process that decodes the MP4, crops each frame to the requested rows with its <code>crop</code> filter, and writes raw pixels (BGR, 3 bytes per pixel) to a pipe. Python reads exactly <i>width × height × 3</i> bytes per frame and wraps them in a numpy array without copying.",
-      ],
-      inputs: ["an MP4 path", "crop rows (y0, y1), width", "optional start and duration in seconds"],
-      outputs: ["a generator of (frame index, array of shape height × width × 3)"],
-      fns: [
-        ["iter_frames(path, crop_y, width, start_s=0, duration_s=None)", "Builds the ffmpeg command (<code>-ss</code> start, <code>-t</code> duration, <code>-vf crop=W:H:0:y0</code>, <code>-f rawvideo -pix_fmt bgr24 -</code>), then loops reading one frame's worth of bytes until the pipe runs dry. Frame indices count from 0 at <code>start_s</code>. The <code>finally</code> block closes the pipe and waits for ffmpeg, so stopping early leaves no stray process."],
-      ],
-      related: ["extract", "tests"],
-      why: [
-        "ffmpeg instead of OpenCV's reader: the clip has 0.73 s of hidden pre-roll (an MP4 edit list from the lossless cut). ffmpeg honours it, so frame 0 is exactly flight time 5:00.000 and matches the browser video, which is also made by ffmpeg.",
-        "Cropping inside ffmpeg means Python only receives 512 of 2160 rows: about a quarter of the data per frame.",
-      ] },
+      what: ["Starts ffmpeg as a child process that decodes, crops each frame with its <code>crop</code> filter, and writes raw BGR pixels to a pipe. Python reads exactly <i>width × height × 3</i> bytes per frame and wraps them in a numpy array without copying."],
+      inputs: ["MP4 path", "crop rows (y0, y1), width", "optional start and duration (s)"],
+      outputs: ["generator of (frame index, array height × width × 3)"],
+      fns: [["iter_frames(path, crop_y, width, start_s=0, duration_s=None)", "Builds the ffmpeg command (<code>-ss</code>, <code>-t</code>, <code>-vf crop</code>, <code>-f rawvideo -pix_fmt bgr24 -</code>) and yields frames until the pipe runs dry. The <code>finally</code> block closes the pipe and waits for ffmpeg, so stopping early leaves no stray process."]],
+      related: ["detect", "tests"],
+      why: ["ffmpeg honours the clip's hidden 0.73 s pre-roll (an MP4 edit list), so frame 0 is exactly flight time 5:00.000 and matches the browser video, which ffmpeg also makes.",
+            "Cropping inside ffmpeg hands Python 512 of 2160 rows, about a quarter of the data."] },
 
-    { id: "extract", dir: "src/lane_intel/", name: "extract.py", role: "module", lines: 99,
-      summary: "The heart of the pipeline: finds every vehicle in every frame with YOLO26s, links them over time with ByteTrack, and saves one row per vehicle per frame.",
+    { id: "detect", dir: "src/lane_intel/", name: "detect.py", role: "module", lines: 114,
+      summary: "Stage 1: YOLO26s finds every vehicle box in every frame and saves them, with no tracking. Runs once per window.",
       what: [
-        "For each road-strip frame from <code>video.py</code>: YOLO26s predicts boxes at full width (imgsz 3840), keeping only cars, motorcycles, buses and trucks with confidence ≥ 0.25. ByteTrack then matches those boxes to the vehicles it was already following, mostly by how much each new box overlaps where it predicted the vehicle would be. It gives a new ID to anything unmatched.",
-        "A track only counts once it has been seen in 2 consecutive frames, which is why frame 0 has no tags. A vehicle that disappears keeps its ID for 1 second, in case it reappears.",
-        "Box coordinates are shifted back from the strip to the full frame (+1092 rows), the bottom-centre anchor point is computed, and everything is written to parquet. On this cloud CPU it processes about 1.3 frames per second; a GPU is many times faster.",
+        "For each road-strip frame from <code>video.py</code>, YOLO26s predicts boxes at full width (imgsz 3840) for cars, motorcycles, buses and trucks, keeping <b>everything with confidence ≥ 0.05</b>. Box coordinates are shifted back from the strip to the full frame (+1092 rows).",
+        "Faint boxes are kept on purpose: deciding which boxes to trust is the tracker's job, and saving them means any tracker setting can be tried later without rerunning the model.",
+        "A provenance file sits next to the output: video, window, band, detector settings, device, runtime, box counts, and library versions, so every result can be traced to exactly how it was produced.",
+        "About 1.3 frames per second on this cloud CPU (12 minutes per 30 s window); a GPU is many times faster. For 0–30 s: 121,671 boxes, 91,320 of them at confidence ≥ 0.25.",
       ],
-      inputs: ["config (video, band_y, model, classes, conf, imgsz, fps)", "--start, --duration window"],
-      outputs: ["data/interim/&lt;tag&gt;_points.parquet (see section 5)", "progress line every 50 frames"],
+      inputs: ["config: video, band_y, detector (model, classes, imgsz, conf_min, max_det)", "--start, --duration"],
+      outputs: ["&lt;tag&gt;_detections.parquet: t, frame_idx, cls, cls_id, conf, x1, y1, x2, y2", "&lt;tag&gt;_detections.meta.json: provenance"],
       fns: [
-        ["pick_device()", "Returns <code>cuda</code> if an NVIDIA GPU is usable, <code>mps</code> on Apple Silicon, otherwise <code>cpu</code>."],
-        ["run(cfg, start_s, duration_s, out)", "Loads the model and tracker, loops over frames (skipping by <code>process_every</code>), computes <code>frame_idx = round(start·fps) + i</code> and <code>t = frame_idx / fps</code>, runs <code>model.predict</code>, converts the result with <code>sv.Detections.from_ultralytics</code>, calls <code>tracker.update(det, timestamp=t)</code>, keeps only confirmed tracks (<code>tracker_id ≥ 0</code>), and appends one tuple per vehicle. At the end it builds a DataFrame, adds empty <code>x_w</code>, <code>y_w</code>, <code>lane_frame</code> columns for later phases, and writes the parquet."],
-        ["main()", "Command-line wrapper: <code>python -m lane_intel.extract --cfg … --start 0 --duration 30 --out …</code>"],
+        ["pick_device()", "<code>cuda</code>, <code>mps</code> on Apple Silicon, or <code>cpu</code>."],
+        ["meta_path(out)", "The provenance file's path for a given parquet (<code>x.parquet</code> → <code>x.meta.json</code>). Also used by the tracking stage to read the exact frame range."],
+        ["run(cfg, start_s, duration_s, out)", "The loop above. <code>frame_idx = round(start·fps) + i</code>, <code>t = frame_idx / fps</code>: times come from the exact frame rate, never an assumed 30 fps."],
+        ["main()", "<code>python -m lane_intel.detect --cfg … --start 0 --duration 30 --out …</code>"],
       ],
-      related: ["video", "config", "export", "data"],
-      why: [
-        "Times come from frame index ÷ the exact frame rate, never from assuming 30 fps, so speeds will be right later.",
-        "Detection runs once and is saved. Anything downstream (viewer, future metrics) reads the parquet and never reruns the model.",
-        "Known weakness: 386 IDs for about 110 vehicles in 30 s. Tracks break when a truck hides a car or the trees cover the near lanes. This is the next thing to fix.",
-      ] },
+      related: ["video", "config", "tracking", "runner"],
+      why: ["Replaces the old <code>extract.py</code>, which ran detection and tracking together, so every tracker experiment cost a 12-minute YOLO run."] },
 
-    { id: "export", dir: "src/lane_intel/", name: "export_viewer.py", role: "module", lines: 124,
-      summary: "Packages one time window for the browser: a light video of the road strip, the vehicle tags as compact JSON, a summary of every track, and the viewer page.",
+    // ------------------------------------------------------------- tracking
+    { id: "tracking", dir: "src/lane_intel/tracking/", name: "__init__.py + __main__.py", role: "module", lines: 75,
+      summary: "Stage 2, the tracking package: turns saved boxes into vehicles that keep one ID. __main__ tracks one window with the chosen tracker.",
       what: [
-        "The 4K clip is too heavy for a browser (100 Mbit/s), so it cuts a slightly taller strip (rows 1040–1660), shrinks it to 2560 px wide and re-encodes it at about 3 Mbit/s with a keyframe every 10 frames, so jumping to any frame is quick.",
-        "It filters the parquet to the same window, turns each row into a short integer list, summarises each track, and copies the viewer HTML wrapped in a proper document head.",
+        "<code>__init__.py</code> documents the package layout and exports <code>load_variants</code>, <code>build_tracker</code>, <code>run_tracker</code>, <code>evaluate</code>.",
+        "<code>__main__.py</code> (<code>python -m lane_intel.tracking</code>) loads the detections, reads the exact frame range from their provenance file, runs the configured variant, scores it, and writes <code>&lt;tag&gt;_points.parquet</code> plus a <code>.meta.json</code> with the variant, run stats and quality numbers.",
       ],
-      inputs: ["config", "points DataFrame", "start, duration, crop rows, output width, quality (crf)"],
-      outputs: ["video.mp4", "detections.json", "meta.json", "index.html (all in one folder)"],
+      inputs: ["&lt;tag&gt;_detections.parquet", "config tracking.variant (or --variant)"],
+      outputs: ["&lt;tag&gt;_points.parquet (the format later phases read)", "&lt;tag&gt;_points.meta.json"],
+      fns: [], related: ["tconfig", "runner", "quality", "experiment", "crosscheck", "notes"],
+      why: ["The points format is unchanged from before, so the viewer and future speed calculations do not care which tracker produced it."] },
+
+    { id: "tconfig", dir: "src/lane_intel/tracking/", name: "config.py", role: "module", lines: 104,
+      summary: "Loads the variants file, resolves inheritance, rejects invalid settings, and builds the tracker object.",
+      what: ["Turns each entry of <code>configs/tracking.json</code> into a frozen <code>TrackerConfig</code>. A variant that <code>extends</code> another inherits all its fields; <code>params</code> merge key by key when the tracker type is the same and are replaced when it changes (different trackers accept different arguments)."],
+      inputs: ["configs/tracking.json"], outputs: ["dict name → TrackerConfig", "tracker instances"],
       fns: [
-        ["encode_proxy(video, out, start_s, duration_s, crop, out_w, crf)", "ffmpeg: crop, scale (height rounded to an even number), H.264 <code>-crf 32</code>, <code>-g 10</code> (keyframe every 10 frames), <code>yuv420p</code> (plays in every browser), no audio, <code>+faststart</code> (playback can start before the file finishes loading). Returns the video size."],
-        ["track_summary(df, fps)", "Groups rows by track: first and last frame, number of observations, majority class (a track labelled car 28 times and truck 3 times is a car), mean confidence, duration, and horizontal image motion in px/s. That motion is <b>not</b> km/h yet; it needs calibration."],
-        ["build_bundle(cfg, df, out_dir, start, duration, crop_y, width, crf=32)", "Runs the three steps above and writes the four files. detections.json is one record per line, <code>[frame, track, class_index, conf_%, x1, y1, x2, y2]</code>, all integers (about 3 MB for 30 s). index.html gets a doctype, charset, viewport and the page's title and font links in <code>&lt;head&gt;</code>. Returns the meta dictionary."],
-        ["main()", "Command-line wrapper with defaults: crop rows 1040–1660, width 2560, crf 32."],
+        ["TrackerConfig", "name, tracker, min_conf, lost_buffer_s, params, label, note, step."],
+        ["_resolve(name, specs)", "Follows the <code>extends</code> chain recursively; detects unknown parents and circular chains."],
+        ["_validate(cfg)", "Checks the tracker type, the ranges, and that every key in <code>params</code> is a real constructor argument of that tracker class (read from its signature), so a typo fails loudly instead of being ignored."],
+        ["parse_variants(raw) / load_variants(path)", "Resolve and validate every variant."],
+        ["build_tracker(cfg, fps)", "Creates the tracker. The library counts memory in frames at 30 fps and rescales internally, so seconds × 30 is passed."],
       ],
-      related: ["extract", "viewer", "serve", "docs", "tests"],
-      why: [
-        "Boxes stay in full-frame pixels in the JSON; meta.json records which crop the video shows, so the browser can map between them.",
-        "A keyframe every 10 frames makes a slightly larger file but means a seek decodes at most 9 extra frames.",
-      ] },
+      related: ["tvariants", "runner"], why: [] },
+
+    { id: "runner", dir: "src/lane_intel/tracking/", name: "runner.py", role: "module", lines: 89,
+      summary: "Runs one tracker variant over saved detections and returns the tracked boxes in the standard points format.",
+      what: [
+        "Keeps boxes with confidence ≥ the variant's <code>min_conf</code>, then feeds the tracker frame by frame. It updates the tracker on <b>every</b> frame of the window, including frames with no usable box, so a lost vehicle's memory ages at the true rate.",
+        "Each box carries its original row number through the tracker, so every tracked box is the exact detected box (not a smoothed prediction) and can be traced back to the detections file.",
+      ],
+      inputs: ["detections DataFrame", "TrackerConfig", "fps", "frame range"],
+      outputs: ["points DataFrame: t, frame_idx, track_id, cls, cls_id, conf, x1..y2, x_px, y_px, x_w, y_w, lane_frame", "stats: boxes in / fed / tracked, clear-box coverage, seconds"],
+      fns: [["run_tracker(dets, cfg, fps, frame_range=None)", "The loop above; keeps only confirmed tracks (ID ≥ 0). <code>coverage_clear</code> = share of boxes with confidence ≥ 0.5 that received an ID."]],
+      related: ["tconfig", "quality", "detect"], why: [] },
+
+    { id: "quality", dir: "src/lane_intel/tracking/", name: "quality.py", role: "module", lines: 175,
+      summary: "Measures how well vehicles keep their ID without ground truth. These numbers decide which tracker is better.",
+      what: [
+        "Key idea: on this road vehicles only enter and leave at the left and right image edges. A track that starts or ends in the middle of the image is a vehicle that already existed under another ID: a break.",
+        "<b>fragmentation</b> (primary, lower is better) = mid-image starts + mid-image ends. <b>identity_jumps</b> (guard) = a track's box jumps to another vehicle: both edges of the box move the same way by more than half the box size beyond what the track's speed predicts. Requiring both edges ignores a box that only shrinks when a car is half hidden. <b>coverage_clear</b> (guard) comes from the runner.",
+        "Checked against the manual diagnosis of the original run (386 IDs, 244 / 233 mid-image starts / ends, 119 restart pairs), and by eye: 8 of 8 jump events inspected in the video were real ID swaps.",
+      ],
+      inputs: ["points", "fps", "frame range", "image width", "QualityParams (thresholds)"],
+      outputs: ["summary dict", "tables: tracks, restart pairs, jump events"],
+      fns: [
+        ["QualityParams", "All thresholds in one place: edge zone 120 px, window margin 2 frames, short track 1 s, restart gap ≤ 5 s, same lane band ±18 px, jump = half the box size + 15 px per second of gap."],
+        ["track_table(points, …)", "One row per track: first/last frame and anchor, box size, speed at both ends (least-squares over 0.5 s), <code>born_mid</code> and <code>died_mid</code> flags."],
+        ["restart_pairs(tracks, …)", "Best one-to-one matching (Hungarian method, scipy) of mid-image ends to later mid-image starts that fit the same vehicle. Estimates what offline stitching (step 3) could still repair."],
+        ["identity_jumps(points, …)", "Walks each track and flags whole-box jumps beyond its motion."],
+        ["evaluate(points, …)", "Runs the three above and returns the summary used by the experiment."],
+      ],
+      related: ["runner", "experiment", "export", "notes"],
+      why: ["The viewer's break markers use the same <code>track_table</code>, so what you see marked is exactly what is counted."] },
+
+    { id: "experiment", dir: "src/lane_intel/tracking/", name: "experiment.py", role: "module", lines: 156,
+      summary: "Runs every variant on the same saved detections, scores them, applies the selection rule, and writes the report.",
+      what: [
+        "<b>Selection rule</b>, fixed and committed before the results: (1) guards against the baseline: identity jumps ≤ baseline × 1.2 + 2, clear-box coverage ≥ baseline − 1 point; (2) among variants that pass, lowest fragmentation, then fewest IDs, then fewest short tracks.",
+        "Outputs go to <code>data/out/tracking/&lt;tag&gt;/</code>: <code>report.json</code> (configs, metrics, guard verdicts, selection, detection provenance, thresholds), <code>report.md</code> (the table), <code>points_&lt;variant&gt;.parquet</code>, and per-variant <code>tracks.csv</code>, <code>restarts.csv</code>, <code>jumps.csv</code> for inspection.",
+      ],
+      inputs: ["camera config", "detections parquet", "optional --variants list"],
+      outputs: ["data/out/tracking/&lt;tag&gt;/ (see left)"],
+      fns: [
+        ["judge(results)", "The selection rule. Returns the chosen variant and, for each variant, why it failed a guard."],
+        ["markdown_table(…)", "The comparison table in report.md."],
+        ["run(cfg, dets_path, out_dir, names)", "Runs the variants (baseline always included), scores, judges, writes everything."],
+      ],
+      related: ["quality", "crosscheck", "tvariants", "notes"], why: [] },
+
+    { id: "crosscheck", dir: "src/lane_intel/tracking/", name: "crosscheck.py", role: "module", lines: 69,
+      summary: "Compares variants on the tuning window and a held-out window. The held-out window decides the final tracker.",
+      what: ["Round-2 variants were designed while looking at 0–30 s, so their scores there are optimistic. The window 30–60 s was never used for design; the selection rule applied there makes the final choice. This guards against picking a setting that only suits one stretch of video."],
+      inputs: ["two experiment folders"], outputs: ["data/out/tracking/crosscheck.md"],
+      fns: [["crosscheck(tuning, heldout)", "Side-by-side table (fragmentation change vs baseline, jumps, guard verdict on both windows) and the held-out window's selection."]],
+      related: ["experiment", "notes"], why: [] },
+
+    { id: "export", dir: "src/lane_intel/", name: "export_viewer.py", role: "module", lines: 210,
+      summary: "Packages one window for the browser: a light video of the road strip, and the tracks of several trackers so the viewer can switch between them.",
+      what: [
+        "Encodes a strip (rows 1040–1660) at 2560 px wide, H.264, a keyframe every 10 frames so any frame is reachable quickly.",
+        "Per variant: <code>tags_&lt;variant&gt;.json</code> (one short integer record per box) and, in <code>meta.json</code>, its label, note, quality numbers and one summary row per track, including the mid-image start/end flags from <code>quality.track_table</code>.",
+      ],
+      inputs: ["config", "an experiment folder + variant names (<code>@selected</code> allowed) or a single points file"],
+      outputs: ["video.mp4", "tags_&lt;variant&gt;.json", "meta.json", "index.html"],
+      fns: [
+        ["encode_proxy(…)", "ffmpeg crop + scale, <code>-crf 32 -g 10</code>, <code>yuv420p</code>, <code>+faststart</code>."],
+        ["track_summary(df, fps, frame_range, width)", "Per track: class, lifetime, observations, mean confidence, horizontal image motion (px/s, not km/h), break flags and start/end positions."],
+        ["write_tags(df, path, cidx)", "<code>[frame, track, class_index, conf_%, x1, y1, x2, y2]</code>, one per line."],
+        ["wrap_page(fragment)", "Turns a page fragment into a complete HTML document (title and font links in &lt;head&gt;)."],
+        ["build_bundle(cfg, variants, …)", "Writes all of the above; the first variant is the one the viewer opens with."],
+        ["variants_from_experiment(dir, names)", "Loads points, labels and quality from an experiment's report."],
+      ],
+      related: ["experiment", "quality", "viewer", "serve", "docs"], why: [] },
 
     { id: "serve", dir: "src/lane_intel/", name: "serve.py", role: "module", lines: 111,
-      summary: "A tiny local web server that, unlike Python's built-in one, supports the partial-file requests browsers need to jump inside a video.",
-      what: [
-        "When the browser jumps to a frame it asks for one slice of the file (<code>Range: bytes=…</code>). Python's <code>http.server</code> ignores that and sends the whole file from the start, so the jump silently fails. This server answers with <code>206 Partial Content</code> and only the requested bytes.",
-      ],
-      inputs: ["a folder (data/out/viewer)", "--port, --host (default 127.0.0.1: only your own computer can connect)"],
-      outputs: ["HTTP on localhost:8000"],
+      summary: "A tiny local web server that supports the partial-file requests browsers need to jump inside a video.",
+      what: ["Python's <code>http.server</code> ignores <code>Range</code> headers, so a video served by it cannot seek. This server answers <code>206 Partial Content</code> with exactly the requested bytes."],
+      inputs: ["folder, --port, --host (default 127.0.0.1: only your computer)"], outputs: ["HTTP on localhost"],
       fns: [
-        ["parse_range(header, size)", "Turns <code>bytes=a-b</code>, <code>bytes=a-</code> (to the end) or <code>bytes=-n</code> (last n bytes) into an inclusive (start, end) pair, clamped to the file size. Returns None for anything invalid."],
-        ["RangeHandler.send_head()", "No Range header: behaves like the normal server. With one: opens the file, answers 206 with <code>Content-Range</code> and <code>Content-Length</code>, seeks to the start byte. An invalid range gets 416."],
-        ["RangeHandler.copyfile()", "Streams only the requested number of bytes in 64 KB chunks. If the browser cancels mid-way (normal while scrubbing), it stops quietly."],
-        ["RangeHandler.end_headers()", "Adds <code>Accept-Ranges: bytes</code> to full responses, which tells the browser it may ask for ranges."],
-        ["main()", "<code>python -m lane_intel.serve data/out/viewer --port 8000</code>"],
+        ["parse_range(header, size)", "<code>bytes=a-b</code>, <code>a-</code>, <code>-n</code> → inclusive (start, end), or None."],
+        ["RangeHandler.send_head / copyfile / end_headers", "206 with Content-Range, stream only the requested bytes in 64 KB chunks, advertise Accept-Ranges."],
       ],
-      related: ["viewer", "export", "tests"],
-      why: [
-        "This fixed the first bug you saw: the page said frame 449 while the video was still on another frame, so boxes landed on empty road.",
-      ] },
+      related: ["viewer", "export"], why: ["This fixed the first viewer bug: boxes drawn on a different frame than the one shown."] },
 
     // ------------------------------------------------------------- app
-    { id: "viewer", dir: "app/viewer/", name: "index.html", role: "ui", lines: 675,
-      summary: "The inspector you use in the browser. One file of HTML, CSS and JavaScript, with no libraries. It plays the strip video and draws every vehicle's box, ID and trail on top, frame by frame.",
+    { id: "viewer", dir: "app/viewer/", name: "index.html", role: "ui", lines: 806,
+      summary: "The inspector you use in the browser: plays the road strip and draws every vehicle's box, ID and trail on top, frame by frame, for whichever tracker you pick.",
       what: [
-        "<b>Layout</b>: header, video stage (the &lt;video&gt; with a transparent &lt;canvas&gt; laid over it), transport buttons and readouts, a timeline of vehicles per frame, three panels (this frame, selected vehicle, layers and zoom), the sortable track register, and the dataset credit.",
-        "<b>State</b>: one object <code>S</code> holds the metadata, <code>byFrame</code> (the boxes in each frame), <code>tracks</code> (every box of each vehicle), the current frame, the selected vehicle, the zoom level and which layers are on.",
-        "<b>Drawing</b>: the canvas is resized to the video's on-screen size × the screen's pixel density, so lines stay sharp. Boxes are coloured by class, and the dot at the bottom-centre is the anchor point used for position and, later, speed. Trails join the last 30 anchor points (1 s). When a vehicle is selected, the others dim to 45%.",
+        "<b>Tracker switch</b> above the video: one button per bundled tracker with its ID count; <kbd>V</kbd> cycles. Switching keeps the current frame, so the same moment can be compared across trackers.",
+        "<b>Break markers</b>: a green + where a track starts mid-image and a red × where one ends, visible for 1.5 s. The timeline shows the same events as green and red ticks under the vehicle count.",
+        "<b>Tracking quality panel</b>: IDs, mid-image starts and ends, short tracks, restart pairs, identity jumps and clear-box coverage, each with its change against the first tracker (green = better, red = worse).",
+        "<b>Track register</b>: sortable table of every track, including a Mid-image column (start / end / both).",
       ],
-      inputs: ["meta.json", "detections.json", "video.mp4 (same folder)"],
-      outputs: ["nothing saved: it is a read-only inspector"],
+      inputs: ["meta.json", "tags_&lt;variant&gt;.json (fetched when chosen, then cached)", "video.mp4"],
+      outputs: ["nothing saved: read-only inspector"],
       fns: [
-        ["load()", "Fetches meta.json and detections.json in parallel, builds <code>byFrame</code> and <code>tracks</code>, counts vehicles per frame for the timeline, fills the subtitle, legend and register, then calls loadVideo()."],
-        ["loadVideo()", "Downloads video.mp4 with a progress counter, keeps it in memory as a Blob and plays it from a <code>blob:</code> URL, where seeking always works whatever the web host supports. If the browser refuses the blob, it retries with the plain file."],
-        ["setFrame(f, seek)", "Clamps f to the clip, and if seeking sets <code>video.currentTime = (f + 0.5) / fps</code>, the middle of that frame's time slot."],
-        ["seeked handler", "After every seek, reads back the frame actually shown. If it is more than 1 frame from the request, it shows the yellow warning about the server."],
-        ["requestVideoFrameCallback loop", "Called by the browser each time a frame is painted, with its exact media time. Sets <code>S.frame = round(mediaTime × fps)</code> and redraws. Browsers without it fall back to an animation-frame loop that reads currentTime."],
-        ["play(on) / step(d) / keydown", "Play and pause; step ±1 or ±10 frames; ← → (Shift for 10), Space, + − for zoom, Esc to clear the selection."],
-        ["toCanvas() / draw()", "toCanvas sizes the canvas and returns the full-frame → canvas mapping (section 4). draw paints trails, then boxes and anchor dots, then label tags (ID, class, confidence, as selected in Layers)."],
-        ["drawTimeline()", "An area chart of vehicles per frame, the selected vehicle's lifetime shaded, and the playhead. Click or drag on it to seek; pointer capture keeps the drag working outside the bar."],
-        ["refresh()", "Calls draw and drawTimeline, then updates the readouts (frame, clip time, flight time, vehicles in view) and the panels: count, median confidence, new tracks in this frame, and class chips."],
-        ["select(id) / updateSelPanel()", "Highlights a vehicle in the video and the register; shows its class, when it was seen, observations, mean confidence, image motion, box size in this frame, and a sparkline of its horizontal position over time."],
-        ["canvas click", "Converts the click to full-frame pixels and picks the smallest box under the pointer (with a 6 px margin), so a car next to a truck is still easy to hit."],
-        ["buildRegister() / jumpTo(id)", "The track table, sortable by any column. Clicking a row selects that track and, if it is not in the current frame, jumps to the middle of its lifetime."],
-        ["setZoom(z) / followSel()", "Zoom widens the stage 1–4× inside a scrolling box while keeping the same centre. Follow keeps the selected vehicle centred as it moves."],
-        ["readColors() + observers", "Read colours from CSS variables and redraw when you switch between light and dark mode."],
+        ["load()", "Reads meta.json, builds the tracker bar, loads the first tracker, then the video."],
+        ["loadVariant(name)", "Fetches (once) and indexes a tracker's tags: boxes per frame, boxes per track, start/end markers. Keeps the frame, clears the selection, refreshes register and quality panel."],
+        ["renderQuality()", "The quality panel and its changes against the first tracker."],
+        ["loadVideo()", "Downloads video.mp4 into memory and plays it from a blob: URL, where seeking works on any host."],
+        ["setFrame(f, seek) + seeked + requestVideoFrameCallback", "Seek to the middle of frame f, then read back the frame the video really painted (section 3)."],
+        ["draw() / drawTimeline()", "Trails, boxes, anchor dots, labels, break markers; vehicle-count area chart, break ticks, playhead."],
+        ["select / jumpTo / setZoom / followSel", "Inspect a vehicle, jump to it from the register, zoom 1–4× and follow it."],
       ],
-      related: ["export", "serve", "docs"],
-      why: [
-        "It never trusts a seek: the frame number always comes from the video itself (section 3).",
-        "No build step and no libraries, so the same file works locally, on GitHub Pages and on claude.ai.",
-      ] },
+      related: ["export", "serve", "quality", "docs"],
+      why: ["No libraries and no build step: the same file works locally, on GitHub Pages and on claude.ai."] },
+
+    { id: "archpage", dir: "app/architecture/", name: "index.html", role: "ui", lines: null,
+      summary: "This page. Its source lives here; run.py pages writes docs/architecture.html from it.",
+      what: ["Hand-drawn SVG diagrams and a small script that renders the explorer from one data list (the <code>FILES</code> array)."],
+      inputs: [], outputs: [], fns: [], related: ["docs"], why: [] },
 
     // ------------------------------------------------------------- tests
-    { id: "tests", dir: "tests/", name: "conftest.py + 3 test files", role: "test", lines: 122,
-      summary: "Twelve automated checks that run in under 2 seconds on a small generated video, so they need neither the real clip nor the model.",
+    { id: "tests", dir: "tests/", name: "conftest.py + 4 test files", role: "test", lines: 318,
+      summary: "Twenty-nine automated checks, in about 6 seconds, on generated data, so they need neither the real clip nor the model.",
       what: [
-        "<code>conftest.py</code> makes a 64-frame, 640 × 360 test-pattern video at exactly 29.97 fps with ffmpeg, shared by all tests.",
-        "<code>test_video.py</code>: every frame is read and numbered 0–63; the crop has the right shape; a start/duration window returns exactly 20 frames.",
-        "<code>test_export_viewer.py</code>: a track moving 100 px/s is summarised as 100 px/s; the majority class wins; stationary and single-observation tracks give 0; the full bundle is written, filtered to the window, with the right sizes, classes and crop, and index.html starts with a doctype.",
-        "<code>test_serve.py</code>: seven Range header cases, and a real server answering 206 with exactly the requested bytes, and 200 with Accept-Ranges otherwise.",
+        "<code>test_tracking.py</code>, scenarios with known answers: a car hidden for 2 s splits into 2 IDs with a 1 s memory and keeps 1 ID with 4 s; a car that is faint for 2 s keeps its ID only when faint boxes reach the tracker; faint boxes alone never start a track. Plus variant inheritance and validation, break and restart classification, the identity-jump definition (a lane-width jump is caught, a shrinking box is not), the selection rule's guards, and the cross-check.",
+        "<code>test_export_viewer.py</code>: track summary (motion, majority class, break flags), a two-tracker bundle end to end, page wrapping. <code>test_video.py</code>: frame reading and windows. <code>test_serve.py</code>: range parsing and a live server.",
       ],
-      inputs: [], outputs: ["pytest report"],
-      fns: [], related: ["video", "export", "serve"],
-      why: ["extract.py has no unit test yet: its correctness was checked on the real clip (frame 449 drawn on the source and on the browser video). A test with a tiny model is a good next addition."] },
+      inputs: [], outputs: ["pytest report"], fns: [], related: ["runner", "quality", "experiment", "export", "serve"],
+      why: ["detect.py has no unit test: it needs the model. Its output was checked on the real clip, and the baseline variant reproduces the original run exactly (386 IDs)."] },
 
-    // ------------------------------------------------------------- docs
+    // ------------------------------------------------------------- notes
+    { id: "notes", dir: "notes/", name: "tracking.md", role: "config", lines: 129,
+      summary: "The tracking method and experiment log: problem, metrics, variants, selection and confirmation rules, results, decision, limits.",
+      what: ["Written like a lab notebook. The method and both rules were committed to git before the results they judge, so the choice of tracker could not be bent to fit the numbers."],
+      inputs: [], outputs: [], fns: [], related: ["experiment", "crosscheck", "tvariants", "quality"], why: [] },
+
+    // ------------------------------------------------------------- docs + data
     { id: "docs", dir: "docs/", name: "(GitHub Pages site)", role: "data", lines: null,
-      summary: "A generated copy of the viewer bundle, committed so GitHub Pages can host it at a public address.",
-      what: [
-        "<code>index.html</code>, <code>video.mp4</code> (11 MB), <code>detections.json</code> (3 MB), <code>meta.json</code>, and an empty <code>.nojekyll</code> that tells GitHub to serve the files as they are. Written by <code>python run.py pages</code>; never edit it by hand.",
-        "This page (<code>architecture.html</code>) lives here too.",
-      ],
-      inputs: ["data/out/viewer/"], outputs: ["https://noamari.github.io/BestLaneDetactor/ once Pages is switched on"],
-      fns: [], related: ["run", "export", "viewer"],
-      why: ["The only generated output kept in git, because it is small and it is what the public site serves."] },
+      summary: "Generated public copy of the viewer bundle and this page, served by GitHub Pages.",
+      what: ["<code>index.html</code>, <code>video.mp4</code>, <code>tags_&lt;variant&gt;.json</code>, <code>meta.json</code>, <code>architecture.html</code>, <code>.nojekyll</code>. Written by <code>python run.py pages</code>; never edit by hand."],
+      inputs: ["data/out/viewer/", "app/architecture/index.html"], outputs: ["https://noamari.github.io/BestLaneDetactor/ once Pages is on"],
+      fns: [], related: ["run", "export", "viewer"], why: [] },
 
-    // ------------------------------------------------------------- data
     { id: "data", dir: "data/", name: "(not in git)", role: "data", lines: null,
-      summary: "Everything large or downloaded. It exists only on the machine that ran the pipeline and can be rebuilt with run.py.",
+      summary: "Everything large or generated. It exists only on the machine that ran the pipeline and can be rebuilt with run.py.",
       what: [
-        "<code>raw/T8_D1_dev_300s.mp4</code>: the 3-minute 4K clip (2.26 GB, 5,394 frames after the hidden pre-roll).",
-        "<code>raw/gt/T8_D1.csv</code>: MiTra ground truth for drone D1, 3.16 million rows, one per vehicle per frame: Vehicle_ID, type, time (s), x and y in UTM metres, speed (km/h), accelerations, angle, length, width, lane (1–7 and 10), and leader and follower IDs. Not used by code yet.",
-        "<code>models/</code>: yolo26s.pt (used), yolo11s.pt and yolo26m.pt (compared and not chosen).",
-        "<code>interim/T8_D1_0-30s_points.parquet</code>: 85,774 rows for the first 30 s.",
-        "<code>out/viewer/</code>: the bundle written by export_viewer.py.",
+        "<code>raw/</code>: the 3-minute 4K clip (2.26 GB) and the D1 ground truth (3.16 M rows: ID, type, time, UTM x/y, speed, lane, neighbours; not used yet).",
+        "<code>models/</code>: yolo26s.pt (used), yolo11s.pt and yolo26m.pt (compared, not chosen).",
+        "<code>interim/</code>: <code>&lt;tag&gt;_detections.parquet</code> + provenance, <code>&lt;tag&gt;_points.parquet</code> + meta.",
+        "<code>out/tracking/&lt;tag&gt;/</code>: experiment reports and per-variant diagnostics; <code>out/viewer/</code>: the bundle.",
       ],
-      inputs: [], outputs: [], fns: [], related: ["run", "extract", "export", "gitignore"],
-      why: ["MiTra's videos are stored uncompressed inside the zip, which is what makes the byte-range clip download possible."] },
+      inputs: [], outputs: [], fns: [], related: ["run", "detect", "experiment", "gitignore"], why: [] },
   ];
 
   const byId = Object.fromEntries(FILES.map((f) => [f.id, f]));
@@ -814,7 +967,7 @@ make test</div>
   // tree grouped by directory, in repo order
   const dirs = [];
   for (const f of FILES) if (!dirs.includes(f.dir)) dirs.push(f.dir);
-  const dirNote = { "docs/": "generated", "data/": "not in git" };
+  const dirNote = { "docs/": "generated", "data/": "not in git", "src/lane_intel/tracking/": "stage 2" };
   tree.innerHTML = dirs.map((d) =>
     `<div class="dir">${d}${dirNote[d] ? ` <small>· ${dirNote[d]}</small>` : ""}</div>` +
     FILES.filter((f) => f.dir === d).map((f) =>

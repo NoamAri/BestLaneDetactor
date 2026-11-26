@@ -219,13 +219,16 @@ def pages(a) -> None:
     """Mirror the viewer bundle and the architecture page into docs/ for GitHub Pages."""
     if not (VIEWER / "index.html").exists():
         sys.exit("No viewer bundle yet. Run:  python run.py viewer")
+    import json
     docs = ROOT / "docs"
     docs.mkdir(exist_ok=True)
-    for old in [*docs.glob("tags_*.json"), docs / "detections.json"]:
-        old.unlink(missing_ok=True)                      # files from an older bundle layout
-    for f in VIEWER.iterdir():
-        if f.is_file():
-            shutil.copy2(f, docs / f.name)
+    meta = json.loads((VIEWER / "meta.json").read_text())
+    wanted = ["index.html", "video.mp4", "meta.json"] + [v["file"] for v in meta["variants"]]
+    for f in docs.iterdir():                             # drop anything the current bundle does not use
+        if f.is_file() and f.name not in wanted and f.name not in ("architecture.html", ".nojekyll"):
+            f.unlink()
+    for name in wanted:                                  # copy exactly the files the bundle references
+        shutil.copy2(VIEWER / name, docs / name)
     (docs / ".nojekyll").write_text("")
     arch = ROOT / "app" / "architecture" / "index.html"
     if arch.exists():

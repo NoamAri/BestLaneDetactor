@@ -1,0 +1,603 @@
+{
+  "created_utc": "2026-11-26T09:56:15+00:00",
+  "detections": "data/interim/T8_D1_0-30s_detections.parquet",
+  "detections_provenance": {
+    "created_utc": "2026-11-26T09:51:12+00:00",
+    "video": "data/raw/T8_D1_dev_300s.mp4",
+    "start_s": 0.0,
+    "duration_s": 30.0,
+    "frame_first": 0,
+    "frames": 900,
+    "fps": 29.97002997,
+    "band_y": [
+      1092,
+      1604
+    ],
+    "detector": {
+      "model": "data/models/yolo26s.pt",
+      "classes": [
+        2,
+        3,
+        5,
+        7
+      ],
+      "imgsz": 3840,
+      "conf_min": 0.05,
+      "max_det": 1000,
+      "process_every": 1
+    },
+    "device": "cpu",
+    "seconds": 679.4,
+    "boxes": 121671,
+    "boxes_conf_ge_0_25": 91320,
+    "versions": {
+      "ultralytics": "8.4.219",
+      "torch": "2.15.0"
+    },
+    "python": "3.13.18"
+  },
+  "frame_range": [
+    0,
+    899
+  ],
+  "fps": 29.97002997,
+  "image_width": 3840,
+  "quality_params": {
+    "edge_px": 120.0,
+    "window_margin_frames": 2,
+    "short_s": 1.0,
+    "velocity_window_s": 0.5,
+    "restart_max_gap_s": 5.0,
+    "restart_dy_px": 18.0,
+    "restart_dx_base_px": 60.0,
+    "restart_dx_per_s": 40.0,
+    "jump_frac": 0.5,
+    "jump_slack_px_per_s": 15.0
+  },
+  "selection_rule": {
+    "baseline": "baseline",
+    "jump_tolerance": 0.2,
+    "jump_slack": 2,
+    "coverage_tolerance": 0.01,
+    "order": [
+      "fragmentation",
+      "ids",
+      "short_lt_1s"
+    ]
+  },
+  "variants": {
+    "baseline": {
+      "config": {
+        "name": "baseline",
+        "tracker": "bytetrack",
+        "min_conf": 0.25,
+        "lost_buffer_s": 1.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.1,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "Baseline (original run)",
+        "note": "Reproduces the first 30 s run: YOLO cut at 0.25, ByteTrack with a 1 s memory.",
+        "step": "0"
+      },
+      "summary": {
+        "ids": 386,
+        "ids_ge_1s": 284,
+        "short_lt_1s": 102,
+        "born_mid": 244,
+        "died_mid": 234,
+        "fragmentation": 478,
+        "restart_pairs": 119,
+        "identity_jumps": 19,
+        "tracks_with_jumps": 16,
+        "median_span_s": 3.67,
+        "mean_span_s": 7.71,
+        "tags": 85774,
+        "coverage_clear": 0.9946,
+        "track_seconds": 5.35
+      },
+      "guard_failures": []
+    },
+    "s1_lowconf": {
+      "config": {
+        "name": "s1_lowconf",
+        "tracker": "bytetrack",
+        "min_conf": 0.1,
+        "lost_buffer_s": 1.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.1,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "Step 1: feed faint boxes",
+        "note": "Boxes from 0.10 to 0.50 may extend an existing track (ByteTrack's second matching stage) but cannot start one.",
+        "step": "1"
+      },
+      "summary": {
+        "ids": 349,
+        "ids_ge_1s": 275,
+        "short_lt_1s": 74,
+        "born_mid": 206,
+        "died_mid": 189,
+        "fragmentation": 395,
+        "restart_pairs": 98,
+        "identity_jumps": 28,
+        "tracks_with_jumps": 15,
+        "median_span_s": 5.37,
+        "mean_span_s": 8.89,
+        "tags": 91112,
+        "coverage_clear": 0.9952,
+        "track_seconds": 4.88
+      },
+      "guard_failures": [
+        "identity jumps 28 > limit 25"
+      ]
+    },
+    "s2_bt_buf2s": {
+      "config": {
+        "name": "s2_bt_buf2s",
+        "tracker": "bytetrack",
+        "min_conf": 0.1,
+        "lost_buffer_s": 2.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.1,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "ByteTrack, 2 s memory",
+        "note": "Lost-track memory 1 s -> 2 s.",
+        "step": "2"
+      },
+      "summary": {
+        "ids": 343,
+        "ids_ge_1s": 272,
+        "short_lt_1s": 71,
+        "born_mid": 200,
+        "died_mid": 182,
+        "fragmentation": 382,
+        "restart_pairs": 90,
+        "identity_jumps": 28,
+        "tracks_with_jumps": 17,
+        "median_span_s": 5.71,
+        "mean_span_s": 9.16,
+        "tags": 91382,
+        "coverage_clear": 0.9953,
+        "track_seconds": 6.29
+      },
+      "guard_failures": [
+        "identity jumps 28 > limit 25"
+      ]
+    },
+    "s2_bt_buf4s": {
+      "config": {
+        "name": "s2_bt_buf4s",
+        "tracker": "bytetrack",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.1,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "ByteTrack, 4 s memory",
+        "note": "Lost-track memory 1 s -> 4 s (covers 75% of measured gaps).",
+        "step": "2"
+      },
+      "summary": {
+        "ids": 341,
+        "ids_ge_1s": 271,
+        "short_lt_1s": 70,
+        "born_mid": 199,
+        "died_mid": 180,
+        "fragmentation": 379,
+        "restart_pairs": 91,
+        "identity_jumps": 29,
+        "tracks_with_jumps": 18,
+        "median_span_s": 5.71,
+        "mean_span_s": 9.27,
+        "tags": 91533,
+        "coverage_clear": 0.9953,
+        "track_seconds": 5.07
+      },
+      "guard_failures": [
+        "identity jumps 29 > limit 25"
+      ]
+    },
+    "s2_bt_buf6s": {
+      "config": {
+        "name": "s2_bt_buf6s",
+        "tracker": "bytetrack",
+        "min_conf": 0.1,
+        "lost_buffer_s": 6.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.1,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "ByteTrack, 6 s memory",
+        "note": "Lost-track memory 1 s -> 6 s (longer than every measured gap).",
+        "step": "2"
+      },
+      "summary": {
+        "ids": 341,
+        "ids_ge_1s": 271,
+        "short_lt_1s": 70,
+        "born_mid": 199,
+        "died_mid": 180,
+        "fragmentation": 379,
+        "restart_pairs": 91,
+        "identity_jumps": 29,
+        "tracks_with_jumps": 18,
+        "median_span_s": 5.71,
+        "mean_span_s": 9.27,
+        "tags": 91533,
+        "coverage_clear": 0.9953,
+        "track_seconds": 5.93
+      },
+      "guard_failures": [
+        "identity jumps 29 > limit 25"
+      ]
+    },
+    "s2_bt_buf4s_iou03": {
+      "config": {
+        "name": "s2_bt_buf4s_iou03",
+        "tracker": "bytetrack",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.03,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "ByteTrack, 4 s memory, looser overlap",
+        "note": "Also accept matches with box overlap (IoU) down to 0.03 instead of 0.10.",
+        "step": "2"
+      },
+      "summary": {
+        "ids": 331,
+        "ids_ge_1s": 272,
+        "short_lt_1s": 59,
+        "born_mid": 190,
+        "died_mid": 169,
+        "fragmentation": 359,
+        "restart_pairs": 86,
+        "identity_jumps": 99,
+        "tracks_with_jumps": 57,
+        "median_span_s": 6.24,
+        "mean_span_s": 9.46,
+        "tags": 91219,
+        "coverage_clear": 0.9954,
+        "track_seconds": 5.94
+      },
+      "guard_failures": [
+        "identity jumps 99 > limit 25"
+      ]
+    },
+    "s2_bt_buf4s_act04": {
+      "config": {
+        "name": "s2_bt_buf4s_act04",
+        "tracker": "bytetrack",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.4,
+          "high_conf_det_threshold": 0.4,
+          "minimum_iou_threshold": 0.1,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "ByteTrack, 4 s memory, high tier 0.4",
+        "note": "Boxes from 0.40 (not 0.50) count as confident: they can start tracks and match in the first stage.",
+        "step": "2"
+      },
+      "summary": {
+        "ids": 417,
+        "ids_ge_1s": 319,
+        "short_lt_1s": 98,
+        "born_mid": 262,
+        "died_mid": 239,
+        "fragmentation": 501,
+        "restart_pairs": 115,
+        "identity_jumps": 52,
+        "tracks_with_jumps": 35,
+        "median_span_s": 4.47,
+        "mean_span_s": 8.16,
+        "tags": 95579,
+        "coverage_clear": 0.9975,
+        "track_seconds": 5.85
+      },
+      "guard_failures": [
+        "identity jumps 52 > limit 25"
+      ]
+    },
+    "s2_ocsort_buf4s": {
+      "config": {
+        "name": "s2_ocsort_buf4s",
+        "tracker": "ocsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.1,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "OC-SORT, 4 s memory",
+        "note": "Observation-centric SORT: re-anchors the motion model on the last real observation after an occlusion.",
+        "step": "2"
+      },
+      "summary": {
+        "ids": 268,
+        "ids_ge_1s": 224,
+        "short_lt_1s": 44,
+        "born_mid": 129,
+        "died_mid": 130,
+        "fragmentation": 259,
+        "restart_pairs": 49,
+        "identity_jumps": 44,
+        "tracks_with_jumps": 32,
+        "median_span_s": 6.99,
+        "mean_span_s": 10.95,
+        "tags": 69586,
+        "coverage_clear": 0.9535,
+        "track_seconds": 8.04
+      },
+      "guard_failures": [
+        "identity jumps 44 > limit 25",
+        "coverage 0.954 < limit 0.985"
+      ]
+    },
+    "s2_botsort_buf4s": {
+      "config": {
+        "name": "s2_botsort_buf4s",
+        "tracker": "botsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_consecutive_frames": 2,
+          "enable_cmc": false
+        },
+        "label": "BoT-SORT, 4 s memory",
+        "note": "BoT-SORT without camera-motion correction (needs video frames; drift is handled in Phase 3) and without re-identification.",
+        "step": "2"
+      },
+      "summary": {
+        "ids": 376,
+        "ids_ge_1s": 284,
+        "short_lt_1s": 92,
+        "born_mid": 236,
+        "died_mid": 226,
+        "fragmentation": 462,
+        "restart_pairs": 131,
+        "identity_jumps": 0,
+        "tracks_with_jumps": 0,
+        "median_span_s": 4.05,
+        "mean_span_s": 7.74,
+        "tags": 84479,
+        "coverage_clear": 0.9931,
+        "track_seconds": 8.32
+      },
+      "guard_failures": []
+    },
+    "r2_botsort_first01": {
+      "config": {
+        "name": "r2_botsort_first01",
+        "tracker": "botsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_consecutive_frames": 2,
+          "enable_cmc": false,
+          "minimum_iou_threshold_first_assoc": 0.1
+        },
+        "label": "BoT-SORT, looser first match",
+        "note": "Round 2 (designed after the round-1 audit). Confident boxes match at fused similarity 0.10 (was 0.20); faint boxes still need IoU 0.5.",
+        "step": "2b"
+      },
+      "summary": {
+        "ids": 348,
+        "ids_ge_1s": 273,
+        "short_lt_1s": 75,
+        "born_mid": 209,
+        "died_mid": 199,
+        "fragmentation": 408,
+        "restart_pairs": 106,
+        "identity_jumps": 2,
+        "tracks_with_jumps": 2,
+        "median_span_s": 4.99,
+        "mean_span_s": 8.42,
+        "tags": 84551,
+        "coverage_clear": 0.994,
+        "track_seconds": 7.7
+      },
+      "guard_failures": []
+    },
+    "r2_botsort_first005": {
+      "config": {
+        "name": "r2_botsort_first005",
+        "tracker": "botsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_consecutive_frames": 2,
+          "enable_cmc": false,
+          "minimum_iou_threshold_first_assoc": 0.05
+        },
+        "label": "BoT-SORT, loosest first match",
+        "note": "Round 2. Confident boxes match at fused similarity 0.05; faint boxes still need IoU 0.5.",
+        "step": "2b"
+      },
+      "summary": {
+        "ids": 333,
+        "ids_ge_1s": 269,
+        "short_lt_1s": 64,
+        "born_mid": 194,
+        "died_mid": 184,
+        "fragmentation": 378,
+        "restart_pairs": 95,
+        "identity_jumps": 6,
+        "tracks_with_jumps": 6,
+        "median_span_s": 5.47,
+        "mean_span_s": 8.77,
+        "tags": 84374,
+        "coverage_clear": 0.994,
+        "track_seconds": 10.15
+      },
+      "guard_failures": []
+    },
+    "r2_botsort_first01_unc02": {
+      "config": {
+        "name": "r2_botsort_first01_unc02",
+        "tracker": "botsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_consecutive_frames": 2,
+          "enable_cmc": false,
+          "minimum_iou_threshold_first_assoc": 0.1,
+          "minimum_iou_threshold_unconfirmed_assoc": 0.2
+        },
+        "label": "BoT-SORT, looser first + new-track match",
+        "note": "Round 2. As first01, and unconfirmed (new) tracks match at 0.20 (was 0.30).",
+        "step": "2b"
+      },
+      "summary": {
+        "ids": 348,
+        "ids_ge_1s": 273,
+        "short_lt_1s": 75,
+        "born_mid": 209,
+        "died_mid": 199,
+        "fragmentation": 408,
+        "restart_pairs": 106,
+        "identity_jumps": 2,
+        "tracks_with_jumps": 2,
+        "median_span_s": 4.99,
+        "mean_span_s": 8.42,
+        "tags": 84551,
+        "coverage_clear": 0.994,
+        "track_seconds": 7.4
+      },
+      "guard_failures": []
+    },
+    "r2_ocsort_iou03": {
+      "config": {
+        "name": "r2_ocsort_iou03",
+        "tracker": "ocsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.3,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "OC-SORT, default overlap 0.3",
+        "note": "Round 2. OC-SORT at its default IoU 0.3 (was 0.1) to curb the wrong merges seen in round 1.",
+        "step": "2b"
+      },
+      "summary": {
+        "ids": 324,
+        "ids_ge_1s": 248,
+        "short_lt_1s": 76,
+        "born_mid": 181,
+        "died_mid": 181,
+        "fragmentation": 362,
+        "restart_pairs": 80,
+        "identity_jumps": 23,
+        "tracks_with_jumps": 18,
+        "median_span_s": 4.49,
+        "mean_span_s": 8.74,
+        "tags": 69552,
+        "coverage_clear": 0.9531,
+        "track_seconds": 8.07
+      },
+      "guard_failures": [
+        "coverage 0.953 < limit 0.985"
+      ]
+    },
+    "r2_ocsort_iou03_buf2s": {
+      "config": {
+        "name": "r2_ocsort_iou03_buf2s",
+        "tracker": "ocsort",
+        "min_conf": 0.1,
+        "lost_buffer_s": 2.0,
+        "params": {
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.3,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "OC-SORT, overlap 0.3, 2 s memory",
+        "note": "Round 2. As r2_ocsort_iou03 with a 2 s memory: its round-1 wrong merges came after long gaps (median 33 frames).",
+        "step": "2b"
+      },
+      "summary": {
+        "ids": 352,
+        "ids_ge_1s": 263,
+        "short_lt_1s": 89,
+        "born_mid": 209,
+        "died_mid": 207,
+        "fragmentation": 416,
+        "restart_pairs": 104,
+        "identity_jumps": 19,
+        "tracks_with_jumps": 14,
+        "median_span_s": 3.75,
+        "mean_span_s": 7.77,
+        "tags": 69543,
+        "coverage_clear": 0.953,
+        "track_seconds": 7.39
+      },
+      "guard_failures": [
+        "coverage 0.953 < limit 0.985"
+      ]
+    },
+    "r2_bt_conf015_buf4s": {
+      "config": {
+        "name": "r2_bt_conf015_buf4s",
+        "tracker": "bytetrack",
+        "min_conf": 0.15,
+        "lost_buffer_s": 4.0,
+        "params": {
+          "track_activation_threshold": 0.5,
+          "high_conf_det_threshold": 0.5,
+          "minimum_iou_threshold": 0.1,
+          "minimum_consecutive_frames": 2
+        },
+        "label": "ByteTrack, faint floor 0.15, 4 s memory",
+        "note": "Round 2. Middle ground between baseline (0.25) and step 1 (0.10): fewer faint junk boxes reach the tracker.",
+        "step": "2b"
+      },
+      "summary": {
+        "ids": 358,
+        "ids_ge_1s": 277,
+        "short_lt_1s": 81,
+        "born_mid": 216,
+        "died_mid": 198,
+        "fragmentation": 414,
+        "restart_pairs": 104,
+        "identity_jumps": 28,
+        "tracks_with_jumps": 20,
+        "median_span_s": 4.45,
+        "mean_span_s": 8.66,
+        "tags": 89539,
+        "coverage_clear": 0.995,
+        "track_seconds": 5.46
+      },
+      "guard_failures": [
+        "identity jumps 28 > limit 25"
+      ]
+    }
+  },
+  "selected": "r2_botsort_first005"
+}

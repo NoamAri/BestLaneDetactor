@@ -120,6 +120,15 @@ th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--lin
 th { font-size: 11.5px; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: .06em; }
 td:first-child { font-family: var(--font-mono); white-space: nowrap; }
 tr:last-child td { border-bottom: 0; }
+.exp td { vertical-align: middle; }
+.exp td:first-child { white-space: normal; font-family: var(--font-sans); }
+.exp .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.barcell { min-width: 170px; position: relative; }
+.bar { display: inline-block; height: 12px; border-radius: 2px; vertical-align: middle; }  /* 2.6 px per % */
+.bar.ok { background: var(--accent); }
+.bar.no { background: var(--muted); opacity: .45; }
+.bv { font-family: var(--font-mono); font-size: 12px; margin-left: 8px; vertical-align: middle; }
+.exp tr.win td { background: var(--accent-soft); }
 .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr)); gap: 18px; align-items: start; }
 .grid2 > * { min-width: 0; }
 .cmd { font-family: var(--font-mono); font-size: 13px; background: var(--code-bg); border-radius: var(--r); padding: 12px 14px; overflow-x: auto; white-space: pre; }
@@ -586,26 +595,75 @@ make test</div>
     </div>
   </section>
 
-  <!-- ===================================================== 7. status -->
+  <!-- ===================================================== 7. tracking experiment -->
   <section>
     <div class="prose">
-      <p class="eyebrow">7 · Where this sits in the plan</p>
+      <p class="eyebrow">7 · Tracking experiment (steps 0–2)</p>
+      <h2>Fewer broken tracks without more wrong merges</h2>
+      <p>
+        Fifteen tracker settings ran on the same saved detections. The score is <b>fragmentation</b>: tracks that start or end in
+        the middle of the image, which on this road can only be breaks. Two guards reject a setting that gets there by merging
+        different vehicles (identity jumps) or by dropping boxes (coverage). The rule, and how the held-out window decides,
+        were committed to git before the results.
+      </p>
+    </div>
+    <div class="tbl">
+      <table class="exp">
+        <thead><tr><th>Variant</th><th>Step</th><th>Fragmentation, tuning 0–30 s</th><th>Jumps</th><th>Fragmentation, held-out 30–60 s</th><th>Jumps</th></tr></thead>
+        <tbody>
+            <tr class=""><td><code>baseline</code><br><span class="muted">original run</span></td><td>0</td><td class="barcell"><span class="bar ok" style="width:0px"></span><span class="bv">0%</span></td><td class="num">19</td><td class="barcell"><span class="bar ok" style="width:0px"></span><span class="bv">0%</span></td><td class="num">21</td></tr>
+            <tr class=""><td><code>s1_lowconf</code><br><span class="muted">faint boxes into ByteTrack</span></td><td>1</td><td class="barcell"><span class="bar no" style="width:44px"></span><span class="bv">-17%</span></td><td class="num">28</td><td class="barcell"><span class="bar ok" style="width:31px"></span><span class="bv">-12%</span></td><td class="num">26</td></tr>
+            <tr class=""><td><code>s2_bt_buf4s</code><br><span class="muted">+ 4 s memory</span></td><td>2</td><td class="barcell"><span class="bar no" style="width:55px"></span><span class="bv">-21%</span></td><td class="num">29</td><td class="barcell"><span class="bar ok" style="width:36px"></span><span class="bv">-14%</span></td><td class="num">27</td></tr>
+            <tr class=""><td><code>s2_ocsort_buf4s</code><br><span class="muted">OC-SORT</span></td><td>2</td><td class="barcell"><span class="bar no" style="width:120px"></span><span class="bv">-46%</span></td><td class="num">44</td><td class="barcell"><span class="bar no" style="width:107px"></span><span class="bv">-41%</span></td><td class="num">38</td></tr>
+            <tr class=""><td><code>s2_botsort_buf4s</code><br><span class="muted">BoT-SORT, defaults</span></td><td>2</td><td class="barcell"><span class="bar ok" style="width:8px"></span><span class="bv">-3%</span></td><td class="num">0</td><td class="barcell"><span class="bar ok" style="width:10px"></span><span class="bv">-4%</span></td><td class="num">2</td></tr>
+            <tr class="win"><td><code>r2_botsort_first005</code><br><span class="muted">BoT-SORT, loose first match</span></td><td>2b</td><td class="barcell"><span class="bar ok" style="width:55px"></span><span class="bv">-21%</span></td><td class="num">6</td><td class="barcell"><span class="bar ok" style="width:47px"></span><span class="bv">-18%</span></td><td class="num">10</td></tr>
+            <tr class=""><td><code>r2_ocsort_iou03</code><br><span class="muted">OC-SORT, IoU 0.3</span></td><td>2b</td><td class="barcell"><span class="bar no" style="width:62px"></span><span class="bv">-24%</span></td><td class="num">23</td><td class="barcell"><span class="bar no" style="width:68px"></span><span class="bv">-26%</span></td><td class="num">27</td></tr>
+            <tr class=""><td><code>r2_bt_conf015_buf4s</code><br><span class="muted">ByteTrack, faint floor 0.15</span></td><td>2b</td><td class="barcell"><span class="bar no" style="width:34px"></span><span class="bv">-13%</span></td><td class="num">28</td><td class="barcell"><span class="bar ok" style="width:31px"></span><span class="bv">-12%</span></td><td class="num">15</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">Bars: change in fragmentation against that window's baseline (478 and 547), drawn at one scale (2.6 px per percentage point). Green bars passed both guards on that window, grey failed.
+      Identity jumps: guard limit about 25 on each window. Selected row highlighted. Full tables: <code>notes/tracking.md</code>.</p>
+    <div class="grid2" style="margin-top:14px">
+      <div class="why">
+        <h4>Decision</h4>
+        <ul>
+          <li><b>BoT-SORT with a loose first match</b> (<code>r2_botsort_first005</code>): confident boxes continue a track at overlap × confidence ≥ 0.05; faint boxes (0.10–0.5) need 50% overlap and never start a track; 4 s memory.</li>
+          <li>On video it was not tuned on: <b>18% fewer breaks, 13% fewer IDs, half the identity errors</b>, same coverage.</li>
+        </ul>
+      </div>
+      <div class="why" style="background:var(--code-bg)">
+        <h4 style="color:var(--muted)">What was learned</h4>
+        <ul>
+          <li>Faint boxes recover partly hidden cars, but in a jam they also overlap neighbours. A video audit confirmed 8 of 8 flagged jumps were real swaps.</li>
+          <li>A longer memory alone barely helps: matching is by overlap, and a car that moved while hidden no longer overlaps its prediction.</li>
+          <li>OC-SORT cuts the most breaks, by re-linking after long gaps, but often to the wrong vehicle.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== 8. status -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">8 · Where this sits in the plan</p>
       <h2>Built so far, and what comes next</h2>
     </div>
     <div class="phases">
       <div class="phase"><span class="st done">Done</span><div><b>Data access.</b> Remote byte-range reads of the 75 GB zip; 3-min clip; D1 ground-truth CSV downloaded.</div></div>
-      <div class="phase"><span class="st done">Done</span><div><b>Phase 4 · detect + track.</b> <code>video.py</code>, <code>extract.py</code> → <code>points.parquet</code>. About 96 vehicles tagged per frame; 110 in ground truth.</div></div>
-      <div class="phase"><span class="st done">Done</span><div><b>Inspection tooling.</b> <code>export_viewer.py</code>, <code>serve.py</code>, the viewer, GitHub Pages and claude.ai hosting.</div></div>
-      <div class="phase"><span class="st todo">Next</span><div><b>Tracking quality.</b> 386 IDs for about 110 vehicles in 30 s: tracks break behind trucks and under trees. Tune ByteTrack and mask the tree-covered stretch.</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Phase 4 · detection.</b> <code>video.py</code>, <code>detect.py</code> → saved boxes with provenance. About 96 vehicles tagged per frame; 110 in ground truth.</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Tracking steps 0–2.</b> Tracking package, quality metrics, 15 variants, held-out confirmation; BoT-SORT setting chosen (section 7).</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Inspection tooling.</b> Viewer with tracker switch and break markers, local server, GitHub Pages and claude.ai hosting, this page.</div></div>
+      <div class="phase"><span class="st todo">Next</span><div><b>Tracking steps 3–5.</b> <code>stitch.py</code>: offline re-linking of break → restart pairs (about 100 per 30 s left); occlusion zones for the trees and gantry; removal of short junk tracks.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phase 0 · ground truth check.</b> <code>gt_mitra.py</code>: per-lane 60 s speed windows from the CSV, the fit test, choice of direction.</div></div>
-      <div class="phase"><span class="st todo">Planned</span><div><b>Phases 2–3 · calibration.</b> <code>calibrate.py</code>, <code>stabilize.py</code>: pixels → metres (fills <code>x_w</code>, <code>y_w</code>), lane polygons (fills <code>lane_frame</code>), drone drift.</div></div>
+      <div class="phase"><span class="st todo">Planned</span><div><b>Phases 2–3 · calibration.</b> <code>calibrate.py</code>, <code>stabilize.py</code>: pixels → metres (fills <code>x_w</code>, <code>y_w</code>), lane polygons (fills <code>lane_frame</code>), drone drift. Unlocks tracking step 6: IDF1 against MiTra's true IDs.</div></div>
       <div class="phase"><span class="st todo">Planned</span><div><b>Phases 5–8 · measurements.</b> <code>tracks.py</code> (km/h per track), <code>metrics.py</code>, <code>status.py</code>, <code>validate.py</code>, <code>persistence.py</code>.</div></div>
     </div>
   </section>
 
   <footer class="muted" style="font-size:13px">
     Video and ground truth: <a href="https://opara.zih.tu-dresden.de/items/68482417-ddc5-40ac-885a-83124bd459e8">MiTra dataset</a>, CC BY 4.0.
-    Line counts and figures as of commit 614ca8d.
+    Figures from the tracking experiment of 26 Nov 2026 (notes/tracking.md).
   </footer>
 </div>
 

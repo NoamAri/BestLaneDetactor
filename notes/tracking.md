@@ -1,8 +1,11 @@
 # Tracking: keeping one ID per vehicle
 
-Status: steps 0–2 of the tracking plan. Steps 3–6 (stitching, occlusion zones, junk removal,
-ground-truth evaluation) come next.
+Status: steps 0–2 of the tracking plan are done (decision in section 4). Steps 3–6 (stitching,
+occlusion zones, junk removal, ground-truth evaluation) come next.
 Code: `src/lane_intel/detect.py`, `src/lane_intel/tracking/`. Variants: `configs/tracking.json`.
+Run reports (configs, metrics, guard verdicts, detection provenance): `notes/runs/`.
+Reproduce: `python run.py detect` then `python run.py tune` (add `--start 30` for the held-out window), then
+`python -m lane_intel.tracking.crosscheck --tuning data/out/tracking/T8_D1_0-30s --heldout data/out/tracking/T8_D1_30-30s --out data/out/tracking/crosscheck.md`.
 
 ## 1. Problem
 
@@ -111,19 +114,111 @@ motivated six more variants (`r2_*`, step `2b` in the variants file). Because th
 while looking at window 0–30 s, their scores on that window are optimistic.
 
 * **Tuning window**: clip 0–30 s (frames 0–899). Used to design and tune variants.
-* **Held-out window**: clip 30–60 s (frames 899–1798), detected separately, never looked at
+* **Held-out window**: clip 30–60 s (frames 899–1797), detected separately, never looked at
   while designing variants.
 * **Final choice** = the selection rule of 2.4 applied to the held-out window, over all variants.
   `lane_intel.tracking.crosscheck` reports both windows side by side.
 
 ## 3. Results
 
-_Filled in from `data/out/tracking/T8_D1_0-30s/report.md` after the run._
+Detections: 0–30 s → 900 frames, 121,671 boxes (91,320 with confidence ≥ 0.25), 679 s on CPU.
+30–60 s → 899 frames, 115,590 boxes (87,584 ≥ 0.25), 641 s. Provenance in the `.meta.json`
+next to each file. Every tracker variant ran in 4–10 s.
+
+**Reproduction check: passed.** `baseline` on the new detections gives 386 IDs, identical to the
+original run.
+
+### 3.1 Round 1, tuning window 0–30 s
+
+Full table: `notes/runs/T8_D1_0-30s_report.md` (machine-written copy of the run's report). Guard limits: identity jumps ≤ 24.8,
+clear-box coverage ≥ 98.5%.
+
+| Variant | IDs | Fragmentation | < 1 s | Restart pairs | Identity jumps | Coverage | Guards |
+|---|---|---|---|---|---|---|---|
+| `baseline` | 386 | 478 | 102 | 119 | 19 | 99.5% | pass |
+| `s1_lowconf` | 349 | 395 (−17%) | 74 | 98 | 28 | 99.5% | fail: jumps |
+| `s2_bt_buf2s` | 343 | 382 (−20%) | 71 | 90 | 28 | 99.5% | fail: jumps |
+| `s2_bt_buf4s` | 341 | 379 (−21%) | 70 | 91 | 29 | 99.5% | fail: jumps |
+| `s2_bt_buf6s` | 341 | 379 (−21%) | 70 | 91 | 29 | 99.5% | fail: jumps |
+| `s2_bt_buf4s_iou03` | 331 | 359 (−25%) | 59 | 86 | 99 | 99.5% | fail: jumps |
+| `s2_bt_buf4s_act04` | 417 | 501 (+5%) | 98 | 115 | 52 | 99.8% | fail: jumps |
+| `s2_ocsort_buf4s` | 268 | 259 (−46%) | 44 | 49 | 44 | 95.3% | fail: jumps, coverage |
+| `s2_botsort_buf4s` | 376 | 462 (−3%) | 92 | 131 | 0 | 99.3% | pass (selected in round 1) |
+
+Observations:
+
+* Feeding faint boxes (step 1) gave most of the gain. A longer memory added little beyond 2 s, and
+  4 s and 6 s are identical: with ByteTrack's overlap-based matching, a vehicle that moved while
+  hidden no longer overlaps its prediction, however long it is remembered.
+* Faint boxes raised identity jumps from 19 to 28 and failed the guard. Looser overlap (IoU 0.03)
+  made it far worse (99).
+* OC-SORT had the lowest fragmentation but failed both guards: more jumps (median gap at a jump
+  33 frames, so wrong re-associations after long gaps) and 4.6% of clear boxes left without an ID.
+
+### 3.2 Audit of the identity-jump guard
+
+Before trusting the guard, 8 of the jump events added by `s1_lowconf` were rendered from the video
+(before / after crops). **All 8 were real identity errors**: a car's ID moving to the van below it
+(twice), a trailer's ID moving to another truck's cab, a car's ID moving to a car in the next lane,
+a trailer's ID landing on a faint box spanning two trucks, a car under the trees swapping to another
+car, and a truck's ID flipping to a van and back. 20 of the 28 events were on boxes below 0.25.
+
+Cause: in this oblique view, vehicles in a jam overlap each other heavily, and ByteTrack uses the
+same low overlap threshold (IoU 0.1) for faint boxes as for confident ones. BoT-SORT requires IoU 0.5
+for faint boxes, which explains its 0 jumps, but it was too strict for confident boxes after a
+gap (−3% only). This motivated round 2 (section 2.6): keep BoT-SORT's strict rule for faint boxes
+and loosen only its first-stage match for confident boxes.
+
+### 3.3 Round 2 and cross-check
+
+Full table: `notes/runs/crosscheck.md`; held-out run: `notes/runs/T8_D1_30-30s_report.md`. Fragmentation change against each window's baseline.
+
+| Variant | Step | Tuning 0–30 s | Jumps | Guards | Held-out 30–60 s | Jumps | Guards |
+|---|---|---|---|---|---|---|---|
+| `baseline` | 0 | 478 | 19 | pass | 547 | 21 | pass |
+| `s1_lowconf` | 1 | −17% | 28 | fail | −12% | 26 | pass |
+| `s2_bt_buf4s` | 2 | −21% | 29 | fail | −14% | 27 | pass |
+| `s2_ocsort_buf4s` | 2 | −46% | 44 | fail | −41% | 38 | fail |
+| `s2_botsort_buf4s` | 2 | −3% | 0 | pass | −4% | 2 | pass |
+| `r2_botsort_first01` | 2b | −15% | 2 | pass | −12% | 6 | pass |
+| **`r2_botsort_first005`** | 2b | **−21%** | **6** | pass | **−18%** | **10** | pass |
+| `r2_botsort_first01_unc02` | 2b | −15% | 2 | pass | −12% | 6 | pass |
+| `r2_ocsort_iou03` | 2b | −24% | 23 | fail | −26% | 27 | fail |
+| `r2_ocsort_iou03_buf2s` | 2b | −13% | 19 | fail | −14% | 22 | fail |
+| `r2_bt_conf015_buf4s` | 2b | −13% | 28 | fail | −12% | 15 | pass |
+
+On the held-out window the selection rule picks `r2_botsort_first005` (fragmentation 449 against
+547, IDs 372 against 427, identity jumps 10 against 21, coverage 99.3% against 99.4%). It is the
+same variant the tuning window picked. Its gain is smaller on the held-out window (−18% against
+−21%), the expected optimism of the window it was designed on.
 
 ## 4. Decision
 
-_Filled in after the run._
+**Tracker: `r2_botsort_first005`.** BoT-SORT; boxes from confidence 0.10 reach the tracker; a
+confident box (≥ 0.5) can continue a track at fused similarity (IoU × confidence) ≥ 0.05; a faint
+box (0.10–0.5) can only continue a track at IoU ≥ 0.5 and never starts one; 4 s memory; 2 frames to
+confirm; no camera-motion correction, no re-identification. Set in `configs/T8_D1.json`
+(`tracking.variant`); `python run.py track` produces the points files with it.
+
+Against the original tracker, on video it was not tuned on: about 18% fewer track breaks, 13% fewer
+IDs and half the identity errors, with the same clear-box coverage.
+
+Rejected, with reasons: ByteTrack with faint boxes (wrong merges through low-overlap matches),
+OC-SORT (wrong re-associations after long gaps, 5% of clear boxes untracked), a longer memory alone
+(no effect beyond 2 s: matching is overlap-based).
 
 ## 5. Limitations and next steps
 
-_Filled in after the run._
+* **Most breaks remain.** 449 mid-image starts and ends in 30 s is still far from zero; 109 of
+  them look like stitchable break → restart pairs. Fully hidden vehicles (trees, trucks) cannot be
+  bridged by an online tracker. Next: **step 3, offline stitching** (`stitch.py`) using the
+  restart-pair logic already in `quality.py`, then **step 4** occlusion zones and **step 5**
+  removal of short junk tracks (still 98 under 1 s on the held-out window).
+* **The metrics are proxies.** Fragmentation counts breaks, not their effect on speed; the jump
+  detector was audited on 8 events, not exhaustively. **Step 6** (after camera calibration) will
+  measure IDF1 and ID switches against MiTra's ground-truth IDs.
+* **Two windows from one drone in one flight**, both congested. Free-flowing traffic (flight T3) or
+  another drone may favour different settings; rerun `tune` there before reusing this choice.
+* OC-SORT's coverage loss was not investigated further (it was rejected on both guards).
+* Round 2 was designed after seeing round 1; the held-out window, not the tuning window, carries
+  the evidence for the final choice.
