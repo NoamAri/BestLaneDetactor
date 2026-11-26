@@ -101,6 +101,8 @@ button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-co
 .good { color: var(--good); }
 .bad { color: var(--bad); }
 .brk { font-family: var(--font-sans); font-size: 12px; }
+td.dir { font-family: var(--font-sans); font-size: 12.5px; color: var(--muted); }
+td.dir .arw { font-size: 15px; color: var(--fg); display: inline-block; width: 1.1em; text-align: center; }
 .panels { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; align-items: start; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; min-width: 0; }
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; }
@@ -214,7 +216,8 @@ footer a { color: inherit; }
           <dt>Seen</dt><dd id="sSpan">–</dd>
           <dt>Observations</dt><dd id="sN">–</dd>
           <dt>Mean confidence</dt><dd id="sConf">–</dd>
-          <dt>Image motion</dt><dd id="sPx">–</dd>
+          <dt>Speed</dt><dd id="sSpd">–</dd>
+          <dt>Direction</dt><dd id="sDir">–</dd>
           <dt>Box here</dt><dd id="sBox">–</dd>
         </dl>
         <svg class="spark" id="sSpark" viewBox="0 0 300 64" preserveAspectRatio="none" aria-label="Horizontal image position over time"></svg>
@@ -223,7 +226,8 @@ footer a { color: inherit; }
           <button id="sLast">Last frame</button>
           <button id="sFollow" aria-pressed="false" title="Keep the selected vehicle centred when zoomed">Follow</button>
         </div>
-        <p class="note">Speed is in image pixels per second until the camera is calibrated to metres.</p>
+        <p class="note">Speed is the vehicle's average motion along the road over its whole track, in image pixels per second
+          (km/h once the camera is calibrated to metres). Below 15 px/s it counts as stopped.</p>
       </div>
     </section>
 
@@ -261,7 +265,7 @@ footer a { color: inherit; }
       <table>
         <thead><tr>
           <th data-k="track_id">ID</th><th data-k="cls">Class</th><th data-k="first">First (s)</th>
-          <th data-k="span_s">Duration (s)</th><th data-k="n">Obs.</th><th data-k="conf">Conf.</th><th data-k="px_per_s">px/s</th><th data-k="brk">Mid-image</th>
+          <th data-k="span_s">Duration (s)</th><th data-k="n">Obs.</th><th data-k="conf">Conf.</th><th data-k="dirn">Direction</th><th data-k="speed">Speed (px/s)</th><th data-k="brk">Mid-image</th>
         </tr></thead>
         <tbody id="regBody"></tbody>
       </table>
@@ -294,6 +298,11 @@ footer a { color: inherit; }
       S.colors[k] = cs.getPropertyValue("--" + k).trim();
   }
   const clsColor = (c) => S.colors[c] || S.colors.car;
+
+  // Direction of travel in the image. Below STOPPED_PX_S the average motion is within box jitter.
+  const STOPPED_PX_S = 15;
+  const directionOf = (v) => (v > STOPPED_PX_S ? 1 : v < -STOPPED_PX_S ? -1 : 0);
+  const DIRECTION = { "1": ["→", "right"], "-1": ["←", "left"], "0": ["–", "stopped"] };
 
   const fmtT = (s) => {
     const m = Math.floor(s / 60), r = s - 60 * m;
@@ -691,7 +700,9 @@ footer a { color: inherit; }
     $("sSpan").textContent = `${t0.toFixed(2)}–${t1.toFixed(2)} s (${(t1 - t0).toFixed(2)} s)`;
     $("sN").textContent = pts.length;
     $("sConf").textContent = Math.round(info.conf * 100) + "%";
-    $("sPx").textContent = `${info.px_per_s >= 0 ? "→" : "←"} ${Math.abs(info.px_per_s).toFixed(0)} px/s`;
+    const [arrow, word] = DIRECTION[directionOf(info.px_per_s)];
+    $("sSpd").textContent = `${Math.abs(info.px_per_s).toFixed(0)} px/s`;
+    $("sDir").textContent = `${arrow} ${word}`;
     const here = pts.find((p) => p.f === S.frame);
     $("sBox").textContent = here ? `${here.x2 - here.x1}×${here.y2 - here.y1} px` : "not in this frame";
     // sparkline: x (bottom-centre) over frames
@@ -712,7 +723,10 @@ footer a { color: inherit; }
   }
 
   function buildRegister() {
-    const rows = variantOf(S.variant).tracks.map((t) => ({ ...t, brk: (t.born_mid ? 1 : 0) + (t.died_mid ? 2 : 0) }));
+    const rows = variantOf(S.variant).tracks.map((t) => ({
+      ...t, brk: (t.born_mid ? 1 : 0) + (t.died_mid ? 2 : 0),
+      speed: Math.abs(t.px_per_s), dirn: directionOf(t.px_per_s),
+    }));
     const k = S.sortK, dir = S.sortDir;
     const brkTxt = ["—", "start", "end", "start + end"];
     rows.sort((a, b) => (a[k] < b[k] ? -dir : a[k] > b[k] ? dir : 0));
@@ -722,7 +736,8 @@ footer a { color: inherit; }
       `<td>#${t.track_id}</td>` +
       `<td><span class="sw" style="background:${clsColor(t.cls)}"></span> ${t.cls}</td>` +
       `<td>${((t.first - S.meta.frame_first) / fps).toFixed(2)}</td><td>${t.span_s.toFixed(2)}</td>` +
-      `<td>${t.n}</td><td>${Math.round(t.conf * 100)}%</td><td>${t.px_per_s.toFixed(0)}</td>` +
+      `<td>${t.n}</td><td>${Math.round(t.conf * 100)}%</td>` +
+      `<td class="dir"><span class="arw">${DIRECTION[t.dirn][0]}</span> ${DIRECTION[t.dirn][1]}</td><td>${t.speed.toFixed(0)}</td>` +
       `<td class="brk ${t.brk ? "bad" : ""}">${brkTxt[t.brk]}</td></tr>`).join("");
     $("regCount").textContent = `· ${rows.length}`;
   }
