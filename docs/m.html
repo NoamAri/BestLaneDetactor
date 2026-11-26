@@ -44,6 +44,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .clips::-webkit-scrollbar { display: none; }
 .clip { flex: none; scroll-snap-align: start; border: 1px solid var(--line); background: var(--surface); border-radius: 999px;
   padding: 0 14px; font-size: 13px; white-space: nowrap; min-height: 38px; }
+.clip.add { display: inline-flex; align-items: center; color: var(--accent); border-style: dashed; text-decoration: none; font-weight: 500; }
 .clip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 
 /* ---------------------------------------------------------------- pinned player */
@@ -314,7 +315,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
   async function init() {
     try { S.clips = await getJSON("clips.json"); } catch (_) { S.clips = [{ id: "clip", label: "Video", dir: "" }]; }
-    $("clips").innerHTML = S.clips.map((c) => `<button class="clip" data-c="${c.id}">${c.label}</button>`).join("");
+    $("clips").innerHTML = S.clips.map((c) => `<button class="clip" data-c="${c.id}">${c.label}</button>`).join("") +
+      `<a class="clip add" href="https://github.com/NoamAri/BestLaneDetactor/issues/new?template=analyze.yml" target="_blank" rel="noopener">＋ Analyse your video</a>`;
     for (const b of $("clips").querySelectorAll(".clip")) b.onclick = () => loadClip(b.dataset.c);
     const want = new URLSearchParams(location.hash.slice(1)).get("clip");
     await loadClip(S.clips.some((c) => c.id === want) ? want : S.clips[0].id);

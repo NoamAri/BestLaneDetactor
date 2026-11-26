@@ -16,7 +16,7 @@
   "normalise": {
     "fps": 10,
     "max_width_px": 1920,
-    "_note": "Every upload is converted to 10 frames per second and at most 1920 px wide before analysis: enough for speeds, about 3x faster on GitHub's CPU."
+    "_note": "Every upload is converted to at most 10 frames per second (never more than the source) and at most 1920 px wide before analysis: enough for speeds, about 3x faster on GitHub's CPU. The whole frame is analysed."
   },
 
   "picture": {

@@ -93,10 +93,13 @@ def check_file(path: str | Path, info: dict, rules: dict) -> None:
 
 
 def normalise(src: str | Path, dst: str | Path, rules: dict) -> None:
-    """Same format for every upload: N fps, at most W px wide (even size), no audio, H.264."""
+    """Same format for every upload: at most N fps (never more than the source: duplicated frames would make
+    vehicles look stop-and-go), at most W px wide (even size), no audio, H.264."""
     n = rules["normalise"]
     Path(dst).parent.mkdir(parents=True, exist_ok=True)
-    vf = f"fps={n['fps']},scale='trunc(min({n['max_width_px']},iw)/2)*2':-2"
+    src_fps = probe(src).get("fps") or n["fps"]
+    fps = n["fps"] if src_fps >= n["fps"] - 0.01 else src_fps
+    vf = f"fps={fps:g},scale='trunc(min({n['max_width_px']},iw)/2)*2':-2"
     subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", str(src), "-vf", vf, "-an", "-c:v", "libx264", "-preset", "veryfast",
                     "-crf", "20", "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(dst)], check=True)
 
@@ -207,7 +210,7 @@ def make_config(vid: str, label: str, video: str | Path, info: dict, band: list[
     return {
         "label": f"Uploaded · {label}", "time_label": "Video time", "video": str(Path(video).relative_to(ROOT)).replace("\\", "/"),
         "video_note": "Uploaded for analysis; converted to 10 fps, at most 1920 px wide (lane_intel.upload).",
-        "clip_offset_s": 0.0, "native_fps": float(rules["normalise"]["fps"]), "frame_size": [info["width"], info["height"]],
+        "clip_offset_s": 0.0, "native_fps": round(float(info["fps"]), 4), "frame_size": [info["width"], info["height"]],
         "band_y": band,
         "detector": {"model": "data/models/yolo26s.pt", "classes": [2, 3, 5, 7], "imgsz": an["detector_imgsz"],
                      "conf_min": 0.05, "max_det": 1000, "process_every": 1},
@@ -342,7 +345,7 @@ def run(video: str | Path, vid: str, label: str, publish_to: Path | None, skip_d
         vs = None if skip_detect_sample else vehicle_sample(norm, rules, ROOT / "data" / "models" / "yolo26s.pt")
         res["vehicles"] = vs
         check_picture(ps, vs, rules)
-        band = (vs or {}).get("band_y") or [0, ninfo["height"]]
+        band = [0, ninfo["height"]]          # whole frame: a band guessed from a few samples can cut off lanes
         cfg = make_config(vid, label, norm, ninfo, band, rules)
         cfg_path = ROOT / "configs" / "uploads" / f"{vid}.json"
         cfg_path.parent.mkdir(parents=True, exist_ok=True)
