@@ -1,0 +1,15 @@
+Metadata-Version: 2.4
+Name: lane-intel
+Version: 0.1.0
+Summary: Per-lane traffic measurements from fixed aerial video (MiTra dataset)
+Requires-Python: >=3.11
+Requires-Dist: ultralytics>=8.4
+Requires-Dist: supervision>=0.25
+Requires-Dist: opencv-python
+Requires-Dist: numpy
+Requires-Dist: pandas
+Requires-Dist: pyarrow
+Requires-Dist: scipy
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: remotezip; extra == "dev"

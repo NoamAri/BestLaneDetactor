@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "lane-intel"
+version = "0.1.0"
+description = "Per-lane traffic measurements from fixed aerial video (MiTra dataset)"
+requires-python = ">=3.11"
+dependencies = [
+  "ultralytics>=8.4",
+  "supervision>=0.25",
+  "trackers>=2.7",
+  "opencv-python",
+  "numpy",
+  "pandas",
+  "pyarrow",
+  "scipy",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "remotezip"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
