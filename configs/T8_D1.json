@@ -52,13 +52,15 @@
   "count_line_y_m": null,
   "speed_limit_kmh": null,
   "calibration": {
+    "lane_scale_sd": 0.019,
+    "lane_scale_sd_note": "lane_scale_sd: spread of the per-lane distance ratio to ground truth (notes/lane_speed.md 1.2), used by the announcement's calibration check.",
     "method": "gt_homography",
     "gt_csv": "data/raw/gt/T8_D1.csv",
     "note": "Pixels -> UTM 32N metres, fitted by matching our tracked vehicles to MiTra ground-truth positions (same clock)."
   },
   "lane_speed": {
     "windows": [[0, 30], [30, 30], [60, 30], [90, 30], [120, 30], [150, 30]],
-    "auxiliary_lanes": "from_ground_truth",
+    "auxiliary_lanes": {"from_ground_truth_lanes": [10]},
     "speed_limit_kmh": null
   }
 }

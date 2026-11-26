@@ -142,7 +142,9 @@ def _correspondences(pts: pd.DataFrame, gt_by: dict, pairs: pd.DataFrame, t_gt0:
         m = (tt >= g.t.iat[0]) & (tt <= g.t.iat[-1])
         if not m.any():
             continue
+        k = np.clip(np.searchsorted(g.t.to_numpy(), tt[m]), 0, len(g) - 1)
         out.append(pd.DataFrame({"track_id": tid, "vid": vid, "t": p.t.to_numpy()[m], "cls": p.cls.to_numpy()[m],
+                                 "gt_lane": g.lane.to_numpy()[k],
                                  "x_px": p.x_px.to_numpy()[m], "y_px": p.y_px.to_numpy()[m],
                                  "X": np.interp(tt[m], g.t, g.xl), "Y": np.interp(tt[m], g.t, g.yl),
                                  "v_kmh": np.interp(tt[m], g.t, g.v_kmh)}))

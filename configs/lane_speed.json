@@ -27,7 +27,10 @@
 
   "_amendments": [
     "A2 (before any lane speed): ground point = box centre in the stabilised frame; the bottom + half-width shift below is not used (it misplaced vehicles in the ground-truth lane check). See notes/lane_speed_plan.md section 11.",
-    "A3 (before any lane speed): camera motion is removed (stabilize.py); lanes come from all analysis windows of a camera."
+    "A3 (before any lane speed): camera motion is removed (stabilize.py); lanes come from all analysis windows of a camera.",
+    "A4 (before any lane speed): a plausibility limit counts as exceeded only beyond 3x the step's own measurement noise.",
+    "A5 (POST HOC, after validating MiTra 0-120 s; confirmed on held-out 120-180 s): the stretch is the longest contiguous run of well-covered bins (a tree zone inside the stretch biased speeds by -10..-25%); the acceleration test's noise includes each track's slow speed wobble.",
+    "A6 (POST HOC, same procedure): plausibility cuts are off (plausibility.enabled = false). 535 of 535 remaining cuts were ordinary steps; with no cuts the median error was 3.4% vs 3.8-4.0%, precision 0.94 vs 0.88. Edie sums are invariant to identity breaks anyway. Chosen by a rule fixed before the comparison: lower median relative error, then precision."
   ],
   "ground_point_mode": "box_centre",
 
@@ -39,6 +42,7 @@
   "occlusion_height_frac": 0.7,
 
   "plausibility": {
+    "enabled": false,
     "max_speed_kmh": 200.0,
     "max_accel_ms2": 5.0,
     "accel_window_s": 0.5,

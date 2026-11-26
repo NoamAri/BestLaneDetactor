@@ -108,11 +108,14 @@ def wrap_page(fragment: str) -> str:
 
 def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, start: float,
                  duration: float, crop_y: tuple[int, int] | None = None, width: int | None = None,
-                 crf: int = 32, write_page: bool = True, lanes_file: str | Path | None = None) -> dict:
+                 crf: int = 32, write_page: bool = True, lanes_file: str | Path | None = None,
+                 stab: pd.DataFrame | None = None, lane_speed: dict | None = None) -> dict:
     """Write video.mp4, tags_<variant>.json, meta.json (and index.html); return meta.
 
     The first variant is the one the viewer opens with. crop_y / width default to the camera
-    config's ``viewer`` block. write_page=False when the clip is part of a multi-clip site
+    config's ``viewer`` block. Lanes live in the stabilised reference frame: with ``stab`` (the
+    window's camera motion) vehicles are assigned on stabilised points and the lane outlines are
+    drawn moved into the video frame (by the window's median camera position). write_page=False when the clip is part of a multi-clip site
     (viewer_site.py writes one index.html at the site root).
     """
     vcfg = cfg.get("viewer", {})
@@ -146,7 +149,12 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
         write_tags(df, out / fname, cidx)
         tracks = track_summary(df, fps, (f0, f1 - 1), W)
         if lanes:
-            lane_of = assign_lanes(df, geo, lanes, W).groupby("track_id").lane_track.first()
+            ref = df
+            if stab is not None:
+                from lane_intel.stabilize import apply
+                ref = df.copy()
+                ref["x_px"], ref["y_px"] = apply(stab, df.frame_idx.to_numpy(), df.x_px, df.y_px)
+            lane_of = assign_lanes(ref, geo, lanes, W).groupby("track_id").lane_track.first()
             for t in tracks:
                 t["lane"] = int(lane_of.get(t["track_id"], -1))
         meta_variants.append({
@@ -169,7 +177,8 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
         "model": Path(det.get("model", "?")).name, "imgsz": det.get("imgsz"),
         "edge_px": QualityParams.scaled(W).edge_px,
         "variants": meta_variants,
-        "lanes": lane_polygons(geo, lanes) if lanes else [],
+        "lanes": _to_video(lane_polygons(geo, lanes), stab, f0, f1) if lanes else [],
+        "lane_speed": lane_speed,
     }
     (out / "meta.json").write_text(json.dumps(meta))
 
@@ -177,6 +186,26 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
         (out / "index.html").write_text(wrap_page(VIEWER_SRC.read_text()))
     print(f"viewer bundle -> {out}  ({len(variants)} variant(s), video {vw}x{vh})")
     return meta
+
+
+def _to_video(polys: list[dict], stab: pd.DataFrame | None, f0: int, f1: int) -> list[dict]:
+    """Lane outlines from the stabilised reference frame into the video frame (median camera position)."""
+    if stab is None:
+        return polys
+    import cv2
+    from lane_intel.stabilize import matrices
+    Hs = [H for f, H in matrices(stab).items() if f0 <= f < f1]
+    if not Hs:
+        return polys
+    Hinv = np.linalg.inv(np.median(np.stack(Hs), axis=0))
+    out = []
+    for p in polys:
+        q = dict(p)
+        for k in ("centre", "upper", "lower"):
+            pts = np.asarray(p[k], float).reshape(-1, 1, 2)
+            q[k] = np.round(cv2.perspectiveTransform(pts, Hinv).reshape(-1, 2), 1).tolist()
+        out.append(q)
+    return out
 
 
 def variants_from_experiment(exp_dir: str | Path, names: list[str]) -> list[ViewerVariant]:

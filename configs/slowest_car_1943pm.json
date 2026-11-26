@@ -51,6 +51,8 @@
   "count_line_y_m": null,
   "speed_limit_kmh": null,
   "calibration": {
+    "lane_scale_sd": 0.025,
+    "lane_scale_sd_note": "lane_scale_sd: per-lane spread of the vehicle-size method measured on MiTra (notes/lane_speed.md 1.4), used by the announcement's calibration check.",
     "method": "vehicle_size",
     "lane_width_m": 3.6,
     "car_length_m": 4.5,

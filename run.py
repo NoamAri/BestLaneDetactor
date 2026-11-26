@@ -11,6 +11,8 @@
                              table -> data/interim/<camera>_ground.parquet
     python run.py lanes      find the lanes from the camera's tracks -> configs/lanes/<camera>.json
     python run.py calibrate  pixels -> metres along/across the road -> configs/calib/<camera>.json
+    python run.py speeds     per-lane speeds, fastest/slowest announcement -> data/out/lane_speed/<camera>/
+    python run.py validate   lane speeds vs MiTra ground truth -> data/out/lane_speed/<camera>/validation.json
     python run.py extract    detect + track in one go
     python run.py viewer     build the viewer for every clip in configs/viewer.json -> data/out/viewer/
     python run.py serve      start the viewer at http://localhost:8000 and open the browser
@@ -224,6 +226,18 @@ def lanes(a) -> None:
     sh([PY, "-W", "ignore", "-m", "lane_intel.lanes", "--cfg", _cfg_path(a), "--points", g, "--write-points"])
 
 
+def speeds(a) -> None:
+    """Per-lane space-mean speeds, fastest/slowest announcement -> data/out/lane_speed/<camera>/."""
+    need_venv()
+    sh([PY, "-W", "ignore", "-m", "lane_intel.lane_speed", "--cfg", _cfg_path(a)])
+
+
+def validate(a) -> None:
+    """Lane speeds against MiTra ground truth -> data/out/lane_speed/<camera>/validation.json."""
+    need_venv()
+    sh([PY, "-W", "ignore", "-m", "lane_intel.validate", "--cfg", _cfg_path(a)])
+
+
 def calibrate(a) -> None:
     """Pixels -> metres along/across the road -> configs/calib/<camera>.json."""
     need_venv()
@@ -308,6 +322,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     steps = {"setup": setup, "clip": clip, "detect": detect, "tune": tune, "track": track,
              "stabilize": stabilize, "ground": ground, "lanes": lanes, "calibrate": calibrate,
+             "speeds": speeds, "validate": validate,
              "extract": extract,
              "viewer": viewer, "serve": serve, "pages": pages, "test": test, "all": all_steps}
     ap.add_argument("step", choices=list(steps))
