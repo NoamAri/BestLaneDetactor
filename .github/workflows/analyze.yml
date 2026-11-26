@@ -1,0 +1,151 @@
+# Analyse a traffic video attached to a "New analysis" issue (notes/upload_plan.md).
+# Runs only for the repository owner and collaborators, one video at a time, on GitHub's free CPU machine.
+# Good result -> committed to the GitHub Pages branch (docs/clips/<id>/) and linked in a reply.
+# Not a good video -> a reply with the reason and a tip; nothing is published.
+name: Analyse a traffic video
+
+on:
+  issues:
+    types: [opened]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: Issue number to analyse again
+        required: true
+
+permissions:
+  contents: write
+  issues: write
+
+concurrency:
+  group: analyse-video
+  cancel-in-progress: false
+
+env:
+  SITE_BRANCH: claude/happy-faraday-r67vcd     # the branch GitHub Pages serves (docs/)
+
+jobs:
+  analyse:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (startsWith(github.event.issue.title, 'Analyse:') &&
+       contains(fromJSON('["OWNER", "MEMBER", "COLLABORATOR"]'), github.event.issue.author_association))
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Read the issue
+        id: issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const num = context.eventName === 'workflow_dispatch' ? Number(context.payload.inputs.issue) : context.issue.number;
+            const { data: issue } = await github.rest.issues.get({ ...context.repo, issue_number: num });
+            const body = issue.body || '';
+            const urls = [...body.matchAll(/https:\/\/github\.com\/user-attachments\/assets\/[0-9a-fA-F-]+/g)].map((m) => m[0]);
+            const name = ((body.match(/### Name\s*\n+([^\n]+)/) || [])[1] || `video ${num}`).trim().slice(0, 60);
+            core.setOutput('num', String(num));
+            core.setOutput('url', urls.length === 1 ? urls[0] : '');
+            core.setOutput('name', name);
+            const msg = urls.length === 1
+              ? '⏳ **Checking your video…** If it passes the checks, the analysis takes about 10–15 minutes. You will get a reply here.'
+              : `❌ **Not a good video:** ${urls.length ? 'please attach exactly one video' : 'no video was attached (wait until the upload link appears before submitting)'}.`;
+            await github.rest.issues.createComment({ ...context.repo, issue_number: num, body: msg });
+            if (urls.length !== 1) {
+              await github.rest.issues.addLabels({ ...context.repo, issue_number: num, labels: ['not-good'] });
+              await github.rest.issues.update({ ...context.repo, issue_number: num, state: 'closed', state_reason: 'not_planned' });
+            }
+
+      - uses: actions/checkout@v4
+        if: steps.issue.outputs.url != ''
+        with:
+          ref: ${{ env.SITE_BRANCH }}
+
+      - uses: actions/setup-python@v5
+        if: steps.issue.outputs.url != ''
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install (CPU)
+        if: steps.issue.outputs.url != ''
+        run: |
+          command -v ffmpeg || (sudo apt-get update -q && sudo apt-get install -y -q ffmpeg)
+          python -m pip install -q --upgrade pip
+          python -m pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install -q -e .
+
+      - name: Cache the YOLO model
+        if: steps.issue.outputs.url != ''
+        uses: actions/cache@v4
+        with:
+          path: data/models
+          key: yolo26s-v1
+
+      - name: Download the video
+        if: steps.issue.outputs.url != ''
+        env:
+          URL: ${{ steps.issue.outputs.url }}
+        run: |
+          mkdir -p data/models upload
+          [ -f data/models/yolo26s.pt ] || (cd data/models && python -c "from ultralytics import YOLO; YOLO('yolo26s.pt')")
+          curl -fsSL --max-filesize 27000000 -o upload/video.bin "$URL"
+          fmt=$(ffprobe -v error -show_entries format=format_name -of csv=p=0 upload/video.bin || echo none)
+          case "$fmt" in *mp4*|*mov*) ext=mp4 ;; *webm*|*matroska*) ext=webm ;; *) ext=bin ;; esac
+          mv upload/video.bin "upload/video.$ext"
+          echo "VIDEO=upload/video.$ext" >> "$GITHUB_ENV"
+
+      - name: Check and analyse
+        if: steps.issue.outputs.url != ''
+        id: run
+        env:
+          NAME: ${{ steps.issue.outputs.name }}
+          NUM: ${{ steps.issue.outputs.num }}
+        run: |
+          id="issue-${NUM}"
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+          python -m lane_intel.upload --video "$VIDEO" --id "$id" --label "$NAME" --publish docs || true
+          test -f "data/out/uploads/$id/result.json"
+
+      - name: Publish a good result
+        if: steps.issue.outputs.url != ''
+        env:
+          ID: ${{ steps.run.outputs.id }}
+        run: |
+          status=$(python -c "import json; print(json.load(open('data/out/uploads/$ID/result.json'))['status'])")
+          if [ "$status" != "good" ]; then exit 0; fi
+          git config user.name "lane-intel-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs "configs/uploads/$ID.json" "configs/uploads/$ID.lanes.json" "configs/calib/$ID.json"
+          git commit -q -m "Uploaded video analysed: $ID"
+          for i in 1 2 3 4; do git pull -q --rebase origin "$SITE_BRANCH" && git push -q origin "HEAD:$SITE_BRANCH" && break; sleep $((i * 5)); done
+
+      - name: Reply
+        if: always() && steps.issue.outputs.url != ''
+        uses: actions/github-script@v7
+        env:
+          ID: ${{ steps.run.outputs.id }}
+          NUM: ${{ steps.issue.outputs.num }}
+        with:
+          script: |
+            const fs = require('fs');
+            const num = Number(process.env.NUM), id = process.env.ID;
+            const run = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const site = `https://${context.repo.owner.toLowerCase()}.github.io/${context.repo.repo}/`;
+            let r = { status: 'error', message: 'The analysis did not finish.' };
+            try { r = JSON.parse(fs.readFileSync(`data/out/uploads/${id}/result.json`, 'utf8')); } catch (e) {}
+            let body, label, reason;
+            if (r.status === 'good') {
+              body = `✅ **Analysis ready**\n\n${(r.answer || []).map((l) => `- ${l}`).join('\n')}\n\n` +
+                     `**[Open it in the app](${site}#clip=${id})** (the site updates within a couple of minutes).`;
+              label = 'done'; reason = 'completed';
+            } else if (r.status === 'not_good') {
+              body = `❌ **Not a good video:** ${r.message}\n\n**Tip:** ${r.tip}\n\nNothing was analysed or published. You can open a new analysis with another video.`;
+              label = 'not-good'; reason = 'not_planned';
+            } else {
+              body = `⚠️ **Something went wrong on our side**, not with your video. The owner can see the details in the [run log](${run}).`;
+              label = 'error'; reason = 'not_planned';
+            }
+            await github.rest.issues.createComment({ ...context.repo, issue_number: num, body });
+            await github.rest.issues.addLabels({ ...context.repo, issue_number: num, labels: [label] });
+            if (label !== 'error') await github.rest.issues.update({ ...context.repo, issue_number: num, state: 'closed', state_reason: reason });

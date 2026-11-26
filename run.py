@@ -13,6 +13,7 @@
     python run.py calibrate  pixels -> metres along/across the road -> configs/calib/<camera>.json
     python run.py speeds     per-lane speeds, fastest/slowest announcement -> data/out/lane_speed/<camera>/
     python run.py validate   lane speeds vs MiTra ground truth -> data/out/lane_speed/<camera>/validation.json
+    python run.py analyze    check an uploaded video (31-59 s, fixed camera...) and analyse it if it is good
     python run.py extract    detect + track in one go
     python run.py viewer     build the viewer for every clip in configs/viewer.json -> data/out/viewer/
     python run.py serve      start the viewer at http://localhost:8000 and open the browser
@@ -226,6 +227,19 @@ def lanes(a) -> None:
     sh([PY, "-W", "ignore", "-m", "lane_intel.lanes", "--cfg", _cfg_path(a), "--points", g, "--write-points"])
 
 
+def analyze(a) -> None:
+    """Check an uploaded video against configs/upload_rules.json and, if it is good, analyse it."""
+    need_venv(); need_ffmpeg()
+    if not a.video:
+        sys.exit("Give the video:  python run.py analyze --video clip.mp4 [--name 'My road'] [--publish]")
+    cmd = [PY, "-W", "ignore", "-m", "lane_intel.upload", "--video", a.video]
+    if a.name:
+        cmd += ["--label", a.name]
+    if a.publish:
+        cmd += ["--publish", ROOT / "docs"]
+    sh(cmd)
+
+
 def speeds(a) -> None:
     """Per-lane space-mean speeds, fastest/slowest announcement -> data/out/lane_speed/<camera>/."""
     need_venv()
@@ -291,7 +305,10 @@ def pages(a) -> None:
     for c in json.loads((VIEWER / "clips.json").read_text()):
         meta = json.loads((VIEWER / c["dir"] / "meta.json").read_text())
         wanted += [c["dir"] + f for f in ["video.mp4", "meta.json", *[v["file"] for v in meta["variants"]]]]
-    keep = set(wanted) | {"architecture.html", ".nojekyll"}
+    uploads = json.loads((docs / "uploads.json").read_text()) if (docs / "uploads.json").exists() else []
+    keep = set(wanted) | {"architecture.html", ".nojekyll", "uploads.json"}
+    for u in uploads:                                     # clips added by the upload workflow live only in docs/
+        keep |= {f.relative_to(docs).as_posix() for f in (docs / u["dir"]).rglob("*") if f.is_file()}
     for f in sorted(docs.rglob("*"), reverse=True):     # drop anything else (older layouts, removed clips)
         rel = f.relative_to(docs).as_posix()
         if f.is_file() and rel not in keep:
@@ -302,6 +319,9 @@ def pages(a) -> None:
         (docs / rel).parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(VIEWER / rel, docs / rel)
     (docs / ".nojekyll").write_text("")
+    if uploads:
+        subprocess.run([PY, "-c", "import sys; from pathlib import Path; from lane_intel.upload import merge_clips_json; "
+                        "merge_clips_json(Path(sys.argv[1]))", docs], check=True, cwd=ROOT)
     arch = ROOT / "app" / "architecture" / "index.html"
     if arch.exists():
         (docs / "architecture.html").write_text(_wrap_page(arch.read_text(encoding="utf-8")), encoding="utf-8")
@@ -322,7 +342,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     steps = {"setup": setup, "clip": clip, "detect": detect, "tune": tune, "track": track,
              "stabilize": stabilize, "ground": ground, "lanes": lanes, "calibrate": calibrate,
-             "speeds": speeds, "validate": validate,
+             "speeds": speeds, "validate": validate, "analyze": analyze,
              "extract": extract,
              "viewer": viewer, "serve": serve, "pages": pages, "test": test, "all": all_steps}
     ap.add_argument("step", choices=list(steps))
@@ -335,6 +355,9 @@ def main() -> None:
     ap.add_argument("--cfg", default="configs/T8_D1.json", help="camera config (detect/tune/track)")
     ap.add_argument("--only", default="", help="viewer step: rebuild only these clip ids")
     ap.add_argument("--force", action="store_true", help="redo detection even if the output exists")
+    ap.add_argument("--video", default=None, help="analyze step: the uploaded video")
+    ap.add_argument("--name", default=None, help="analyze step: a short name shown in the app")
+    ap.add_argument("--publish", action="store_true", help="analyze step: add a good result to docs/ (the site)")
     a = ap.parse_args()
     steps[a.step](a)
 

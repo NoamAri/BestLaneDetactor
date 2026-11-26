@@ -244,6 +244,8 @@ kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--li
   border: 1px solid var(--warn-line); font-size: 13px; }
 .warn code { font-family: var(--font-mono); }
 footer a { color: inherit; }
+.addclip { font-size: 13px; color: var(--accent); border: 1px dashed var(--accent); border-radius: var(--r); padding: 5px 10px; text-decoration: none; }
+.addclip:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
 @media (max-width: 640px) { .readout { margin-left: 0; } }
 .swipe-hint { display: none; font-size: 11.5px; color: var(--muted); margin: 6px 2px 0; }
 /* Phones: no keyboard hints, swipeable video, tables scroll inside their panel */
@@ -496,7 +498,8 @@ footer a { color: inherit; }
       try { const r = await fetch("clips.json"); if (r.ok) clips = await r.json(); } catch (_) { /* single clip */ }
       S.clips = clips && clips.length ? clips : null;
       if (S.clips) buildClipBar();
-      await loadClip(S.clips ? S.clips[0].id : null);
+      const wantClip = new URLSearchParams(location.hash.slice(1)).get("clip");
+      await loadClip(S.clips ? (S.clips.some((c) => c.id === wantClip) ? wantClip : S.clips[0].id) : null);
     } catch (e) {
       loadFailed(e);
     }
@@ -519,6 +522,11 @@ footer a { color: inherit; }
       b.onclick = () => loadClip(c.id).catch(loadFailed);
       bar.appendChild(b);
     }
+    const add = document.createElement("a");                // upload a video for analysis (a GitHub issue form)
+    add.className = "addclip"; add.target = "_blank"; add.rel = "noopener";
+    add.href = "https://github.com/NoamAri/BestLaneDetactor/issues/new?template=analyze.yml";
+    add.textContent = "+ Analyse your video";
+    bar.appendChild(add); bar.hidden = false;
   }
 
   // Switch to another video: its own meta, trackers and tags, from its folder.

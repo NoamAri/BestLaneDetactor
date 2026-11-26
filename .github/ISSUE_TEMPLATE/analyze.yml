@@ -1,0 +1,39 @@
+name: Analyse a traffic video
+description: Upload a 31–59 s video of a road and get the speed of every lane and which lane is fastest.
+title: "Analyse: "
+labels: ["analyze"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **What makes a good video** (anything else gets a short "not a good video" reply and is not analysed):
+        - **longer than 30 s and shorter than 60 s**, at most **10 MB** (record at 720p, or use your phone's "reduce size" option when sharing)
+        - the camera is **fixed**: phone leaning on something, a tripod, or a hovering drone. No panning or zooming, one continuous shot
+        - a multi-lane road seen from above or at an angle along it, in daylight, with traffic (at least about 8 vehicles in view)
+
+        The result appears in the app in about 10–15 minutes, and this issue gets a reply with the answer and a link.
+        **This repository is public: the video preview and the results will be public.**
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: A short name for the road or place (shown in the app).
+      placeholder: "Ayalon North, from the bridge"
+    validations:
+      required: true
+  - type: textarea
+    id: video
+    attributes:
+      label: Video
+      description: Drag the video file here (or tap "Attach files"). Wait until the link appears before submitting.
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: Before you submit
+      options:
+        - label: The camera was fixed while recording (no panning or zooming).
+          required: true
+        - label: I understand that the video preview and the results will be public.
+          required: true

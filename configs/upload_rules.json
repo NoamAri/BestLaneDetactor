@@ -1,0 +1,57 @@
+{
+  "_about": [
+    "Rules for videos uploaded for analysis (notes/upload_plan.md section 2). Written before any upload was processed.",
+    "A video is analysed only if it passes stage A (the file) and stage B (camera and picture); it is published only if it also passes stage C (the result)."
+  ],
+
+  "file": {
+    "max_mb": 10.0,
+    "min_duration_s": 30.0,
+    "max_duration_s": 60.0,
+    "min_width_px": 960,
+    "min_fps": 4.0,
+    "extensions": ["mp4", "mov", "m4v", "webm"]
+  },
+
+  "normalise": {
+    "fps": 10,
+    "max_width_px": 1920,
+    "_note": "Every upload is converted to 10 frames per second and at most 1920 px wide before analysis: enough for speeds, about 3x faster on GitHub's CPU."
+  },
+
+  "picture": {
+    "sample_fps": 1.0,
+    "min_bg_inliers": 150,
+    "max_camera_shift_frac": 0.05,
+    "cut_mean_abs_diff": 30.0,
+    "_cut_note": "Steady test clips stay at or below 10, a real cut measured 55; set before any user upload.",
+    "min_brightness": 40.0,
+    "max_brightness": 220.0,
+    "min_sharpness": 12.0,
+    "detect_samples": 10,
+    "min_vehicles_per_frame": 8,
+    "min_vehicle_length_px": 20.0
+  },
+
+  "result": {
+    "min_tracks": 30,
+    "min_median_track_s": 2.0,
+    "min_lanes_one_direction": 2,
+    "min_boxes_in_lanes": 0.85,
+    "min_stretch_m": 40.0,
+    "min_ranked_lanes_with_evidence": 2,
+    "max_lane_kmh": 200.0
+  },
+
+  "site": {
+    "keep_newest": 12
+  },
+
+  "analysis": {
+    "detector_imgsz": 1920,
+    "tracker_variant": "r2_bt_conf015_buf4s",
+    "tracker_note": "ByteTrack, low-confidence floor 0.15, 4 s memory: chosen on the 4 fps phone clip (notes/tracking.md section 7); its memory is in seconds, so it carries over to 10 fps.",
+    "lane_width_m": 3.6,
+    "car_length_m": 4.5
+  }
+}

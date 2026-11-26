@@ -30,6 +30,24 @@ python run.py serve      # opens http://localhost:8000
 On Linux/macOS the same steps exist as `make` targets (`make detect tune track viewer serve`,
 variables `START`, `DUR`, `CLIP_SS`).
 
+## Analyse your own video
+
+Tap **"+ Analyse your video"** in the app (phone or desktop). It opens a GitHub form: attach a video, give it a
+name, submit. A GitHub workflow checks it, analyses it if it is good, and replies on the issue with the answer and a
+link; the clip then appears in the app's video list. Only the repository owner and collaborators can trigger it.
+
+A good video is **longer than 30 s and shorter than 60 s, at most 10 MB**, filmed with a **fixed** camera (leaning on
+something, a tripod, or a hovering drone), one continuous shot, in daylight, of a multi-lane road with traffic. Anything
+else gets a short "not a good video" reply with the reason and a tip, and is not analysed. The rules:
+`configs/upload_rules.json`; the plan: [notes/upload_plan.md](notes/upload_plan.md).
+
+On your own computer: `python run.py analyze --video clip.mp4 --name "My road" [--publish]`.
+
+**One-time setup on GitHub (owner):** GitHub starts issue workflows only from the default branch, so
+`.github/workflows/analyze.yml` and `.github/ISSUE_TEMPLATE/analyze.yml` must also be on `main`; Settings → Actions →
+General → Workflow permissions: *Read and write*. The workflow commits results to the branch GitHub Pages serves
+(`SITE_BRANCH` in the workflow).
+
 ## Add another video
 
 The viewer offers every clip listed in `configs/viewer.json` (a Video selector appears with two or more).
