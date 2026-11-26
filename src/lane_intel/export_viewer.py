@@ -182,12 +182,25 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
         "lanes": _to_video(lane_polygons(geo, lanes), stab, f0, f1) if lanes else [],
         "lane_speed": lane_speed,
     }
-    (out / "meta.json").write_text(json.dumps(meta))
+    (out / "meta.json").write_text(json.dumps(_json_clean(meta), allow_nan=False))
 
     if write_page and VIEWER_SRC.exists():
         (out / "index.html").write_text(wrap_page(VIEWER_SRC.read_text()))
     print(f"viewer bundle -> {out}  ({len(variants)} variant(s), video {vw}x{vh})")
     return meta
+
+
+def _json_clean(o):
+    """NaN / inf -> None, numpy scalars -> Python: browsers reject NaN in JSON."""
+    if isinstance(o, dict):
+        return {k: _json_clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_json_clean(v) for v in o]
+    if isinstance(o, np.generic):
+        o = o.item()
+    if isinstance(o, float) and not np.isfinite(o):
+        return None
+    return o
 
 
 def add_road_speed(tracks: list[dict], ref: pd.DataFrame, rf) -> None:

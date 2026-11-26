@@ -69,9 +69,10 @@
 .vd-d { font-size: 12px; color: var(--muted); margin-top: 4px; }
 .vd-none .vd-lane { font-size: 15px; font-weight: 500; color: var(--muted); white-space: normal; }
 .vd-rank { display: grid; gap: 4px; }
-.vd-row { display: grid; grid-template-columns: 64px 1fr 62px; gap: 8px; align-items: center; font-size: 12.5px; }
+.vd-row { display: grid; grid-template-columns: 96px 1fr 62px; gap: 8px; align-items: center; font-size: 12.5px; }
 .vd-row .bar { height: 8px; border-radius: 0 4px 4px 0; background: var(--s1); }
 .vd-row.aux .bar { background: transparent; border: 1.5px dashed var(--muted); height: 8px; }
+.vd-row.low .bar { opacity: .35; }
 .vd-row .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
 .vd-row .nm small { color: var(--muted); }
 .vd-foot { margin-top: 8px; font-size: 11.5px; color: var(--muted); }
@@ -366,7 +367,7 @@ footer a { color: inherit; }
     <p class="note" id="lsNote">Space-mean speed per lane: total distance driven in the lane ÷ total time spent in it, over
       one stretch of road shared by all lanes of a direction (Edie's definitions; a vehicle split into two IDs or changing
       lanes counts exactly once). Bars: speed with its 95% interval (bootstrap over whole vehicles). A lane is announced
-      fastest or slowest only if it leads in ≥ 90% of resamples by ≥ 10%. Graph: rolling 60 s windows; the vertical line is
+      fastest or slowest only if it leads in ≥ 90% of resamples by ≥ 10%. Graph: rolling 25 s windows; the vertical line is
       the video's current time.</p>
   </section>
   <div class="ls-tip" id="lsTip" hidden></div>
@@ -969,7 +970,13 @@ footer a { color: inherit; }
         const label = t === "fastest" ? "Fastest lane" : "Slowest lane";
         if (!l) {
           const c = L.lanes.find((x) => x.lane === a[`${t}_candidate`]);
-          const why = c && a[`${t}_ratio`] ? ` Lane ${c.number} ${t === "fastest" ? "leads" : "trails"} by ${Math.round((t === "fastest" ? a[`${t}_ratio`] - 1 : 1 - 1 / a[`${t}_ratio`]) * 100)}%, under the 10% needed.` : "";
+          let why = "";
+          if (c && a[`${t}_ratio`]) {
+            const r = a[`${t}_ratio`], pct = Math.round((t === "fastest" ? r - 1 : 1 - 1 / r) * 100);
+            const lead = `Lane ${c.number} ${t === "fastest" ? "leads" : "trails"} by ${pct}%`;
+            why = r < 1.10 ? `${lead}, under the 10% needed.`
+              : `${lead}, but that is not certain yet (${Math.round(a[`${t}_p`] * 100)}% of resamples; 90% needed).`;
+          }
           return `<div class="vd-stat vd-none"><div class="vd-k">${label}</div><div class="vd-lane">No clear ${t === "fastest" ? "fastest" : "slowest"} lane</div><div class="vd-d">${why}</div></div>`;
         }
         const r = a[`${t}_ratio`], other = L.lanes.find((x) => x.lane === a[`${t}_other`]);
@@ -979,8 +986,8 @@ footer a { color: inherit; }
           <div class="vd-v">${l.v_kmh.toFixed(1)}<small>km/h</small></div>
           <div class="vd-d">${pct}% ${t === "fastest" ? "faster" : "slower"} than lane ${other ? other.number : "?"} · ${Math.round(a[`${t}_p`] * 100)}% sure${a[`${t}_calibration_sensitive`] ? " · sensitive to calibration" : ""}</div></div>`;
       };
-      const rows = ranked.map((l) => `<div class="vd-row${l.auxiliary ? " aux" : ""}">
-          <div class="nm">Lane ${l.number}${l.auxiliary ? " <small>ramp</small>" : a.fastest === l.lane ? " ▲" : a.slowest === l.lane ? " ▼" : ""}</div>
+      const rows = ranked.map((l) => `<div class="vd-row${l.auxiliary ? " aux" : ""}${l.evidence_ok ? "" : " low"}">
+          <div class="nm">Lane ${l.number}${l.auxiliary ? " <small>ramp</small>" : !l.evidence_ok ? " <small>few cars</small>" : a.fastest === l.lane ? " ▲" : a.slowest === l.lane ? " ▼" : ""}</div>
           <div><div class="bar" style="width:${(100 * l.v_kmh / vmax).toFixed(1)}%"></div></div>
           <div class="num">${l.v_kmh.toFixed(1)}</div></div>`).join("");
       return `<div class="vd-card">
@@ -1035,7 +1042,7 @@ footer a { color: inherit; }
         <div class="ls-ann">${pill("fastest", "▲")}${pill("slowest", "▼")}</div>
         <div class="ls-rows">${rows}</div>
         ${tl && tl.t0.length > 1 ? `<svg class="ls-tl" data-dir="${d}" role="img" aria-label="Lane speeds in rolling ${tl.window_s} s windows"></svg>${legend}`
-          : `<p class="note">One ${tl ? tl.window_s : 60} s window fits in this video, so there is no timeline.</p>`}</div>`;
+          : `<p class="note">One ${tl ? tl.window_s : 25} s window fits in this video, so there is no timeline.</p>`}</div>`;
     }).join("");
     for (const row of $("lsDirs").querySelectorAll(".ls-row")) {
       const l = L.lanes.find((x) => x.lane === row.dataset.lane);

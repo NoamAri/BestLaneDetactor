@@ -105,7 +105,7 @@ def compare(ours: dict, ref: dict, gap: float) -> dict:
                     r, rg = g.v_kmh[x] / g.v_kmh[y], g.v_kmh_gt[x] / g.v_kmh_gt[y]
                     rat.append({"window": win, "direction": dirn, "pair": f"{x}/{y}", "ratio": r, "ratio_gt": rg,
                                 "rel_err": r / rg - 1})
-    rat = pd.DataFrame(rat)
+    rat = pd.DataFrame(rat, columns=["window", "direction", "pair", "ratio", "ratio_gt", "rel_err"])
     # rankings and announcements
     A = ours["ann"].set_index(["window", "direction"])
     B = ref["ann"].set_index(["window", "direction"])
@@ -145,11 +145,11 @@ def compare(ours: dict, ref: dict, gap: float) -> dict:
 
 
 def subset(res: dict, keep) -> dict:
-    """The same results restricted to the windows for which keep(t0, t1) is true (plus none of "all")."""
+    """The same results restricted to the windows for which keep(window, t0, t1) is true."""
     out = dict(res)
     for k in ("lanes_tab", "ann"):
         d = res[k]
-        out[k] = d[(d.window != "all") & keep(d.t0, d.t1)]
+        out[k] = d[keep(d.window, d.t0, d.t1)]
     return out
 
 
@@ -157,6 +157,10 @@ def run(cfg_path: str | Path, interim: str | Path = "data/interim", out_root: st
         settings: str | Path = "configs/lane_speed.json", ablations: bool = True) -> dict:
     from lane_intel.calibrate import load_gt
     cfg, ls, g, geo, lanes, rf, corr = lane_speed.load_inputs(cfg_path, interim, settings)
+    split = cfg["lane_speed"].get("held_out_from_s")
+    if split is not None:     # one fixed window per part: rolling 60 s windows do not fit inside 120-180 s exactly
+        ls = {**ls, "extra_windows": [("development", float(g.t.min()), float(split)),
+                                      ("held_out", float(split), float(g.t.max()))]}
     ours = lane_speed.compute(cfg, ls, g, geo, lanes, rf, corr)
     t0, t1 = cfg["clip_offset_s"] + ours["t_span"][0] - 1, cfg["clip_offset_s"] + ours["t_span"][1] + 1
     gt = load_gt(cfg["calibration"]["gt_csv"], t0, t1)
@@ -170,10 +174,12 @@ def run(cfg_path: str | Path, interim: str | Path = "data/interim", out_root: st
     split = cfg["lane_speed"].get("held_out_from_s")
     if split is not None:
         res["held_out_from_s"] = split
-        res["development_windows"] = compare(subset(ours, lambda a, b: b <= split + 1e-6),
-                                             subset(ref, lambda a, b: b <= split + 1e-6), gap)
-        res["held_out_windows"] = compare(subset(ours, lambda a, b: a >= split - 1e-6),
-                                          subset(ref, lambda a, b: a >= split - 1e-6), gap)
+        roll_dev = lambda w, a, b: w.str.startswith("w") & (b <= split + 1e-6)          # noqa: E731
+        res["development_windows"] = compare(subset(ours, roll_dev), subset(ref, roll_dev), gap)
+        dev = lambda w, a, b: w == "development"                                       # noqa: E731
+        held = lambda w, a, b: w == "held_out"                                         # noqa: E731
+        res["development_span"] = compare(subset(ours, dev), subset(ref, dev), gap)
+        res["held_out_span"] = compare(subset(ours, held), subset(ref, held), gap)
     if ablations:
         variants = {
             "no occlusion filter": {**ls, "occlusion_height_frac": 0.0},
@@ -205,7 +211,7 @@ def main() -> None:
     r = run(a.cfg, a.interim, ablations=not a.no_ablation)
     m = r["main"]
     print(json.dumps({k: m[k] for k in ("speed", "ratios", "ranking", "announcement_precision")}, indent=1))
-    for part in ("development_windows", "held_out_windows"):
+    for part in ("development_windows", "development_span", "held_out_span"):
         if part in r:
             x = r[part]
             print(f"{part}: {x['speed']['lane_windows']} lane-windows, median rel err {x['speed']['median_rel_err']:.2%}, "

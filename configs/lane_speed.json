@@ -4,7 +4,8 @@
     "Fixed and committed before any lane speed was computed. Changing them later is a documented amendment."
   ],
 
-  "window_s": 60.0,
+  "window_s": 25.0,
+  "window_note": "Set to 25 s by the project owner (was 60 s) so a 30 s clip gives rolling results. Validation numbers in notes/lane_speed.md section 4 were measured with 60 s windows.",
   "step_s": 5.0,
 
   "evidence": {
@@ -19,7 +20,7 @@
     "bootstrap": 2000,
     "seed": 0,
     "keep_gap": 0.05,
-    "takeover_s": 60.0,
+    "takeover_s": 25.0,
     "free_flow_frac": 0.85
   },
 

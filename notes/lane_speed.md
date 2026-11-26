@@ -153,6 +153,56 @@ lane appeared at the edge; ground truth counts it in lane 7) so lanes are compar
 Both amendments were decided on 0-120 s only. **Windows 120-180 s were not looked at** and are the
 held-out confirmation (section 4).
 
+## 4. MiTra 0-180 s: final measurement and held-out confirmation
+
+Six 30 s windows, 1949 tracks, stabilised, one calibration and one set of lanes for the whole span
+(9 lanes: 5 left, incl. an edge lane with 4 vehicles = low evidence; 4 right, incl. the ramp R4).
+Stretches: right 135 m, left 50 m (the far left lanes are poorly covered outside it). 83 lane changes.
+
+| | Rolling 60 s windows, development (0-120 s) | Fixed window 0-120 s | **Held out 120-180 s** |
+|---|---|---|---|
+| Median relative speed error | 2.6% (0.59 km/h) | 4.4% | **4.2%** |
+| Bias | -2.1% | -1.4% | **-1.0%** |
+| Lane-ratio error | 4.4% | 5.0% | 6.2% |
+| Rule agrees with GT (fastest / slowest) | 96% / 85% | 100% / 100% | **100% / 100%** |
+| Announcement precision (fastest / slowest) | 0.909 / 1.0 | - / 1.0 | nothing announced (GT: nothing either) |
+
+All rolling windows: median relative error 2.6% (0.43 km/h), bias -1.5%;
+precision fastest 0.947, slowest 1.0 (targets: 10%, 0.90). **Targets met; the held-out
+part confirms amendments A5-A6** (error and bias no worse than in development, the rule agrees with ground truth).
+
+Whole span per lane (ours vs ground truth; distance share ours / GT):
+
+| Lane | Ours (km/h) | GT (km/h) | Error | Distance share |
+|---|---|---|---|---|
+| L1 | 3.4 | 3.4 | -0.8% | 0.39 / 0.30 |
+| L2 | 1.5 | 1.3 | +13.5% | 0.15 / 0.10 |
+| L3 | 3.0 | 3.1 | -2.0% | 0.15 / 0.25 |
+| L4 | 4.1 | 3.8 | +7.9% | 0.31 / 0.36 |
+| R1 | 41.6 | 42.6 | -2.3% | 0.35 / 0.30 |
+| R2 | 38.4 | 38.9 | -1.4% | 0.35 / 0.31 |
+| R3 | 36.1 | 36.7 | -1.6% | 0.26 / 0.23 |
+| R4 (ramp) | 44.4 | 50.6 | -12.2% | 0.04 / 0.16 |
+
+Announcement over 0-180 s: right-moving traffic **no meaningful difference** (lane 1 leads lane 2 by 8%, P = 1.00, below the
+10% gap); left-moving **slowest: lane 2** (1.5 km/h, P = 0.99). Ground truth gives the same announcement. The ramp lane
+reads 12% low (vehicles merge across it, few observations); it is measured but never ranked. The jammed lanes have large
+*relative* errors on tiny speeds (L2: 1.5 vs 1.3 km/h) but are ranked correctly.
+
+Ablation (all rolling windows; each row switches one step):
+
+| Variant | Median rel. error | Within 10% | Fastest precision |
+|---|---|---|---|
+| final (A2-A6) | 2.6% | 65% | 0.947 |
+| no occlusion filter | 2.5% | 65% | 0.947 |
+| no lane hysteresis | 2.7% | 64% | 0.95 |
+| with plausibility cuts (pre-registered) | 3.3% | 65% | 0.9 |
+| with plausibility cuts, step + lateral only | 3.0% | 69% | 0.905 |
+
+Known limits: the left stretch is short (50 m) because the far lanes are hidden by the trees elsewhere; the absolute speed
+reads ~1-2% low (calibration); a 60 s window cannot separate lanes in a jam with few moving cars (L4 leads by 32% but
+P = 0.81, so nothing is announced, correctly).
+
 ## 5. Uploaded clip (no ground truth)
 
 0-64 s, one 60 s window, 147 tracks, common stretch 79 m (6 lanes, all moving left):

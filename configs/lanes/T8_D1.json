@@ -1,8 +1,10 @@
 {
  "about": "Lanes estimated from vehicle paths (lane_intel.lanes). Each lane is the line through the geometry family (see geometry) whose height at x_ref is c, full-frame pixels. Lane 1 = leftmost in the direction of travel. Editable by hand.",
- "created_utc": "2026-11-26T11:58:23+00:00",
+ "created_utc": "2026-11-26T13:18:06+00:00",
  "camera": "T8_D1",
- "source_points": "/home/user/BestLaneDetactor/data/interim/T8_D1_0-30s_points.parquet",
+ "source_points": [
+  "/home/user/BestLaneDetactor/data/interim/T8_D1_ground.parquet"
+ ],
  "params": {
   "min_obs": 6,
   "min_dx_boxes": 3.0,
@@ -16,112 +18,125 @@
   "kind": "shape",
   "x_ref": 1920.0,
   "coef": [
-   0.0418426322300629
+   0.03603365685796004,
+   -1.3011907774797809e-06
   ],
   "vp": null
  },
  "geometry_cv_residual_px": {
-  "straight": 3.572,
-  "curve2": 3.634,
-  "curve3": 3.556
+  "straight": 1.747,
+  "curve2": 1.734,
+  "curve3": 1.701
  },
- "boxes_in_a_lane": 0.988,
+ "boxes_in_a_lane": 1.0,
  "lanes": [
   {
    "id": "L1",
    "number": 1,
    "direction": "left",
-   "c": 1347.71,
+   "c": 1353.34,
    "x_range": [
-    2.6,
-    3406.5
+    -43.7,
+    3839.2
    ],
-   "tracks": 25,
-   "vehicles": 32
+   "tracks": 197,
+   "vehicles": 199
   },
   {
    "id": "L2",
    "number": 2,
    "direction": "left",
-   "c": 1318.71,
+   "c": 1323.34,
    "x_range": [
-    24.9,
-    3566.5
+    -40.4,
+    3826.9
    ],
-   "tracks": 24,
-   "vehicles": 36
+   "tracks": 171,
+   "vehicles": 171
   },
   {
    "id": "L3",
    "number": 3,
    "direction": "left",
-   "c": 1273.71,
+   "c": 1289.34,
    "x_range": [
-    783.5,
-    3811.6
+    -44.8,
+    3822.7
    ],
-   "tracks": 18,
-   "vehicles": 31
+   "tracks": 151,
+   "vehicles": 156
   },
   {
    "id": "L4",
    "number": 4,
    "direction": "left",
-   "c": 1246.71,
+   "c": 1255.34,
    "x_range": [
-    3.7,
-    3787.9
+    -4.6,
+    3821.4
    ],
-   "tracks": 32,
-   "vehicles": 38
+   "tracks": 113,
+   "vehicles": 114
+  },
+  {
+   "id": "L5",
+   "number": 5,
+   "direction": "left",
+   "c": 1234.34,
+   "x_range": [
+    -2.9,
+    3789.4
+   ],
+   "tracks": 20,
+   "vehicles": 20
   },
   {
    "id": "R1",
    "number": 1,
    "direction": "right",
-   "c": 1409.61,
+   "c": 1419.17,
    "x_range": [
-    7.6,
-    3836.6
+    -34.5,
+    3844.0
    ],
-   "tracks": 45,
-   "vehicles": 47
+   "tracks": 280,
+   "vehicles": 288
   },
   {
    "id": "R2",
    "number": 2,
    "direction": "right",
-   "c": 1451.61,
+   "c": 1459.17,
    "x_range": [
-    6.2,
-    3836.8
+    -39.4,
+    3839.0
    ],
-   "tracks": 52,
-   "vehicles": 55
+   "tracks": 343,
+   "vehicles": 370
   },
   {
    "id": "R3",
    "number": 3,
    "direction": "right",
-   "c": 1493.61,
+   "c": 1500.17,
    "x_range": [
-    5.7,
-    3836.2
+    -43.3,
+    3840.0
    ],
-   "tracks": 53,
-   "vehicles": 65
+   "tracks": 339,
+   "vehicles": 411
   },
   {
    "id": "R4",
    "number": 4,
    "direction": "right",
-   "c": 1524.61,
+   "c": 1534.17,
    "x_range": [
-    551.7,
-    2743.4
+    -34.7,
+    2739.4
    ],
-   "tracks": 18,
-   "vehicles": 27
+   "tracks": 158,
+   "vehicles": 217
   }
  ]
 }

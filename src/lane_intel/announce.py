@@ -105,7 +105,8 @@ def announce_all(lanes_tab: pd.DataFrame, veh: pd.DataFrame, cfg: dict, speed_li
     rows = []
     for direction in sorted(lanes_tab.direction.unique()):
         wins = lanes_tab[lanes_tab.direction == direction][["window", "t0", "t1"]].drop_duplicates()
-        wins = pd.concat([wins[wins.window == "all"], wins[wins.window != "all"].sort_values("t0")])
+        rolling = wins.window.str.startswith("w")                   # fixed windows ("all", ...) get no hysteresis
+        wins = pd.concat([wins[~rolling], wins[rolling].sort_values("t0")])
         state = {t: {"holder": None, "last": None, "streak": None} for t in ("fastest", "slowest")}
         for w in wins.itertuples():
             tab = lanes_tab[(lanes_tab.window == w.window) & (lanes_tab.direction == direction)]
@@ -127,7 +128,7 @@ def announce_all(lanes_tab: pd.DataFrame, veh: pd.DataFrame, cfg: dict, speed_li
                 row[f"{title}_ratio_ci_lo"] = r["ratio_ci"][0] if r else np.nan
                 row[f"{title}_ratio_ci_hi"] = r["ratio_ci"][1] if r else np.nan
                 row[f"{title}_calibration_sensitive"] = bool(r.get("calibration_sensitive", False)) if r else False
-                if w.window == "all":
+                if not w.window.startswith("w"):
                     held[title] = row[f"{title}_rule"]
                     continue
                 s = state[title]

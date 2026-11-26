@@ -129,7 +129,8 @@ def windows_of(t_min: float, t_max: float, window_s: float, step_s: float) -> li
 def measure(segs: pd.DataFrame, changes: pd.DataFrame, lanes: list[dict], stretches: dict[str, dict],
             t_span: tuple[float, float], cfg: dict) -> tuple[pd.DataFrame, pd.DataFrame]:
     """All rolling windows plus the whole span ("all"). Returns (lane rows, vehicle rows)."""
-    wins = [("all", *t_span)] + [(f"w{a:07.2f}", a, b) for a, b in windows_of(*t_span, cfg["window_s"], cfg["step_s"])]
+    wins = ([("all", *t_span)] + [tuple(w) for w in cfg.get("extra_windows", [])]
+            + [(f"w{a:07.2f}", a, b) for a, b in windows_of(*t_span, cfg["window_s"], cfg["step_s"])])
     out_l, out_v = [], []
     for direction in sorted(stretches):
         st = stretches[direction]
