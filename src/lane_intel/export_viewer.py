@@ -109,7 +109,7 @@ def wrap_page(fragment: str) -> str:
 def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, start: float,
                  duration: float, crop_y: tuple[int, int] | None = None, width: int | None = None,
                  crf: int = 32, write_page: bool = True, lanes_file: str | Path | None = None,
-                 stab: pd.DataFrame | None = None, lane_speed: dict | None = None) -> dict:
+                 stab: pd.DataFrame | None = None, lane_speed: dict | None = None, road_frame=None) -> dict:
     """Write video.mp4, tags_<variant>.json, meta.json (and index.html); return meta.
 
     The first variant is the one the viewer opens with. crop_y / width default to the camera
@@ -148,12 +148,14 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
         fname = f"tags_{v.name}.json"
         write_tags(df, out / fname, cidx)
         tracks = track_summary(df, fps, (f0, f1 - 1), W)
+        ref = df
+        if stab is not None:
+            from lane_intel.stabilize import apply
+            ref = df.copy()
+            ref["x_px"], ref["y_px"] = apply(stab, df.frame_idx.to_numpy(), df.x_px, df.y_px)
+        if road_frame is not None and len(ref):
+            add_road_speed(tracks, ref, road_frame)
         if lanes:
-            ref = df
-            if stab is not None:
-                from lane_intel.stabilize import apply
-                ref = df.copy()
-                ref["x_px"], ref["y_px"] = apply(stab, df.frame_idx.to_numpy(), df.x_px, df.y_px)
             lane_of = assign_lanes(ref, geo, lanes, W).groupby("track_id").lane_track.first()
             for t in tracks:
                 t["lane"] = int(lane_of.get(t["track_id"], -1))
@@ -186,6 +188,21 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
         (out / "index.html").write_text(wrap_page(VIEWER_SRC.read_text()))
     print(f"viewer bundle -> {out}  ({len(variants)} variant(s), video {vw}x{vh})")
     return meta
+
+
+def add_road_speed(tracks: list[dict], ref: pd.DataFrame, rf) -> None:
+    """kmh (distance along the road over the track's span) and m_per_px (for the distance graph)."""
+    s_, _ = rf.sd(ref.x_px.to_numpy(), ref.y_px.to_numpy())
+    g = ref.assign(s=s_).sort_values("t").groupby("track_id")
+    first, last = g.first(), g.last()
+    span = (last.t - first.t)
+    ds = (last.s - first.s).abs()
+    dx = (last.x_px - first.x_px).abs()
+    for t in tracks:
+        k = t["track_id"]
+        if k in span.index and span[k] > 0:
+            t["kmh"] = round(float(ds[k] / span[k] * 3.6), 1)
+            t["m_per_px"] = round(float(ds[k] / dx[k]), 5) if dx[k] > 1 else None
 
 
 def _to_video(polys: list[dict], stab: pd.DataFrame | None, f0: int, f1: int) -> list[dict]:

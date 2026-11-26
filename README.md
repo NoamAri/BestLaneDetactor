@@ -1,6 +1,7 @@
 # BestLaneDetactor (Lane Intelligence)
 
-Per-lane traffic measurements from fixed aerial video of a congested motorway.
+Per-lane traffic measurements from fixed aerial video of a congested motorway: the speed of every
+lane in km/h, and which lane is fastest or slowest (only when the difference is real).
 Data: [MiTra](https://opara.zih.tu-dresden.de/items/68482417-ddc5-40ac-885a-83124bd459e8), A50 Milan, CC BY 4.0.
 
 ## Quick start (Windows, macOS, Linux)
@@ -15,7 +16,12 @@ python run.py clip       # 3-min 4K clip of drone D1, read straight out of the r
 python run.py detect     # YOLO once on the first 30 s (minutes on a GPU, ~12 min on CPU)
 python run.py tune       # every tracker variant on the saved detections + comparison report (seconds)
 python run.py track      # final tracks with the configured tracker
+python run.py stabilize  # remove the drone's own motion (per window)
+python run.py ground     # all analysis windows of the camera in one stabilised table
 python run.py lanes      # find the lanes from the tracks; lane per vehicle
+python run.py calibrate  # pixels -> metres along / across the road
+python run.py speeds     # km/h per lane + fastest / slowest lane announcement
+python run.py validate   # MiTra only: lane speeds against the ground truth
 python run.py viewer     # build the viewer for every clip in configs/viewer.json
 python run.py serve      # opens http://localhost:8000
 ```
@@ -32,7 +38,9 @@ The viewer offers every clip listed in `configs/viewer.json` (a Video selector a
    (example: `configs/slowest_car_1943pm.json`): `video`, `native_fps`, `frame_size`, `band_y`
    (rows with road), `detector.imgsz` (larger than the width for small vehicles), `label`, `viewer.crop_y`/`width`.
 2. `python run.py detect --cfg configs/<camera>.json --start 0 --dur <seconds>`
-3. `python run.py tune --cfg configs/<camera>.json --start 0 --dur <seconds>`, then `track` and `lanes` with the same options
+3. `python run.py tune --cfg configs/<camera>.json --start 0 --dur <seconds>`, then `track` and `stabilize` with the same options
+   (list the windows under `lane_speed.windows` in the camera config), then `ground`, `lanes`, `calibrate`, `speeds`
+   with `--cfg` only. Without ground truth, calibration uses `calibration.method = "vehicle_size"` (lane width, car length).
 4. Add the clip to `configs/viewer.json`, then `python run.py viewer` (or `--only <id>`) and `python run.py pages`.
 
 ## Pipeline
@@ -43,15 +51,22 @@ The viewer offers every clip listed in `configs/viewer.json` (a Video selector a
 | 1 · Detection | `lane_intel.detect` | `<tag>_detections.parquet`: every box with conf ≥ 0.05 + provenance `.meta.json` |
 | 2 · Tracking | `lane_intel.tracking` | `<tag>_points.parquet`: `t, frame_idx, track_id, cls, conf, x1..y2, x_px, y_px` |
 | Tracker experiment | `lane_intel.tracking.experiment` | `data/out/tracking/<tag>/report.md`, per-variant points and diagnostics |
-| Lanes | `lane_intel.lanes` | `configs/lanes/<camera>.json` (lane lines, lane 1 = leftmost in travel direction); `lane_frame`, `lane_track` in the points file |
+| Stabilisation | `lane_intel.stabilize` | `<tag>_stab.parquet`: homography of every frame onto the first frame |
+| Ground table | `lane_intel.world` | `<camera>_ground.parquet`: all windows, stabilised box centres, unique track ids |
+| Lanes | `lane_intel.lanes` | `configs/lanes/<camera>.json` (lane lines, lane 1 = leftmost in travel direction); lane per box |
+| Calibration | `lane_intel.calibrate` | `configs/calib/<camera>.json`: pixels -> s (m along the road), d (m across) |
+| Lane speeds | `lane_intel.lane_speed`, `lane_pieces`, `announce` | `data/out/lane_speed/<camera>/`: space-mean km/h per lane and window, intervals, fastest / slowest |
+| Validation | `lane_intel.validate` | `validation.json`: errors against MiTra ground truth, development vs held-out windows |
 | Viewer bundle (one clip) | `lane_intel.export_viewer` | `video.mp4`, `tags_<variant>.json`, `meta.json` |
 | Viewer site (all clips) | `lane_intel.viewer_site` | `index.html`, `clips.json`, `clips/<id>/…` from `configs/viewer.json` |
-| Viewer | `app/viewer/index.html` | video selector, frame stepping, tracks with speed and direction, quality panel, register |
+| Viewer | `app/viewer/index.html` | best-lane verdict, lane speeds on the video, frame stepping, vehicles in km/h, lane speed panel, register |
 | Local server | `lane_intel.serve` | static files with HTTP Range (needed for video seeking) |
 
 Detection runs once; tracking reads the saved detections, so tracker settings are compared on
 identical input in seconds. Method, metrics, selection rule and results:
-[notes/tracking.md](notes/tracking.md). File-by-file explanation: `app/architecture/index.html`
+[notes/tracking.md](notes/tracking.md); lanes: [notes/lanes.md](notes/lanes.md); lane speeds:
+[notes/lane_speed_plan.md](notes/lane_speed_plan.md) (plan, pre-registration, amendments) and
+[notes/lane_speed.md](notes/lane_speed.md) (results). File-by-file explanation: `app/architecture/index.html`
 (also `docs/architecture.html`).
 
 ## Data notes

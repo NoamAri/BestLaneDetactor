@@ -52,6 +52,31 @@
 
   color-scheme: dark;
 }
+/* Best-lane verdict */
+.verdict { display: grid; grid-template-columns: repeat(auto-fit, minmax(330px, 1fr)); gap: 14px; }
+.vd-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px 12px; min-width: 0; }
+.vd-head { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.vd-head h2 { margin: 0; }
+.vd-head .sub { font-size: 12px; }
+.vd-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0 12px; }
+.vd-stat { border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; min-width: 0; }
+.vd-stat.best { border-color: color-mix(in srgb, var(--accent) 55%, var(--line)); background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.vd-k { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); }
+.vd-lane { font-size: 22px; font-weight: 600; line-height: 1.25; margin-top: 2px; white-space: nowrap; }
+.vd-lane .ic { font-size: 15px; margin-right: 6px; }
+.vd-v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 15px; }
+.vd-v small { color: var(--muted); font-family: var(--font-sans); font-size: 11.5px; margin-left: 2px; }
+.vd-d { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.vd-none .vd-lane { font-size: 15px; font-weight: 500; color: var(--muted); white-space: normal; }
+.vd-rank { display: grid; gap: 4px; }
+.vd-row { display: grid; grid-template-columns: 64px 1fr 62px; gap: 8px; align-items: center; font-size: 12.5px; }
+.vd-row .bar { height: 8px; border-radius: 0 4px 4px 0; background: var(--s1); }
+.vd-row.aux .bar { background: transparent; border: 1.5px dashed var(--muted); height: 8px; }
+.vd-row .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; }
+.vd-row .nm small { color: var(--muted); }
+.vd-foot { margin-top: 8px; font-size: 11.5px; color: var(--muted); }
+.vd-foot a { color: inherit; }
+
 /* Lane speeds */
 .ls-dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
 .ls-dir h3 { font-size: 14px; font-weight: 600; margin: 0 0 6px; }
@@ -214,6 +239,7 @@ footer a { color: inherit; }
   <div class="vbar" id="cbar" role="group" aria-label="Video" hidden><span>Video</span></div>
   <div class="vbar" id="vbar" role="group" aria-label="Tracker variant"><span>Tracker</span></div>
   <p class="vnote" id="vnote"></p>
+  <section class="verdict" id="verdict" aria-label="Best lane" hidden></section>
 
   <section class="stage-wrap" id="stageWrap" aria-label="Video with vehicle tags">
     <div class="stage" id="stage">
@@ -284,15 +310,15 @@ footer a { color: inherit; }
           <dt>Lane</dt><dd id="sLane">–</dd>
           <dt>Box here</dt><dd id="sBox">–</dd>
         </dl>
-        <div class="spark-label">Distance travelled since first seen</div>
+        <div class="spark-label" id="sSparkLabel">Distance travelled since first seen</div>
         <svg class="spark" id="sSpark" viewBox="0 0 300 64" preserveAspectRatio="none" aria-label="Distance travelled since first seen, over time"></svg>
         <div class="row-btns">
           <button id="sFirst">First frame</button>
           <button id="sLast">Last frame</button>
           <button id="sFollow" aria-pressed="false" title="Keep the selected vehicle centred when zoomed">Follow</button>
         </div>
-        <p class="note">Speed is the vehicle's average motion along the road over its whole track, in image pixels per second
-          (km/h once the camera is calibrated to metres).</p>
+        <p class="note">Speed is the vehicle's average speed along the road over its whole track, in km/h from the camera
+          calibration (stabilised frame).</p>
       </div>
     </section>
 
@@ -300,6 +326,7 @@ footer a { color: inherit; }
       <h2 id="hLayers">Layers</h2>
       <div class="layers">
         <label><input type="checkbox" id="lLanes" checked> Lanes</label>
+        <label><input type="checkbox" id="lLaneSpeeds" checked> Lane speeds on the video</label>
         <label><input type="checkbox" id="lBoxes" checked> Boxes and anchor points</label>
         <label><input type="checkbox" id="lIds" checked> Track IDs</label>
         <label><input type="checkbox" id="lCls"> Class names</label>
@@ -350,7 +377,7 @@ footer a { color: inherit; }
       <table>
         <thead><tr>
           <th data-k="track_id">ID</th><th data-k="cls">Class</th><th data-k="first">First (s)</th>
-          <th data-k="span_s">Duration (s)</th><th data-k="n">Obs.</th><th data-k="conf">Conf.</th><th data-k="laneSort">Lane</th><th data-k="dirn">Direction</th><th data-k="speed">Speed (px/s)</th><th data-k="brk">Mid-image</th>
+          <th data-k="span_s">Duration (s)</th><th data-k="n">Obs.</th><th data-k="conf">Conf.</th><th data-k="laneSort">Lane</th><th data-k="dirn">Direction</th><th data-k="speed" id="regSpeedH">Speed (km/h)</th><th data-k="brk">Mid-image</th>
         </tr></thead>
         <tbody id="regBody"></tbody>
       </table>
@@ -371,7 +398,7 @@ footer a { color: inherit; }
   const S = {
     meta: null, byFrame: [], tracks: new Map(), info: new Map(), counts: [], frame: 0, sel: null,
     zoom: 1, follow: false, playing: false, sortK: "track_id", sortDir: 1, colors: {},
-    layers: { lanes: true, boxes: true, ids: true, cls: false, conf: false, trails: true, breaks: false },
+    layers: { lanes: true, laneSpeeds: true, boxes: true, ids: true, cls: false, conf: false, trails: true, breaks: false },
     variant: null, cache: new Map(), births: [], deaths: [], videoReady: false,
     clips: null, clipId: null, base: "", loadToken: 0, blobUrl: null,
   };
@@ -687,6 +714,7 @@ footer a { color: inherit; }
 
     if (L.lanes && S.meta.lanes) {
       const selLane = sel !== null && S.info.get(sel) ? S.info.get(sel).lane : -1;
+      const placed = [];
       S.meta.lanes.forEach((ln, i) => {
         ctx.beginPath();
         ln.upper.forEach(([x, y], j) => (j ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
@@ -699,14 +727,27 @@ footer a { color: inherit; }
         ctx.beginPath();
         ln.centre.forEach(([x, y], j) => (j ? ctx.lineTo(X(x), Y(y)) : ctx.moveTo(X(x), Y(y))));
         ctx.stroke(); ctx.setLineDash([]);
-        const [lx, ly] = ln.direction === "left" ? ln.centre[ln.centre.length - 1] : ln.centre[0];
-        const txt = `${ln.number} ${ln.direction === "left" ? "←" : "→"}`;
+        let txt = `${ln.number} ${ln.direction === "left" ? "←" : "→"}`;
+        const lsl = L.laneSpeeds && laneSpeedOf(ln.id);
+        if (lsl && lsl.v_kmh != null) {
+          const an = S.meta.lane_speed.announcement[ln.direction] || {};
+          txt += `  ${lsl.v_kmh.toFixed(0)} km/h` + (an.fastest === ln.id ? "  ▲ fastest" : an.slowest === ln.id ? "  ▼ slowest" : "");
+        }
         const fs = Math.max(10, Math.min(14, 11 * S.zoom)) * dpr;
         ctx.font = `600 ${fs}px ${getComputedStyle(document.body).getPropertyValue("--font-sans") || "sans-serif"}`;
-        const tw = ctx.measureText(txt).width, pad = 3 * dpr;
-        const tx = Math.min(Math.max(X(lx) - (ln.direction === "left" ? tw + 2 * pad : 0), 2), ov.width - tw - 2 * pad - 2);
-        ctx.fillStyle = S.colors["tag-bg"]; ctx.fillRect(tx, Y(ly) - fs / 2 - pad, tw + 2 * pad, fs + 2 * pad);
-        ctx.fillStyle = S.colors["tag-fg"]; ctx.textBaseline = "middle"; ctx.fillText(txt, tx + pad, Y(ly));
+        const tw = ctx.measureText(txt).width, pad = 3 * dpr, bh = fs + 2 * pad;
+        // start at the traffic's entry end and slide inward along the lane until the label is free
+        const cl = ln.direction === "left" ? [...ln.centre].reverse() : ln.centre;
+        let tx = 0, ty = 0;
+        for (let j = 0; j < cl.length; j++) {
+          const [cx, cy] = cl[j];
+          tx = Math.min(Math.max(X(cx) - (ln.direction === "left" ? tw + 2 * pad : 0), 2), ov.width - tw - 2 * pad - 2);
+          ty = Y(cy);
+          const r = { x: tx - 4 * dpr, y: ty - bh / 2 - 2 * dpr, w: tw + 2 * pad + 8 * dpr, h: bh + 4 * dpr };
+          if (!placed.some((q) => r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h)) { placed.push(r); break; }
+        }
+        ctx.fillStyle = S.colors["tag-bg"]; ctx.fillRect(tx, ty - fs / 2 - pad, tw + 2 * pad, bh);
+        ctx.fillStyle = S.colors["tag-fg"]; ctx.textBaseline = "middle"; ctx.fillText(txt, tx + pad, ty);
       });
     }
 
@@ -862,7 +903,7 @@ footer a { color: inherit; }
     $("sN").textContent = pts.length;
     $("sConf").textContent = Math.round(info.conf * 100) + "%";
     const [arrow, word] = DIRECTION[directionOf(info.px_per_s)];
-    $("sSpd").textContent = `${Math.abs(info.px_per_s).toFixed(0)} px/s`;
+    $("sSpd").textContent = info.kmh != null ? `${info.kmh.toFixed(1)} km/h` : `${Math.abs(info.px_per_s).toFixed(0)} px/s`;
     $("sDir").textContent = `${arrow} ${word}`;
     $("sLane").textContent = laneOf(info.lane ?? -1) ? `Lane ${laneText(info.lane)}` : "not in a lane";
     const here = pts.find((p) => p.f === S.frame);
@@ -877,6 +918,8 @@ footer a { color: inherit; }
     const sx = (f) => ((f - f0) / (f1 - f0)) * 296 + 2, sy = (v) => 60 - ((v - lo) / span) * 56;
     const d = pts.map((p, i) => `${i ? "L" : "M"}${sx(p.f).toFixed(1)},${sy(ds[i]).toFixed(1)}`).join("");
     const cur = S.frame >= f0 && S.frame <= f1 ? `<line x1="${sx(S.frame)}" x2="${sx(S.frame)}" y1="0" y2="64" stroke="${S.colors.accent}" stroke-width="1.5" vector-effect="non-scaling-stroke"/>` : "";
+    $("sSparkLabel").textContent = info.m_per_px
+      ? `Distance travelled since first seen · ${(span * info.m_per_px).toFixed(0)} m` : "Distance travelled since first seen";
     $("sSpark").innerHTML =
       `<line x1="0" x2="300" y1="62" y2="62" stroke="${S.colors.line}" vector-effect="non-scaling-stroke"/>` + cur +
       `<path d="${d}" fill="none" stroke="${S.colors.fg}" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`;
@@ -908,7 +951,50 @@ footer a { color: inherit; }
   const hideTip = () => { tip.hidden = true; };
   const DIR_NAME = { right: "→ Right-moving traffic", left: "← Left-moving traffic" };
 
+  const laneSpeedOf = (id) => S.meta && S.meta.lane_speed ? S.meta.lane_speed.lanes.find((l) => l.lane === id) : null;
+
+  function renderVerdict() {
+    const L = S.meta && S.meta.lane_speed, box = $("verdict");
+    box.hidden = !L;
+    if (!L) { box.innerHTML = ""; return; }
+    const dirs = Object.keys(L.announcement).sort().reverse();
+    box.innerHTML = dirs.map((d) => {
+      const a = L.announcement[d];
+      const lanes = L.lanes.filter((l) => l.direction === d);
+      const ranked = lanes.filter((l) => l.v_kmh != null).sort((x, y) => (x.auxiliary - y.auxiliary) || (y.v_kmh - x.v_kmh));
+      const vmax = Math.max(...ranked.map((l) => l.v_kmh), 1);
+      const st = L.stretches[d];
+      const stat = (t) => {
+        const id = a[t], l = id && L.lanes.find((x) => x.lane === id);
+        const label = t === "fastest" ? "Fastest lane" : "Slowest lane";
+        if (!l) {
+          const c = L.lanes.find((x) => x.lane === a[`${t}_candidate`]);
+          const why = c && a[`${t}_ratio`] ? ` Lane ${c.number} ${t === "fastest" ? "leads" : "trails"} by ${Math.round((t === "fastest" ? a[`${t}_ratio`] - 1 : 1 - 1 / a[`${t}_ratio`]) * 100)}%, under the 10% needed.` : "";
+          return `<div class="vd-stat vd-none"><div class="vd-k">${label}</div><div class="vd-lane">No clear ${t === "fastest" ? "fastest" : "slowest"} lane</div><div class="vd-d">${why}</div></div>`;
+        }
+        const r = a[`${t}_ratio`], other = L.lanes.find((x) => x.lane === a[`${t}_other`]);
+        const pct = Math.round((t === "fastest" ? r - 1 : 1 - 1 / r) * 100);
+        return `<div class="vd-stat${t === "fastest" ? " best" : ""}"><div class="vd-k">${label}${t === "fastest" ? " · best choice" : ""}</div>
+          <div class="vd-lane"><span class="ic">${t === "fastest" ? "▲" : "▼"}</span>Lane ${l.number}</div>
+          <div class="vd-v">${l.v_kmh.toFixed(1)}<small>km/h</small></div>
+          <div class="vd-d">${pct}% ${t === "fastest" ? "faster" : "slower"} than lane ${other ? other.number : "?"} · ${Math.round(a[`${t}_p`] * 100)}% sure${a[`${t}_calibration_sensitive`] ? " · sensitive to calibration" : ""}</div></div>`;
+      };
+      const rows = ranked.map((l) => `<div class="vd-row${l.auxiliary ? " aux" : ""}">
+          <div class="nm">Lane ${l.number}${l.auxiliary ? " <small>ramp</small>" : a.fastest === l.lane ? " ▲" : a.slowest === l.lane ? " ▼" : ""}</div>
+          <div><div class="bar" style="width:${(100 * l.v_kmh / vmax).toFixed(1)}%"></div></div>
+          <div class="num">${l.v_kmh.toFixed(1)}</div></div>`).join("");
+      return `<div class="vd-card">
+        <div class="vd-head"><h2>${d === "left" ? "← Left-moving traffic" : "→ Right-moving traffic"}</h2>
+          <span class="sub">${ranked.filter((l) => !l.auxiliary).length} lanes · ${st.length_m.toFixed(0)} m stretch · ${(L.span_s[1] - L.span_s[0]).toFixed(0)} s</span></div>
+        <div class="vd-pair">${stat("fastest")}${stat("slowest")}</div>
+        <div class="vd-rank" aria-label="Lanes ranked by average speed, km/h">${rows}</div>
+        <div class="vd-foot">Average speed per lane (km/h), fastest first. <a href="#hLS">Intervals, timeline and method ↓</a>${L.validation ? ` · matches ground truth within ${(L.validation.median_rel_err * 100).toFixed(1)}% (median)` : ""}</div>
+      </div>`;
+    }).join("");
+  }
+
   function renderLaneSpeeds() {
+    renderVerdict();
     const L = S.meta && S.meta.lane_speed;
     $("lsPanel").hidden = !L;
     if (!L) return;
@@ -1024,7 +1110,7 @@ footer a { color: inherit; }
   function buildRegister() {
     const rows = variantOf(S.variant).tracks.map((t) => ({
       ...t, brk: (t.born_mid ? 1 : 0) + (t.died_mid ? 2 : 0),
-      speed: Math.abs(t.px_per_s), dirn: directionOf(t.px_per_s),
+      speed: t.kmh != null ? t.kmh : Math.abs(t.px_per_s), dirn: directionOf(t.px_per_s),
       laneSort: laneOf(t.lane ?? -1) ? (laneOf(t.lane).direction === "left" ? 0 : 100) + laneOf(t.lane).number : 999,
     }));
     const k = S.sortK, dir = S.sortDir;
@@ -1038,9 +1124,10 @@ footer a { color: inherit; }
       `<td>${((t.first - S.meta.frame_first) / fps).toFixed(2)}</td><td>${t.span_s.toFixed(2)}</td>` +
       `<td>${t.n}</td><td>${Math.round(t.conf * 100)}%</td>` +
       `<td class="dir">${laneText(t.lane ?? -1)}</td>` +
-      `<td class="dir"><span class="arw">${DIRECTION[t.dirn][0]}</span> ${DIRECTION[t.dirn][1]}</td><td>${t.speed.toFixed(0)}</td>` +
+      `<td class="dir"><span class="arw">${DIRECTION[t.dirn][0]}</span> ${DIRECTION[t.dirn][1]}</td><td>${t.kmh != null ? t.speed.toFixed(1) : t.speed.toFixed(0)}</td>` +
       `<td class="brk ${t.brk ? "bad" : ""}">${brkTxt[t.brk]}</td></tr>`).join("");
     $("regCount").textContent = `· ${rows.length}`;
+    $("regSpeedH").textContent = rows.some((t) => t.kmh != null) ? "Speed (km/h)" : "Speed (px/s)";
     renderLanes(rows);
   }
   $("regBody").addEventListener("click", (e) => {
@@ -1101,7 +1188,7 @@ footer a { color: inherit; }
 
   // layers + zoom
   const bindLayer = (id, key) => $(id).addEventListener("change", (e) => { S.layers[key] = e.target.checked; draw(); });
-  bindLayer("lLanes", "lanes"); bindLayer("lBoxes", "boxes"); bindLayer("lIds", "ids"); bindLayer("lCls", "cls"); bindLayer("lConf", "conf"); bindLayer("lTrails", "trails");
+  bindLayer("lLanes", "lanes"); bindLayer("lLaneSpeeds", "laneSpeeds"); bindLayer("lBoxes", "boxes"); bindLayer("lIds", "ids"); bindLayer("lCls", "cls"); bindLayer("lConf", "conf"); bindLayer("lTrails", "trails");
   $("lBreaks").addEventListener("change", (e) => { S.layers.breaks = e.target.checked; draw(); drawTimeline(); });
 
   function setZoom(z) {
