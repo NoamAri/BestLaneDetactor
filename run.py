@@ -172,6 +172,13 @@ def pages(a) -> None:
     for name in ("index.html", "video.mp4", "detections.json", "meta.json"):
         shutil.copy2(VIEWER / name, docs / name)
     (docs / ".nojekyll").write_text("")
+    arch = ROOT / "app" / "architecture" / "index.html"
+    if arch.exists():  # page fragment -> complete document (title, meta and fonts in <head>)
+        head, sep, rest = arch.read_text(encoding="utf-8").partition("<style>")
+        (docs / "architecture.html").write_text(
+            '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n'
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
+            + head.strip() + "\n</head><body>\n" + sep + rest + "\n</body></html>\n", encoding="utf-8")
     print(f"GitHub Pages site written to {docs}. Commit and push it to update the site.")
 
 
