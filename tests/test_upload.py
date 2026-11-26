@@ -105,3 +105,9 @@ def test_uploaded_clips_follow_the_built_in_ones_and_only_the_newest_are_kept(tm
 def test_slug():
     assert U.slug("Ayalon North, from the bridge!") == "ayalon-north-from-the-bridge"
     assert U.slug("???") == "video"
+
+
+def test_names_shown_in_the_app_are_plain_text():
+    assert U.clean_label('<img src=x onerror="alert(1)">Ayalon') == "img src=x onerror=alert(1)Ayalon"
+    assert "<" not in U.clean_label("<script>bad()</script>") and U.clean_label("   ") == "video"
+    assert len(U.clean_label("x" * 200)) == 60

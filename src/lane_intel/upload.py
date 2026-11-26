@@ -39,6 +39,13 @@ class NotGood(Exception):
         self.stage, self.rule, self.message, self.tip = stage, rule, message, tip
 
 
+def clean_label(s: str) -> str:
+    """The name shown in the app: plain text only (no HTML / script characters), one line, at most 60 characters."""
+    s = re.sub(r"[<>&\"'`\\{}$]", "", s or "")
+    s = re.sub(r"\s+", " ", s).strip()
+    return s[:60] or "video"
+
+
 def slug(s: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
     return (s or "video")[:40]
@@ -371,7 +378,7 @@ def main() -> None:
     ap.add_argument("--publish", default=None, help="site folder to add the clip to (e.g. docs)")
     a = ap.parse_args()
     vid = slug(a.id or Path(a.video).stem)
-    res = run(a.video, vid, a.label or vid.replace("-", " "), Path(a.publish) if a.publish else None)
+    res = run(a.video, vid, clean_label(a.label or vid.replace("-", " ")), Path(a.publish) if a.publish else None)
     print(json.dumps({k: v for k, v in res.items() if k != "trace"}, indent=1, default=str))
     if res["status"] == "error":
         print(res.get("trace", ""), file=sys.stderr)
