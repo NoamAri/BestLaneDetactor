@@ -117,10 +117,49 @@ over Watch, not separate pages. The back gesture closes a sheet first, then the 
 * open a car's speed;
 * say whether the result is certain.
 
-## 7. Decisions for you
+## 7. Decisions (answered)
 
 1. Separate mobile page (recommended) or one responsive page for both?
 2. Fun layer (guess / ghost race / share): in or out, and which first?
 3. Install as an app (PWA) needed?
 4. Are lower-quality phone videos acceptable (much faster loading)?
 5. Landscape full screen as the main way to watch MiTra, with portrait as the overview?
+
+### Answers (owner)
+
+1. **Same address.** One URL (https://noamari.github.io/BestLaneDetactor/). The page chooses the phone UI
+   when the device is a phone: touch pointer (`pointer: coarse`) and a small screen (`max-width: 900px`).
+   Everything else gets the desktop Inspector. A small "Desktop view / Phone view" switch is remembered in
+   localStorage, so anyone can override the automatic choice. Implementation: `index.html` loads either the
+   phone app (`m.js` + `m.css`) or the Inspector at start-up; the data files are shared.
+2. **Fun: yes, with taste.** Guess-the-lane and the lane race first. Quiet motion, no sounds,
+   confetti only for a clear answer and only once. Everything stays honest about "close call".
+3. **Website only** for now (no install / PWA). Phone video proxies and chunked tags stay (speed).
+4. **Lower-quality phone video: yes.**
+5. **Wide road on a phone: "auto-framed portrait" plus "rotate for panorama"** (see below).
+
+### 5. The chosen solution for the wide road video
+
+The MiTra road is 6:1. A phone in portrait is 1:2. No single framing shows it well, so the app frames it
+for you and lets you take over at any time:
+
+* **Portrait (default):** the video fills the top ~45% of the screen, zoomed so cars are big. A
+  **virtual camera** pans smoothly over the road:
+  * Playing with no touch, it **follows a car in the fastest lane** ("Following a car in lane 1 ·
+    42 km/h", a small label). This tells the story by itself: you ride along in the winning lane. When
+    that car leaves, it picks the next one.
+  * Tap any car to follow it instead; tap a lane to follow that lane's lead car.
+  * Drag to pan by hand: the camera stops following ("Free view", with a ⟲ button to resume).
+  * A **mini-map strip** above the video shows the whole road, with the camera window as a frame;
+    tap or drag on it to jump.
+* **Landscape:** rotating the phone shows the **whole road**, full screen, at once (the panorama). The
+  controls fade and come back on tap. A one-time hint suggests rotating ("↻ Turn your phone to see the
+  whole road").
+* The same logic serves the uploaded clip (2.3:1): it needs less zoom, so the camera moves less.
+
+Why this is best for both UI and UX:
+* nothing to configure, because the video tells a story the moment you press play;
+* the cars stay large enough to tap with a thumb;
+* the whole road is always one glance away, on the mini-map or by rotating;
+* following a car makes the speed difference between lanes something you *feel*. Following a car in
+  lane 1 and then one in lane 3 is the answer, shown rather than stated.
