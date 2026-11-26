@@ -55,7 +55,7 @@ viewer: $(POINTS) app/viewer/index.html src/lane_intel/export_viewer.py
 
 serve:
 	@echo "Open http://localhost:$(PORT)"
-	$(PY) -m http.server -d $(VIEWER) $(PORT)
+	$(PY) -m lane_intel.serve $(VIEWER) --port $(PORT)
 
 test: | setup
 	$(PY) -m pytest -q

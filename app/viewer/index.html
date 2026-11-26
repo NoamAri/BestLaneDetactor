@@ -20,6 +20,9 @@
   --sel: #ffffff;
   --tag-bg: rgba(8, 12, 16, .78);
   --tag-fg: #ffffff;
+  --warn-bg: #fff4dc;
+  --warn-fg: #5c3d00;
+  --warn-line: #f0d28a;
   --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
   --r: 6px;
@@ -27,12 +30,14 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0f1418; --surface: #161d23; --fg: #e4eaee; --muted: #8c99a5; --line: #26313a;
-    --accent: #34b27a; --accent-fg: #06140d; color-scheme: dark;
+    --accent: #34b27a; --accent-fg: #06140d; --warn-bg: #2e2410; --warn-fg: #f5d48e; --warn-line: #5a4519;
+    color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0f1418; --surface: #161d23; --fg: #e4eaee; --muted: #8c99a5; --line: #26313a;
-  --accent: #34b27a; --accent-fg: #06140d; color-scheme: dark;
+  --accent: #34b27a; --accent-fg: #06140d; --warn-bg: #2e2410; --warn-fg: #f5d48e; --warn-line: #5a4519;
+  color-scheme: dark;
 }
 * { box-sizing: border-box; }
 body {
@@ -107,6 +112,9 @@ tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); 
 tbody tr.on { background: color-mix(in srgb, var(--accent) 18%, transparent); }
 .keys { color: var(--muted); font-size: 12px; }
 kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 0 4px; background: var(--surface); }
+.warn { margin: 0; padding: 10px 14px; border-radius: var(--r); background: var(--warn-bg); color: var(--warn-fg);
+  border: 1px solid var(--warn-line); font-size: 13px; }
+.warn code { font-family: var(--font-mono); }
 @media (max-width: 640px) { .readout { margin-left: 0; } }
 </style>
 
@@ -150,6 +158,11 @@ kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--li
       <div><span>In view</span><span id="rCount">–</span></div>
     </div>
   </div>
+
+  <p class="warn" id="seekWarn" hidden>
+    The video could not jump to the requested frame, so the server is probably not sending byte ranges.
+    Serve this folder with <code>make serve</code> (or <code>python -m lane_intel.serve data/out/viewer</code>) instead of <code>python -m http.server</code>.
+  </p>
 
   <div class="timeline">
     <canvas id="tl" tabindex="0" aria-label="Vehicles detected per frame; click or drag to seek"></canvas>
@@ -281,7 +294,7 @@ kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--li
     } catch (e) {
       $("status").innerHTML =
         `Could not load the clip data (${e.message}).<br>Serve this folder over HTTP, for example ` +
-        `<code>python -m http.server -d data/out/viewer 8000</code>, then open <code>http://localhost:8000</code>.`;
+        `<code>make serve</code>, then open <code>http://localhost:8000</code>.`;
     }
   }
 
@@ -296,13 +309,22 @@ kbd { font-family: var(--font-mono); font-size: 11px; border: 1px solid var(--li
 
   // ---------- frame sync ----------
   const fps = () => S.meta.fps;
+  let pendingSeek = null;
   function setFrame(f, seek) {
     if (!S.meta) return;
     f = Math.max(0, Math.min(S.meta.frame_count - 1, f));
     S.frame = f;
-    if (seek) vid.currentTime = (f + 0.5) / fps();
+    if (seek) { pendingSeek = f; vid.currentTime = (f + 0.5) / fps(); }
     refresh();
   }
+  // Trust the video, not the request: after a seek, read back which frame is really shown.
+  vid.addEventListener("seeked", () => {
+    if (!S.meta) return;
+    const actual = Math.max(0, Math.min(S.meta.frame_count - 1, Math.floor(vid.currentTime * fps() + 1e-6)));
+    if (pendingSeek !== null && Math.abs(actual - pendingSeek) > 1) $("seekWarn").hidden = false;
+    pendingSeek = null;
+    if (actual !== S.frame) { S.frame = actual; refresh(); }
+  });
   if ("requestVideoFrameCallback" in HTMLVideoElement.prototype) {
     const cb = (_now, md) => {
       if (S.meta) {

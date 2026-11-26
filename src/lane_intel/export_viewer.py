@@ -7,7 +7,7 @@ Writes into --out-dir:
     meta.json        fps, frame range, crop/scale mapping, class names, track summary
     index.html       the viewer, wrapped in a document skeleton for local serving
 
-Serve locally with:  python -m http.server -d <out-dir> 8000
+Serve locally with:  python -m lane_intel.serve <out-dir> --port 8000  (needs HTTP Range for seeking)
 """
 from __future__ import annotations
 
