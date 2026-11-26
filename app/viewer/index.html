@@ -79,6 +79,11 @@
 .vd-foot a { color: inherit; }
 
 /* Lane speeds */
+.ls-sum { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; }
+.ls-sum::-webkit-details-marker { display: none; }
+.ls-sum::before { content: "▸"; color: var(--muted); font-size: 12px; transition: transform .15s; }
+details[open] > .ls-sum::before { transform: rotate(90deg); }
+.ls-sum h2 { margin: 0; }
 .ls-dirs { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
 .ls-dir h3 { font-size: 14px; font-weight: 600; margin: 0 0 6px; }
 .ls-ann { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
@@ -361,14 +366,16 @@ footer a { color: inherit; }
   </div>
 
   <section class="panel" aria-labelledby="hLS" id="lsPanel" hidden>
-    <h2 id="hLS">Lane speeds</h2>
-    <p class="sub" id="lsSub" style="margin:-4px 0 12px"></p>
+    <details id="lsDetails">
+    <summary class="ls-sum"><h2 id="hLS">Lane speeds · details (intervals, timeline, method)</h2></summary>
+    <p class="sub" id="lsSub" style="margin:8px 0 12px"></p>
     <div class="ls-dirs" id="lsDirs"></div>
     <p class="note" id="lsNote">Space-mean speed per lane: total distance driven in the lane ÷ total time spent in it, over
       one stretch of road shared by all lanes of a direction (Edie's definitions; a vehicle split into two IDs or changing
       lanes counts exactly once). Bars: speed with its 95% interval (bootstrap over whole vehicles). A lane is announced
       fastest or slowest only if it leads in ≥ 90% of resamples by ≥ 10%. Graph: rolling 25 s windows; the vertical line is
       the video's current time.</p>
+    </details>
   </section>
   <div class="ls-tip" id="lsTip" hidden></div>
 
@@ -996,7 +1003,7 @@ footer a { color: inherit; }
           <span class="sub">${ranked.filter((l) => !l.auxiliary).length} lanes · ${st.length_m.toFixed(0)} m stretch · ${(L.span_s[1] - L.span_s[0]).toFixed(0)} s</span></div>
         <div class="vd-pair">${stat("fastest")}${stat("slowest")}</div>
         <div class="vd-rank" aria-label="Lanes ranked by average speed, km/h">${rows}</div>
-        <div class="vd-foot">Average speed per lane (km/h), fastest first. <a href="#hLS">Intervals, timeline and method ↓</a>${L.validation ? ` · matches ground truth within ${(L.validation.median_rel_err * 100).toFixed(1)}% (median)` : ""}</div>
+        <div class="vd-foot">Average speed per lane (km/h), fastest first. <a href="#hLS" onclick="document.getElementById('lsDetails').open = true">Intervals, timeline and method ↓</a>${L.validation ? ` · matches ground truth within ${(L.validation.median_rel_err * 100).toFixed(1)}% (median)` : ""}</div>
       </div>`;
     }).join("");
   }
@@ -1114,6 +1121,7 @@ footer a { color: inherit; }
     }
   }
   addEventListener("resize", () => drawLaneTimelines());
+  $("lsDetails").addEventListener("toggle", () => { if ($("lsDetails").open) drawLaneTimelines(); });
 
   function buildRegister() {
     const rows = variantOf(S.variant).tracks.map((t) => ({
