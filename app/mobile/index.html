@@ -622,6 +622,15 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     spreadTags(items, top, bot);
     for (const it of items) drawTag(ctx, it);
   }
+  // screen y of a lane's centre line at screen x (the line is clamped to where the lane is drawn)
+  function laneYAt(ln, sx) {
+    const p = ln.centre, [fx] = toFrame(sx, 0);
+    let y = fx <= p[0][0] ? p[0][1] : p[p.length - 1][1];
+    for (let j = 1; j < p.length; j++) if (p[j][0] >= fx && p[j - 1][0] <= fx) {
+      const [ax, ay] = p[j - 1], [bx, by] = p[j]; y = ay + (by - ay) * ((fx - ax) / Math.max(1e-6, bx - ax)); break;
+    }
+    return toScreen(0, y)[1];
+  }
   function drawTag(ctx, it) {
     const ln = it.ln, sp = speedOf(ln.id), col = laneCol(ln.number), right = ln.direction !== "left";
     const v = shown() && sp && sp.v_kmh != null ? sp.v_kmh : null, weak = !!sp && sp.evidence_ok === false;
@@ -644,9 +653,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     }
     ctx.closePath(); ctx.fillStyle = "rgba(10,14,18,.8)"; ctx.fill();
     // leader back to the lane when the tag had to move
-    if (Math.abs(it.y - it.want) > 1.5) {
-      ctx.strokeStyle = col; ctx.lineWidth = 1.25; ctx.beginPath(); ctx.moveTo(xEnd + 1, cy); ctx.lineTo(xEnd + 10, it.want); ctx.stroke();
-      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(xEnd + 10, it.want, 2, 0, 7); ctx.fill();
+    // the dot sits on the lane's centre line exactly where it is drawn (on a slanted road the lane is
+    // higher or lower there than at the screen edge, where the tag was placed)
+    const dotX = xEnd + 10, dotY = laneYAt(ln, dotX);
+    if (Math.abs(cy - dotY) > 1.5) {
+      ctx.strokeStyle = col; ctx.lineWidth = 1.25; ctx.beginPath(); ctx.moveTo(xEnd + 1, cy); ctx.lineTo(dotX, dotY); ctx.stroke();
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(dotX, dotY, 2.2, 0, 7); ctx.fill();
     }
     const x = bx0 + 2;
     ctx.fillStyle = col; rr(ctx, x, cy - 6, d, 12, 6); ctx.fill();
