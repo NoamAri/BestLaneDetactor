@@ -273,6 +273,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
         <div class="card"><div class="n">5 · Verdict</div><h3>Fastest only when it's real</h3><p>A lane's speed is the total distance ÷ total time of all its cars. "Clearly fastest" needs a 10% lead in 90% of resamples; otherwise it is a close call.</p></div>
       </div>
       <div class="dots" id="aboutDots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
+      <p class="note" style="text-align:center">Version 2026-11-27 22:46 UTC</p>
       <p class="note"><button class="linkbtn" id="toDesktop2">Every detail and the method: desktop view</button></p>
     </section>
   </main>
@@ -318,7 +319,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   const RATES = [0.5, 1, 2];
 
   // ================================================================ data
-  const getJSON = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error(`${u}: HTTP ${r.status}`); return r.json(); };
+  const getJSON = async (u) => { const r = await fetch(u, { cache: "no-cache" }); if (!r.ok) throw new Error(`${u}: HTTP ${r.status}`); return r.json(); };
   const ls = () => S.meta && S.meta.lane_speed;
   // Lane speeds (and fastest / slowest) stay closed until the user opens them, per video.
   const shown = () => !!S.revealed;

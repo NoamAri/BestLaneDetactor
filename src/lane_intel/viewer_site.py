@@ -77,7 +77,9 @@ def build_site(spec: dict, out: str | Path, only: set[str] | None = None) -> lis
     (out / "clips.json").write_text(json.dumps(index, indent=1))
     (out / "index.html").write_text(wrap_page(VIEWER_SRC.read_text()))
     if MOBILE_SRC.exists():                                # phone app, loaded by index.html on phones
-        (out / "m.html").write_text(wrap_page(MOBILE_SRC.read_text()))
+        from datetime import datetime, timezone
+        stamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        (out / "m.html").write_text(wrap_page(MOBILE_SRC.read_text().replace("__BUILD__", stamp)))
     if ARCH_SRC.exists():                                  # "How it works" tab, also a standalone page
         (out / "architecture.html").write_text(wrap_page(ARCH_SRC.read_text()))
     print(f"viewer site -> {out}  ({len(index)} clips)")
