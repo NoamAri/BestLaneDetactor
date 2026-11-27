@@ -44,7 +44,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .clip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
 
 /* ---------------------------------------------------------------- pinned player */
-.player { position: sticky; top: env(safe-area-inset-top); z-index: 15; background: var(--bg); }
+.player { position: sticky; top: 0; z-index: 15; background: var(--bg); }
 .notch { position: fixed; left: 0; right: 0; top: 0; height: env(safe-area-inset-top); background: var(--bg); z-index: 16; }
 .player.stuck { box-shadow: 0 8px 18px -12px rgba(0,0,0,.45); }
 .view { position: relative; height: clamp(190px, 34svh, 360px); background: var(--stage); overflow: hidden;
@@ -225,7 +225,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   </header>
   <nav class="clips" id="clips" aria-label="Videos"></nav>
 
-  <div class="notch" aria-hidden="true"></div>
   <div id="pin" aria-hidden="true"></div><!-- where the player sits before it sticks (a sticky element's own offsetTop moves with it) -->
   <section class="player" id="player" aria-label="Video player">
     <div class="view" id="view">
@@ -309,6 +308,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     mode: "auto", followId: null, followLane: null, lostFrames: 0, exploreUntil: 0, exploring: false,
     laneTags: [], lastT: 0, rateIdx: 1, token: 0, sheet: null, sheetY: 0, sheetSnap: "peek", layoutLand: null,
   };
+  S.openClips = {};                                  // lane speeds opened during this visit, per clip
+  try { Object.keys(localStorage).filter((k) => k.startsWith("li-reveal-") || k.startsWith("li-guess-")).forEach((k) => localStorage.removeItem(k)); } catch (_) {}
   window.__LI = S;                                   // for automated checks
   const RATES = [0.5, 1, 2];
 
@@ -318,7 +319,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   // Lane speeds (and fastest / slowest) stay closed until the user opens them, per video.
   const shown = () => !!S.revealed;
   function setRevealed(on, quiet) {
-    S.revealed = !!on; store.set(`li-reveal-${S.clip}`, on ? "1" : "");
+    S.revealed = !!on; S.openClips[S.clip] = !!on;    // remembered only while this page is open
     if (S.mode === "auto") {                         // the ride-along matches what may be shown
       S.followLane = on ? verdictLane(mainDirection(), "fastest") : null;
       S.followId = S.followLane ? pickCar(S.followLane) : pickAnyCar(); S.lostFrames = 0;
@@ -365,7 +366,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       S.byFrame[f].push(r);
       let tr = S.tracks.get(r.id); if (!tr) S.tracks.set(r.id, (tr = [])); tr.push(r);
     }
-    S.revealed = store.get(`li-reveal-${id}`) === "1";
+    S.revealed = !!S.openClips[id];
     S.mode = "auto"; S.followId = null; S.followLane = null; S.f = 0; S.exploring = false; S.k = 0; S.started = false;
     vid.src = S.base + "video.mp4"; vid.playbackRate = RATES[S.rateIdx]; vid.load();
     history.replaceState(null, "", "#clip=" + id);
@@ -824,12 +825,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   }
   const snapY = (s) => s === "closed" ? sheet.offsetHeight : topFor(s) - (innerHeight - sheet.offsetHeight);
   function setSheetY(y, anim) { sheet.classList.toggle("anim", !!anim); sheet.style.transform = `translateY(${y}px)`; S.sheetY = y; }
-  function openSheet(title, body, info) {
+  function openSheet(title, body, info, quiet) {
     $("sheetTitle").innerHTML = title; $("sheetBody").innerHTML = body; $("sheetBody").scrollTop = 0;
     S.sheet = info || {};
     // bring the player to the top so the whole video stays visible above the card
     const py = pinY(); if (scrollY < py - 1) scrollTo({ top: py, behavior: "auto" });
     const wasOpen = !sheet.hidden; sheet.hidden = false;
+    if (quiet && wasOpen) return;                    // content swap only: keep the size, no buzz
     if (!wasOpen) { setSheetY(sheet.offsetHeight, false); void sheet.offsetHeight; }
     requestAnimationFrame(() => { setSheetY(snapY("peek"), true); S.sheetSnap = "peek"; });
     buzz(6); $("live").textContent = $("sheetTitle").textContent;
@@ -865,7 +867,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       if (moved > 90) closeSheet(); else setSheetY(snapY(S.sheetSnap || "peek"), true); }, { passive: true });
   })();
 
-  function openCar(id) {
+  function openCar(id, quiet) {
     const t = S.info.get(id); if (!t) return;
     const ln = lanes()[t.lane], tr = S.tracks.get(id) || [], secs = tr.length ? (tr[tr.length - 1].f - tr[0].f) / S.fps : 0;
     const dist = t.kmh != null ? t.kmh / 3.6 * secs : null, sp = ln && speedOf(ln.id);
@@ -894,7 +896,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       <div class="csparkwrap">${spark}</div>
       <div class="facts"><span>${ln ? `<span style="color:${laneCol(ln.number)}">●</span> <b>Lane ${ln.number} ${arrow(ln.direction)}</b>` : "not in a lane"}</span>
         <span><b class="mono">${secs.toFixed(1)} s</b> on screen</span>${dist != null ? `<span><b class="mono">${Math.round(dist)} m</b> seen</span>` : ""}</div>
-      ${ln ? `<button class="sbtn ghost" id="sLane">Lane ${ln.number} details</button>` : ""}<button class="sbtn ghost" id="sStop">Stop following</button></div>`, { car: id });
+      ${ln ? `<button class="sbtn ghost" id="sLane">Lane ${ln.number} details</button>` : ""}<button class="sbtn ghost" id="sStop">Stop following</button></div>`, { car: id }, quiet);
     updateCarLive();
     if ($("sLane")) $("sLane").onclick = () => openLane(ln.id);
     $("sStop").onclick = () => { S.mode = "auto"; S.followLane = null; S.followId = null; closeSheet(); };
@@ -902,6 +904,9 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   // the open car card follows the video: live number, speeding up / slowing down, the dot on the graph
   function updateCarLive() {
     if (!S.sheet || S.sheet.car == null || !$("carNow")) return;
+    if (S.followId != null && S.followId !== S.sheet.car && S.mode !== "car") {   // the car left the view: show the next one
+      const mode = S.mode, lane = S.followLane; openCar(S.followId, true); S.mode = mode; S.followLane = lane; return;
+    }
     const t = S.info.get(S.sheet.car); if (!t) return;
     const now = liveKmh(t, S.f), before = liveKmh(t, Math.max(0, S.f - Math.round(S.fps)));
     $("carNow").textContent = now != null ? Math.round(now) : t.kmh != null ? Math.round(t.kmh) : "–";
