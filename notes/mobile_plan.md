@@ -180,3 +180,8 @@ After the first phone test ("touch feels sticky") the interaction layer was rebu
 Plus: a one-time swipe hint, haptic ticks where supported, "Guess the fastest lane" (confetti only for a clear answer),
 About cards with page dots, reduced-motion support. Checked with real touch events on an emulated iPhone 13
 (vertical swipe scrolls, horizontal swipe pans with momentum and returns, tap opens car card, sheet snaps, pinch zooms).
+
+## 9. Owner feedback: no game
+
+The "guess the fastest lane" game was removed (not intuitive). Lane speeds stay **closed** by default per video and open with one
+action ("Lane speeds · Show" on the video, or "Show lane speeds" in the Answer / Lane race tabs); "Hide lane speeds" closes them.

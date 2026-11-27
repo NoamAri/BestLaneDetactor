@@ -98,7 +98,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .pane { padding: 14px 16px 0; }
 .pane h2 { font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 6px 0 10px; }
 .vcard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; margin-bottom: 12px; width: 100%; text-align: left; display: block; }
-.vcard:active, .rrow:active, .gbtn:active { transform: scale(.985); }
+.vcard:active, .rrow:active { transform: scale(.985); }
 .vcard .dir { font-size: 12.5px; color: var(--muted); margin-bottom: 8px; display: flex; justify-content: space-between; }
 .vcard .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .vcard .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
@@ -119,14 +119,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .rrow.lead .crown { visibility: visible; }
 .rrow.aux { opacity: .6; }
 .sentence { font-size: 13.5px; margin: 10px 0 0; }
-.guess { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 14px; margin-bottom: 12px; }
-.guess h3 { margin: 0 0 4px; font-size: 15px; }
-.guess p { margin: 4px 0 10px; color: var(--muted); font-size: 13.5px; }
-.gbtns { display: flex; flex-wrap: wrap; gap: 8px; }
-.gbtn { min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg); display: inline-flex; align-items: center; gap: 8px; font-weight: 500; }
-.gbtn .dot { width: 10px; height: 10px; border-radius: 50%; }
-.reveal { font-size: 14px; }
-.reveal b { font-weight: 600; }
 .cards { display: flex; gap: 12px; overflow-x: auto; scroll-snap-type: x mandatory; padding: 2px 16px 12px; margin: 0 -16px; scrollbar-width: none; }
 .cards::-webkit-scrollbar { display: none; }
 .card { flex: 0 0 84%; scroll-snap-align: center; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
@@ -213,7 +205,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   pointer-events: none; transition: transform .32s var(--ease); }
 .tabbar .ind::before { content: ""; width: 56px; height: 30px; border-radius: 15px; background: color-mix(in srgb, var(--accent) 15%, transparent); }
 
-#confetti { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
 
 /* ---------------------------------------------------------------- landscape: the whole road, full screen */
 @media (orientation: landscape) and (max-height: 520px) {
@@ -269,7 +260,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       <p class="note">Tap a card for the lane's details. The timeline above is coloured by the lane that was fastest at each moment.</p>
     </section>
     <section class="pane tab" id="tabRace" hidden>
-      <div id="guess"></div>
       <h2>Lane race · live with the video</h2>
       <div id="race"></div>
       <p class="note" id="raceNote"></p>
@@ -299,7 +289,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     <button data-tab="tabRace"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6.5h9M4 12h16M4 17.5h6"/></svg></span>Lane race</button>
     <button data-tab="tabAbout"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r="1.1" fill="currentColor" stroke="none"/></svg></span>About</button>
   </nav>
-  <canvas id="confetti" hidden></canvas>
   <div class="sr" aria-live="polite" id="live"></div>
 </div>
 
@@ -330,16 +319,15 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   // ================================================================ data
   const getJSON = async (u) => { const r = await fetch(u); if (!r.ok) throw new Error(`${u}: HTTP ${r.status}`); return r.json(); };
   const ls = () => S.meta && S.meta.lane_speed;
-  // Results (lane speeds, fastest / slowest) stay hidden until the user guesses or taps Reveal, per video.
+  // Lane speeds (and fastest / slowest) stay closed until the user opens them, per video.
   const shown = () => !!S.revealed;
   function setRevealed(on, quiet) {
     S.revealed = !!on; store.set(`li-reveal-${S.clip}`, on ? "1" : "");
-    if (!on) store.del(`li-guess-${S.clip}`);          // hiding starts a fresh round
     if (S.mode === "auto") {                         // the ride-along matches what may be shown
       S.followLane = on ? verdictLane(mainDirection(), "fastest") : null;
       S.followId = S.followLane ? pickCar(S.followLane) : pickAnyCar(); S.lostFrames = 0;
     }
-    renderVerdict(true); renderRace(); renderGuess(); $("answer").dataset.html = ""; renderChips(); drawScrub(); draw();
+    renderVerdict(true); renderRace(); $("answer").dataset.html = ""; renderChips(); drawScrub(); draw();
     if (!quiet) buzz(on ? 8 : 5);
   }
   const lanes = () => (S.meta && S.meta.lanes) || [];
@@ -386,7 +374,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     vid.src = S.base + "video.mp4"; vid.playbackRate = RATES[S.rateIdx]; vid.load();
     history.replaceState(null, "", "#clip=" + id);
     $("tDur").textContent = (S.n / S.fps).toFixed(0) + " s";
-    renderVerdict(); renderRace(); renderGuess(); layout();
+    renderVerdict(); renderRace(); layout();
   }
   vid.addEventListener("loadeddata", () => { $("loading").hidden = true; syncPlay(); layout(); frame(); maybeCoach(); });
   vid.addEventListener("error", () => { $("loading").textContent = "The video could not be loaded. Check the connection and reload."; });
@@ -710,7 +698,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     ctx.beginPath(); ctx.arc(x, y + bh / 2, 7 * dpr, 0, 7); ctx.fill(); ctx.stroke();
   }
 
-  // ================================================================ chips, cards, race, guess
+  // ================================================================ chips, cards, race
   // the same road-sign as the tags on the video, for use in text:  (1) 42 km/h ▷
   function signHTML(ln) {
     const sp = speedOf(ln.id), col = laneCol(ln.number), v = sp && sp.v_kmh != null ? Math.round(sp.v_kmh) : null;
@@ -720,7 +708,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   function renderChips() {
     const L = ls(), el = $("answer");
     if (L && !shown()) {
-      const html = `<button class="revealchip" id="revealChip" aria-label="Reveal the results"><span class="lbl">Results hidden</span><span class="act"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Reveal</span></button>`;
+      const html = `<button class="revealchip" id="revealChip" aria-label="Show the lane speeds"><span class="lbl">Lane speeds</span><span class="act"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>Show</span></button>`;
       if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; $("revealChip").onclick = (e) => { e.stopPropagation(); setRevealed(true); }; }
       el.hidden = false;
     } else if (L) {
@@ -748,27 +736,23 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     f.textContent = `${who} · ${kn != null ? Math.round(kn) + " km/h" : t.cls}`;
   }
 
-  function hiddenCard(where) {
+  function hiddenCard() {
     const L = ls(), ds = Object.keys(L.announcement).sort().reverse();
     const chips = ds.map((d) => L.lanes.filter((l) => l.direction === d && !l.auxiliary).sort((a, b) => a.number - b.number)
       .map((l) => `<i><b style="background:${laneCol(l.number)}"></b>${l.number}${arrow(d)}</i>`).join("")).join("");
-    return `<div class="hidecard reveal-in"><div class="ico"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></div>
-      <h3>Which lane is faster?</h3>
-      <p>${where === "race" ? "The lane race starts once you have guessed, or revealed the answer." : "The answer is hidden so you can guess first. Watch the traffic in each lane, then decide."}</p>
+    return `<div class="hidecard reveal-in"><div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.6 18.5a9 9 0 1 1 14.8 0"/><path d="M12 14.5l4.2-5"/><circle cx="12" cy="14.5" r="1.3" fill="currentColor"/></svg></div>
+      <h3>Lane speeds</h3>
+      <p>See how fast each lane moves, and which lane is fastest and slowest.</p>
       <div class="lanesrow">${chips}</div>
-      <div class="hbtns">${where === "race" ? "" : '<button class="sbtn" data-act="guess">Make your guess</button>'}
-        <button class="sbtn ghost" data-act="reveal"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>&nbsp; Reveal the answer</button></div></div>`;
+      <div class="hbtns"><button class="sbtn" data-act="reveal">Show lane speeds</button></div></div>`;
   }
   function wireHidden(box) {
-    for (const b of box.querySelectorAll("[data-act]")) b.onclick = () => {
-      if (b.dataset.act === "reveal") setRevealed(true);
-      else { showTab("tabRace"); setTimeout(() => { const g = $("guess"); if (g) g.scrollIntoView({ behavior: reduced ? "auto" : "smooth", block: "nearest" }); }, 60); }
-    };
+    for (const b of box.querySelectorAll("[data-act]")) b.onclick = () => setRevealed(true);
   }
   function renderVerdict(animate) {
     const L = ls(), box = $("verdict");
     if (!L) { box.innerHTML = `<p class="note">Lane speeds are not computed for this video yet.</p>`; return; }
-    if (!shown()) { box.innerHTML = hiddenCard("answer"); wireHidden(box); return; }
+    if (!shown()) { box.innerHTML = hiddenCard(); wireHidden(box); return; }
     box.innerHTML = Object.keys(L.announcement).sort().reverse().map((d) => {
       const a = L.announcement[d];
       const cell = (t) => {
@@ -784,7 +768,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
         : pct != null ? `Leads by ${pct}%, but not consistently enough to call it clear (${Math.round(a.fastest_p * 100)}% of resamples).` : "";
       return `<button class="vcard${animate ? " reveal-in" : ""}" data-dir="${d}"><div class="dir"><span>${DIRW[d]}</span><span>›</span></div>
         <div class="pair">${cell("fastest")}${cell("slowest")}</div><p class="why">${why}</p></button>`;
-    }).join("") + `<div class="linkrow"><button id="hideRes"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg> Hide results</button></div>`;
+    }).join("") + `<div class="linkrow"><button id="hideRes"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg> Hide lane speeds</button></div>`;
     for (const b of box.querySelectorAll(".vcard")) b.onclick = () => openLane(verdictLane(b.dataset.dir, "fastest"));
     $("hideRes").onclick = () => setRevealed(false);
   }
@@ -792,7 +776,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   function renderRace() {
     const L = ls(), box = $("race");
     if (!L) { box.innerHTML = `<p class="note">Lane speeds are not computed for this video yet.</p>`; $("raceNote").textContent = ""; return; }
-    if (!shown()) { box.innerHTML = hiddenCard("race"); wireHidden(box); $("raceNote").textContent = ""; return; }
+    if (!shown()) { box.innerHTML = hiddenCard(); wireHidden(box); $("raceNote").textContent = ""; return; }
     box.innerHTML = Object.keys(L.announcement).sort().reverse().map((d) => {
       const rows = L.lanes.filter((l) => l.direction === d && l.v_kmh != null).sort((a, b) => a.number - b.number);
       const tl = L.timeline[d]; let share = "";
@@ -826,51 +810,6 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
         r.querySelector(".val").textContent = vals[j] == null ? "–" : vals[j].toFixed(1);
       });
     }
-  }
-
-  // guess the fastest lane (main direction); confetti only for a clear answer
-  function renderGuess() {
-    const L = ls(), box = $("guess");
-    if (!L) { box.innerHTML = ""; return; }
-    const d = mainDirection(), a = L.announcement[d], key = `li-guess-${S.clip}`;
-    const opts = L.lanes.filter((l) => l.direction === d && !l.auxiliary && l.evidence_ok).sort((x, y) => x.number - y.number);
-    const g = store.get(key);
-    if (!g) {
-      box.innerHTML = `<div class="guess"><h3>Your guess</h3><p>${DIRW[d]}: which lane do you think is fastest? Watch the video, then pick.</p>
-        <div class="gbtns">${opts.map((l) => `<button class="gbtn" data-l="${l.lane}"><span class="dot" style="background:${laneCol(l.number)}"></span>Lane ${l.number}</button>`).join("")}</div></div>`;
-      for (const b of box.querySelectorAll(".gbtn")) b.onclick = () => { store.set(key, b.dataset.l); setRevealed(true, true); reveal(b.dataset.l); };
-      if (shown()) {     // revealed without guessing: offer a fresh round instead of a guess at a known answer
-        box.innerHTML = `<div class="guess"><h3>Want to play?</h3><p>The answer is showing. Hide it to guess first.</p><button class="gbtn" id="again">Hide the answer and guess</button></div>`;
-        $("again").onclick = () => setRevealed(false);
-      }
-      return;
-    }
-    const best = laneById(verdictLane(d, "fastest")), mine = laneById(g), sp = speedOf(best.id), clear = !!a.fastest;
-    const right = g === best.id, pct = Math.round((a.fastest_ratio - 1) * 100);
-    const msg = right ? (clear ? `<b>Spot on.</b> Lane ${best.number} is clearly fastest at ${Math.round(sp.v_kmh)} km/h.`
-                               : `<b>Good eye.</b> Lane ${best.number} leads (${Math.round(sp.v_kmh)} km/h), but only by ${pct}%: a close call.`)
-                      : `<b>Not quite.</b> You picked lane ${mine ? mine.number : "?"}; lane ${best.number} is fastest at ${Math.round(sp.v_kmh)} km/h${clear ? "" : ` (close call, ${pct}% ahead)`}.`;
-    box.innerHTML = `<div class="guess"><h3>Your guess</h3><p class="reveal">${msg}</p><button class="gbtn" id="again">Guess again</button></div>`;
-    $("again").onclick = () => { store.del(key); setRevealed(false); };
-    $("again").textContent = "Play again";
-  }
-  function reveal(g) {
-    const d = mainDirection(), a = ls().announcement[d], right = g === verdictLane(d, "fastest");
-    buzz(right ? [10, 40, 10] : 12);
-    if (right && a.fastest && !reduced) confetti();
-  }
-  function confetti() {
-    const cv = $("confetti"), ctx = cv.getContext("2d"), dpr = devicePixelRatio || 1;
-    cv.hidden = false; cv.width = innerWidth * dpr; cv.height = innerHeight * dpr;
-    const cols = PALETTE.map(css), P = Array.from({ length: 90 }, () => ({ x: innerWidth / 2, y: innerHeight * 0.45,
-      vx: (Math.random() - 0.5) * 9, vy: -Math.random() * 10 - 4, r: Math.random() * 6.28, c: cols[(Math.random() * cols.length) | 0] }));
-    const t0 = performance.now();
-    const step = (t) => {
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, innerWidth, innerHeight);
-      for (const p of P) { p.vy += 0.35; p.x += p.vx; p.y += p.vy; p.r += 0.2; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.r); ctx.fillStyle = p.c; ctx.fillRect(-4, -2, 8, 4); ctx.restore(); }
-      if (t - t0 < 1600) requestAnimationFrame(step); else cv.hidden = true;
-    };
-    requestAnimationFrame(step);
   }
 
   // ================================================================ bottom sheet with snap points (half / full / closed)
@@ -990,9 +929,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     S.followLane = id; S.mode = "lane"; S.followId = pickCar(id); S.lostFrames = 0; S.exploring = false; S.glide = false;
     if (!shown()) {                      // results hidden: the lane, but not its speed or rank
       openSheet(`<h3><span style="color:${laneCol(ln.number)}">●</span> Lane ${ln.number} ${arrow(ln.direction)}</h3><div class="sub">The video now follows a car in this lane</div>`,
-        `<div class="peekblk"><p class="sub" style="margin:6px 0 12px">Lane speeds are hidden so you can guess first.</p>
-         <button class="sbtn" id="lGuess">Make your guess</button><button class="sbtn ghost" id="lReveal">Reveal the answer</button></div>`, { lane: id });
-      $("lGuess").onclick = () => { closeSheet(); showTab("tabRace"); };
+        `<div class="peekblk"><p class="sub" style="margin:6px 0 12px">Lane speeds are closed.</p>
+         <button class="sbtn" id="lReveal">Show lane speeds</button></div>`, { lane: id });
       $("lReveal").onclick = () => { setRevealed(true); openLane(id); };
       return;
     }
