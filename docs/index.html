@@ -1055,7 +1055,7 @@ footer a { color: inherit; }
         return `<div class="vd-stat${t === "fastest" ? " best" : ""}"><div class="vd-k">${label}${t === "fastest" ? " · best choice" : ""}</div>
           <div class="vd-lane"><span class="ic">${t === "fastest" ? "▲" : "▼"}</span>Lane ${l.number}</div>
           <div class="vd-v">${l.v_kmh.toFixed(1)}<small>km/h</small></div>
-          <div class="vd-d">${pct}% ${t === "fastest" ? "faster" : "slower"} than lane ${other ? other.number : "?"} · ${Math.round(a[`${t}_p`] * 100)}% sure${sure ? "" : " · close call"}${a[`${t}_calibration_sensitive`] ? " · sensitive to calibration" : ""}</div></div>`;
+          <div class="vd-d">${pct}% ${t === "fastest" ? "faster" : "slower"} than lane ${other ? other.number : "?"} · ${Math.round(a[`${t}_p`] * 100)}% sure${sure ? "" : " · small lead"}${a[`${t}_calibration_sensitive`] ? " · sensitive to calibration" : ""}</div></div>`;
       };
       const rows = ranked.map((l) => `<div class="vd-row${l.auxiliary ? " aux" : ""}${l.evidence_ok ? "" : " low"}">
           <div class="nm">Lane ${l.number}${l.auxiliary ? " <small>ramp</small>" : !l.evidence_ok ? " <small>few cars</small>" : a.fastest === l.lane ? " ▲" : a.slowest === l.lane ? " ▼" : ""}</div>

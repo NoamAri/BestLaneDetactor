@@ -270,10 +270,10 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
         <div class="card"><div class="n">2 · Track</div><h3>The same car over time</h3><p>A tracker links the boxes into one path per vehicle, even when it hides behind a tree or a truck for a moment.</p></div>
         <div class="card"><div class="n">3 · Lanes</div><h3>Lanes from where cars drive</h3><p>Cars keep to their lanes, so their paths reveal the lanes. Lane 1 is the leftmost in the direction of travel.</p></div>
         <div class="card"><div class="n">4 · Metres</div><h3>From pixels to km/h</h3><p>The drone's wobble is removed and pixels become metres, so a far lane is not mistaken for a slow one.</p></div>
-        <div class="card"><div class="n">5 · Verdict</div><h3>Fastest only when it's real</h3><p>A lane's speed is the total distance ÷ total time of all its cars. "Clearly fastest" needs a 10% lead in 90% of resamples; otherwise it is a close call.</p></div>
+        <div class="card"><div class="n">5 · Verdict</div><h3>Fastest only when it's real</h3><p>A lane's speed is the total distance ÷ total time of all its cars. "Clearly fastest" needs a 10% lead in 90% of resamples; otherwise the app shows how small the lead is.</p></div>
       </div>
       <div class="dots" id="aboutDots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
-      <p class="note" style="text-align:center">Version 2026-11-27 22:46 UTC</p>
+      <p class="note" style="text-align:center">Version 2026-11-27 23:12 UTC</p>
       <p class="note"><button class="linkbtn" id="toDesktop2">Every detail and the method: desktop view</button></p>
     </section>
   </main>
@@ -337,6 +337,12 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   const laneIdx = (id) => lanes().findIndex((l) => l.id === id);
   const speedOf = (id) => (ls() ? ls().lanes.find((l) => l.lane === id) : null);
   const verdictLane = (dir, t) => { const a = ls() && ls().announcement[dir]; return a ? a[t] || a[`${t}_candidate`] : null; };
+  // the margin of a not-clear winner, in plain words: "8% ahead" (fastest) / "6% behind" (slowest)
+  function margin(dir, t) {
+    const a = ls() && ls().announcement[dir], r = a && a[`${t}_ratio`];
+    if (!r) return "";
+    return t === "fastest" ? `${Math.round((r - 1) * 100)}% ahead` : `${Math.round((1 - 1 / r) * 100)}% behind`;
+  }
   const closeCall = (dir, t) => { const a = ls() && ls().announcement[dir]; return !!a && !a[t]; };
   function mainDirection() {
     let best = null, v = -1;
@@ -717,7 +723,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       const dir = S.followLane && laneById(S.followLane) ? laneById(S.followLane).direction : mainDirection();
       const l = laneById(verdictLane(dir, "fastest")), sp = l && speedOf(l.id);
       el.hidden = !sp;
-      const html = sp ? `Fastest ${signHTML(l)}${closeCall(dir, "fastest") ? "<small>close call</small>" : ""}` : "";
+      const html = sp ? `Fastest ${signHTML(l)}${closeCall(dir, "fastest") ? `<small>${margin(dir, "fastest")}</small>` : ""}` : "";
       if (el.dataset.html !== html) { el.innerHTML = html; el.dataset.html = html; }   // only touch the DOM on change
     } else el.hidden = true;
     const f = $("follow");
@@ -760,13 +766,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       const cell = (t) => {
         const l = laneById(verdictLane(d, t)), sp = l && speedOf(l.id);
         if (!sp) return `<div><div class="k">${t}</div><div class="v">–</div></div>`;
-        return `<div><div class="k">${t === "fastest" ? "▲ Fastest" : "▼ Slowest"}${closeCall(d, t) ? '<span class="tag">close</span>' : ""}</div>
+        return `<div><div class="k">${t === "fastest" ? "▲ Fastest" : "▼ Slowest"}${closeCall(d, t) ? `<span class="tag">${margin(d, t)}</span>` : ""}</div>
           <div class="ln"><span class="dot" style="background:${laneCol(l.number)}"></span>Lane ${l.number}</div>
           <div class="v mono">${sp.v_kmh.toFixed(1)} km/h</div></div>`;
       };
       const r = a.fastest_ratio, pct = r ? Math.round((r - 1) * 100) : null;
       const why = a.fastest ? `Clear: ${pct}% ahead of the next lane, in ${Math.round(a.fastest_p * 100)}% of resamples.`
-        : pct != null && r < 1.1 ? `Close call: only ${pct}% ahead of the next lane (10% needed to call it clear).`
+        : pct != null && r < 1.1 ? `Small lead: only ${pct}% ahead of the next lane (a clear winner needs 10%).`
         : pct != null ? `Leads by ${pct}%, but not consistently enough to call it clear (${Math.round(a.fastest_p * 100)}% of resamples).` : "";
       return `<button class="vcard${animate ? " reveal-in" : ""}" data-dir="${d}"><div class="dir"><span>${DIRW[d]}</span><span>›</span></div>
         <div class="pair">${cell("fastest")}${cell("slowest")}</div><p class="why">${why}</p></button>`;
@@ -791,7 +797,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       return `<div class="race" data-dir="${d}"><h3>${DIRW[d]}</h3><div class="sub">Average speed in each lane around this moment</div>
         ${rows.map((l) => `<button class="rrow${l.auxiliary ? " aux" : ""}" data-lane="${l.lane}"><span class="nm">Lane ${l.number}${l.auxiliary ? " ramp" : ""}<span class="crown">▲</span></span>
           <span class="track"><span class="fill" style="display:block;background:${laneCol(l.number)};width:0%"></span></span><span class="val mono">–</span></button>`).join("")}
-        <p class="sentence">Whole video: ▲ lane ${f ? f.number : "–"} fastest${closeCall(d, "fastest") ? " (close call)" : ""}, ▼ lane ${s ? s.number : "–"} slowest${closeCall(d, "slowest") ? " (close call)" : ""}.${share}</p></div>`;
+        <p class="sentence">Whole video: ▲ lane ${f ? f.number : "–"} fastest${closeCall(d, "fastest") ? ` (only ${margin(d, "fastest")})` : ""}, ▼ lane ${s ? s.number : "–"} slowest${closeCall(d, "slowest") ? ` (only ${margin(d, "slowest")})` : ""}.${share}</p></div>`;
     }).join("");
     for (const r of box.querySelectorAll(".rrow")) r.onclick = () => openLane(r.dataset.lane);
     $("raceNote").textContent = L.validation ? `Checked against the official MiTra ground truth: within ${(L.validation.median_rel_err * 100).toFixed(1)}% (median).`
@@ -944,7 +950,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     const rank = same.findIndex((l) => l.lane === id) + 1;
     const vmax = Math.max(...same.map((l) => (l.ci || [0, l.v_kmh])[1]), sp ? sp.v_kmh : 1) * 1.1;
     const isF = verdictLane(ln.direction, "fastest") === id, isS = verdictLane(ln.direction, "slowest") === id;
-    const badge = isF ? `▲ Fastest${closeCall(ln.direction, "fastest") ? " · close call" : ""}` : isS ? `▼ Slowest${closeCall(ln.direction, "slowest") ? " · close call" : ""}` : "";
+    const badge = isF ? `▲ Fastest${closeCall(ln.direction, "fastest") ? ` · only ${margin(ln.direction, "fastest")}` : ""}` : isS ? `▼ Slowest${closeCall(ln.direction, "slowest") ? ` · only ${margin(ln.direction, "slowest")}` : ""}` : "";
     const tl = L && L.timeline[ln.direction], vals = tl ? (tl.v_kmh[id] || []) : [];
     let spark = "";
     if (vals.filter((v) => v != null).length > 1) {
