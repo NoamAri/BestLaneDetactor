@@ -64,3 +64,18 @@ def test_wrap_page_moves_title_into_head():
     page = wrap_page("<title>X</title>\n<style>a{}</style>\n<div>hi</div>")
     head, body = page.split("</head>")
     assert "<title>X</title>" in head and "<style>" in body and page.startswith("<!doctype html>")
+
+
+def test_live_speed_follows_braking_and_ignores_box_wobble():
+    import numpy as np
+    from lane_intel.export_viewer import live_speed
+    rng = np.random.default_rng(0)
+    t = np.arange(0, 10, 1 / 30)
+    v = np.where(t < 5, 20.0, 20.0 - 3.0 * (t - 5))                    # 72 km/h, then braking at 3 m/s^2
+    s = np.concatenate([[0], np.cumsum(v[:-1] / 30)]) + rng.normal(0, 0.3, len(t))   # 0.3 m box wobble
+    out = live_speed(t, s, np.array([2.0, 5.0, 8.0, 9.95]), 1.0)
+    assert abs(out[0] - 72) < 3                                         # steady part
+    assert abs(out[2] - (20 - 9) * 3.6) < 4                             # 39.6 km/h at t = 8 s
+    assert np.isfinite(out[3])                                          # near the end: shorter window, still a value
+    back = live_speed(t, -s, np.array([2.0]), -1.0)                     # driving the other way: still positive
+    assert abs(back[0] - 72) < 3

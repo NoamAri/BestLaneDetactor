@@ -155,7 +155,7 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
             ref = df.copy()
             ref["x_px"], ref["y_px"] = apply(stab, df.frame_idx.to_numpy(), df.x_px, df.y_px)
         if road_frame is not None and len(ref):
-            add_road_speed(tracks, ref, road_frame)
+            add_road_speed(tracks, ref, road_frame, fps)
         if lanes:
             lane_of = assign_lanes(ref, geo, lanes, W).groupby("track_id").lane_track.first()
             if lane_of_first is None:
@@ -207,19 +207,58 @@ def _json_clean(o):
     return o
 
 
-def add_road_speed(tracks: list[dict], ref: pd.DataFrame, rf) -> None:
-    """kmh (distance along the road over the track's span) and m_per_px (for the distance graph)."""
+LIVE_HZ = 5            # live speed samples per second (per vehicle)
+LIVE_WINDOW_S = 2.0    # each sample is a straight-line fit of distance over this window (box wobble averages out)
+LIVE_MIN_SPAN_S = 0.8  # at the ends of a track the window is shorter; below this span: no live value
+
+
+def live_speed(t: np.ndarray, s: np.ndarray, times: np.ndarray, sign: float) -> np.ndarray:
+    """Speed (km/h, in the direction of travel, >= 0) at each of `times`: least-squares slope of s(t)
+    over a LIVE_WINDOW_S window centred on it, using whatever part of the track lies inside. NaN where
+    the window holds fewer than 3 boxes or spans less than LIVE_MIN_SPAN_S."""
+    out = np.full(len(times), np.nan)
+    h = LIVE_WINDOW_S / 2
+    lo = np.searchsorted(t, times - h, "left")
+    hi = np.searchsorted(t, times + h, "right")
+    for k, (a, b) in enumerate(zip(lo, hi)):
+        if b - a < 3 or t[b - 1] - t[a] < LIVE_MIN_SPAN_S:
+            continue
+        tt, ss = t[a:b], s[a:b]
+        tc = tt - tt.mean()
+        den = float(tc @ tc)
+        if den > 0:
+            out[k] = max(0.0, sign * float(tc @ (ss - ss.mean())) / den) * 3.6
+    return out
+
+
+def add_road_speed(tracks: list[dict], ref: pd.DataFrame, rf, fps: float = 0.0) -> None:
+    """Per track: kmh (average: distance along the road over the track's span), m_per_px (for the
+    distance graph) and, with fps, a live speed series vs = {f0, df, kmh: [...]} sampled at LIVE_HZ
+    (frame indices f0, f0 + df, ...; null where too little of the track is in view)."""
     s_, _ = rf.sd(ref.x_px.to_numpy(), ref.y_px.to_numpy())
-    g = ref.assign(s=s_).sort_values("t").groupby("track_id")
+    r = ref.assign(s=s_).sort_values(["track_id", "t"])
+    g = r.groupby("track_id")
     first, last = g.first(), g.last()
     span = (last.t - first.t)
     ds = (last.s - first.s).abs()
     dx = (last.x_px - first.x_px).abs()
+    df = max(1, int(round(fps / LIVE_HZ))) if fps else 0
+    series = {}
+    if df:
+        for tid, q in g:
+            t, s, f = q.t.to_numpy(), q.s.to_numpy(), q.frame_idx.to_numpy()
+            if len(t) < 3:
+                continue
+            fs = np.arange(f[0], f[-1] + 1, df)
+            v = live_speed(t, s, fs / fps, 1.0 if s[-1] >= s[0] else -1.0)
+            series[tid] = {"f0": int(f[0]), "df": df, "kmh": [None if not np.isfinite(x) else round(float(x), 1) for x in v]}
     for t in tracks:
         k = t["track_id"]
         if k in span.index and span[k] > 0:
             t["kmh"] = round(float(ds[k] / span[k] * 3.6), 1)
             t["m_per_px"] = round(float(ds[k] / dx[k]), 5) if dx[k] > 1 else None
+        if k in series:
+            t["vs"] = series[k]
 
 
 def _on_vehicles(polys: list[dict], pts: pd.DataFrame, lane_of) -> list[dict]:

@@ -167,6 +167,14 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .carhead { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin: 2px 0 4px; }
 .carhead .big { margin: 0; }
 .carhead .cmp { font-size: 13px; color: var(--muted); }
+.trend { font-size: 13px; color: var(--muted); font-weight: 500; }
+.trend.up { color: var(--accent); }
+.trend.down { color: #e0802d; }
+.avgline { font-size: 13px; color: var(--muted); margin: 2px 0 6px; }
+.avgline b { color: var(--fg); font-weight: 500; }
+.csparkwrap { position: relative; margin: 4px 0 8px; }
+.cspark { display: block; width: 100%; height: 48px; }
+.cspark-dot { position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; border-radius: 50%; box-shadow: 0 0 0 3px var(--surface); pointer-events: none; transition: opacity .2s; }
 .facts { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 13.5px; color: var(--muted); margin: 6px 0 12px; }
 .facts b { color: var(--fg); font-weight: 500; }
 .sheet h3 { margin: 0 0 2px; font-size: 18px; display: flex; align-items: center; gap: 8px; padding-right: 40px; }
@@ -457,6 +465,16 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     }
     return best;
   }
+  // live speed of a vehicle at frame f (km/h): the series sampled in the bundle (2 s smoothing), interpolated
+  function liveKmh(t, f) {
+    const v = t && t.vs; if (!v) return null;
+    const x = (f + S.meta.frame_first - v.f0) / v.df, i = Math.floor(x), k = v.kmh;
+    if (x < 0 || i >= k.length) return null;
+    const a = k[i], b = k[Math.min(k.length - 1, i + 1)];
+    if (a == null) return b; if (b == null) return a;
+    return a + (b - a) * (x - i);
+  }
+  const nowKmh = (t) => { const v = liveKmh(t, S.f); return v != null ? v : t && t.kmh != null ? t.kmh : null; };
   function pickAnyCar() {                // results hidden: ride along with a car that stays long, whatever its lane
     let best = null, score = -1;
     const dir = ls() ? mainDirection() : null;            // the moving direction, any of its lanes
@@ -526,7 +544,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       const [x1, y1] = toScreen(fb.x1, fb.y1), [x2, y2] = toScreen(fb.x2, fb.y2);
       ctx.lineWidth = 3; ctx.strokeStyle = col; rr(ctx, x1 - 2, y1 - 2, x2 - x1 + 4, y2 - y1 + 4, 6); ctx.stroke();
       if (t && t.kmh != null) {
-        const txt = `${Math.round(t.kmh)} km/h`;
+        const txt = `${Math.round(nowKmh(t))} km/h`;
         ctx.font = "600 13px " + css("--font-sans");
         const tw = ctx.measureText(txt).width, bx = Math.max(4, Math.min(W - tw - 16, (x1 + x2) / 2 - tw / 2 - 6)), by = Math.max(4, y1 - 26);
         ctx.fillStyle = col; rr(ctx, bx, by, tw + 12, 21, 10); ctx.fill();
@@ -710,7 +728,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     f.hidden = false;
     const who = S.mode === "auto" ? (shown() ? "Riding along in the fastest lane" : `Riding along · lane ${ln.number}`)
       : S.mode === "lane" ? `Following lane ${ln.number}` : "Following your car";
-    f.textContent = `${who} · ${t.kmh != null ? Math.round(t.kmh) + " km/h" : t.cls}`;
+    const kn = nowKmh(t);
+    f.textContent = `${who} · ${kn != null ? Math.round(kn) + " km/h" : t.cls}`;
   }
 
   function hiddenCard(where) {
@@ -902,14 +921,53 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     const diff = sp && t.kmh != null ? Math.round(t.kmh - sp.v_kmh) : null;
     S.mode = "car"; S.followId = id; S.lostFrames = 0; S.exploring = false; S.glide = false;
     const icon = { truck: "🚚", bus: "🚌", motorcycle: "🏍" }[t.cls] || "🚗";
+    const cmp = !shown() || diff == null ? "" : diff === 0 ? "same as its lane's average"
+      : `${Math.abs(diff)} km/h ${diff > 0 ? "faster" : "slower"} than lane ${ln.number}'s average`;
+    const k = (t.vs && t.vs.kmh) || [], vals = k.filter((x) => x != null);
+    let spark = "";
+    if (vals.length > 2) {
+      const vm = Math.max(10, ...vals) * 1.15, n = k.length;
+      const pts = k.map((x, i) => x == null ? null : `${(i / (n - 1) * 300).toFixed(1)},${(44 - x / vm * 40).toFixed(1)}`).filter(Boolean).join(" ");
+      const col = ln ? laneCol(ln.number) : css("--accent");
+      spark = `<svg class="cspark" viewBox="0 0 300 48" preserveAspectRatio="none" aria-label="Speed of this vehicle over its time in view">
+        <line x1="0" x2="300" y1="44" y2="44" stroke="var(--line)" vector-effect="non-scaling-stroke"/>
+        <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2.2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+        <line id="carPh" x1="0" x2="0" y1="0" y2="46" stroke="var(--fg)" stroke-width="1" opacity=".35" vector-effect="non-scaling-stroke"/></svg>
+        <div class="cspark-dot" id="carDot" style="background:${col}"></div>`;
+      S.carSpark = { n, vm };
+    } else S.carSpark = null;
     openSheet(`<h3>${icon} ${t.cls[0].toUpperCase() + t.cls.slice(1)} · following</h3>`,
-      `<div class="peekblk"><div class="carhead"><div class="big mono">${t.kmh != null ? Math.round(t.kmh) : "–"} <small>km/h</small></div>
-        <div class="cmp">${diff == null ? "" : diff === 0 ? "same as its lane's average" : `${diff > 0 ? "▲" : "▼"} ${Math.abs(diff)} km/h ${diff > 0 ? "faster" : "slower"} than lane ${ln.number}'s average`}</div></div>
+      `<div class="peekblk"><div class="carhead"><div class="big mono"><span id="carNow">${nowKmh(t) != null ? Math.round(nowKmh(t)) : "–"}</span> <small>km/h now</small></div>
+        <div class="trend" id="carTrend"></div></div>
+      <div class="avgline">average <b class="mono">${t.kmh != null ? Math.round(t.kmh) : "–"} km/h</b>${cmp ? ` · ${cmp}` : ""}</div>
+      <div class="csparkwrap">${spark}</div>
       <div class="facts"><span>${ln ? `<span style="color:${laneCol(ln.number)}">●</span> <b>Lane ${ln.number} ${arrow(ln.direction)}</b>` : "not in a lane"}</span>
         <span><b class="mono">${secs.toFixed(1)} s</b> on screen</span>${dist != null ? `<span><b class="mono">${Math.round(dist)} m</b> seen</span>` : ""}</div>
       ${ln ? `<button class="sbtn ghost" id="sLane">Lane ${ln.number} details</button>` : ""}<button class="sbtn ghost" id="sStop">Stop following</button></div>`, { car: id });
+    updateCarLive();
     if ($("sLane")) $("sLane").onclick = () => openLane(ln.id);
     $("sStop").onclick = () => { S.mode = "auto"; S.followLane = null; S.followId = null; closeSheet(); };
+  }
+  // the open car card follows the video: live number, speeding up / slowing down, the dot on the graph
+  function updateCarLive() {
+    if (!S.sheet || S.sheet.car == null || !$("carNow")) return;
+    const t = S.info.get(S.sheet.car); if (!t) return;
+    const now = liveKmh(t, S.f), before = liveKmh(t, Math.max(0, S.f - Math.round(S.fps)));
+    $("carNow").textContent = now != null ? Math.round(now) : t.kmh != null ? Math.round(t.kmh) : "–";
+    const tr = $("carTrend");
+    if (now == null) { tr.textContent = "not in view"; tr.className = "trend"; }
+    else if (before != null && now - before > 2) { tr.textContent = "▲ speeding up"; tr.className = "trend up"; }
+    else if (before != null && before - now > 2) { tr.textContent = "▼ slowing down"; tr.className = "trend down"; }
+    else { tr.textContent = "steady"; tr.className = "trend"; }
+    const sp = S.carSpark, dot = $("carDot");
+    if (sp && dot && t.vs) {
+      const x = (S.f + S.meta.frame_first - t.vs.f0) / t.vs.df, u = Math.max(0, Math.min(1, x / (sp.n - 1)));
+      const svg = dot.previousElementSibling, w = svg.clientWidth, h = svg.clientHeight;
+      $("carPh").setAttribute("x1", u * 300); $("carPh").setAttribute("x2", u * 300);
+      const v = now != null ? now : 0;
+      dot.style.left = (u * w) + "px"; dot.style.top = ((44 - v / sp.vm * 40) / 48 * h) + "px";
+      dot.style.opacity = now != null && x >= 0 && x <= sp.n - 1 ? 1 : 0;
+    }
   }
   function openLane(id) {
     const ln = laneById(id), sp = speedOf(id), L = ls(); if (!ln) return;
@@ -1059,7 +1117,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   function frame() {
     if (!S.meta) return;
     S.f = Math.max(0, Math.min(S.n - 1, Math.round(vid.currentTime * S.fps)));
-    updateFollow(); draw(); drawMini(); renderChips();
+    updateFollow(); draw(); drawMini(); renderChips(); updateCarLive();
     if (S.f !== lastF) { drawScrub(); updateRace(); $("tNow").textContent = (S.f / S.fps).toFixed(1) + " s"; lastF = S.f; }
   }
   function loop(ts) {
