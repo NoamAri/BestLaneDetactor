@@ -32,7 +32,7 @@ import pandas as pd
 
 from lane_intel.export_viewer import VIEWER_SRC, ViewerVariant, build_bundle, variants_from_experiment, wrap_page
 from lane_intel.calibrate import calib_path, load_road_frame
-from lane_intel.lane_speed import viewer_payload
+from lane_intel.lane_speed import track_lanes, viewer_payload
 from lane_intel.lanes import lanes_path
 
 ARCH_SRC = VIEWER_SRC.parents[1] / "architecture" / "index.html"
@@ -59,11 +59,14 @@ def build_site(spec: dict, out: str | Path, only: set[str] | None = None) -> lis
             print(f"== {clip['id']}")
             stem = Path(clip["cfg"]).stem
             sp = Path("data/interim") / f"{stem}_{clip.get('start', 0.0):g}-{clip['dur']:g}s_stab.parquet"
+            window = f"{stem}_{clip.get('start', 0.0):g}-{clip['dur']:g}s"
             build_bundle(cfg, clip_variants(clip, cfg), cdir, clip.get("start", 0.0), clip["dur"], write_page=False,
                          lanes_file=lanes_path(cfg, clip["cfg"]),
                          stab=pd.read_parquet(sp) if sp.exists() else None,
                          lane_speed=viewer_payload(Path("data/out/lane_speed") / stem),
-                         road_frame=load_road_frame(calib_path(clip["cfg"])) if calib_path(clip["cfg"]).exists() else None)
+                         road_frame=load_road_frame(calib_path(clip["cfg"])) if calib_path(clip["cfg"]).exists() else None,
+                         lane_moves=track_lanes(Path("data/out/lane_speed") / stem, window),
+                         moves_variant=cfg.get("tracking", {}).get("variant"))
         elif not (cdir / "meta.json").exists():
             raise FileNotFoundError(f"clip {clip['id']} was never built; run without --only first")
         index.append({"id": clip["id"], "label": clip.get("label") or cfg.get("label") or clip["id"],

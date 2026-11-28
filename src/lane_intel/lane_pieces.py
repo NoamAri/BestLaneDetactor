@@ -76,14 +76,47 @@ def move_to_crossings(t: np.ndarray, d: np.ndarray, lane: np.ndarray, lane_d: di
     return lane
 
 
+def require_lateral(t: np.ndarray, d: np.ndarray, lane: np.ndarray, lane_d: dict[str, float],
+                    min_frac: float, window_s: float, lane_change_gap_s: float = 0.0) -> np.ndarray:
+    """Undo lane changes without real sideways movement (amendment A7).
+
+    For each change a -> b: the median lateral position over window_s ending gap_s before the change and over
+    window_s starting gap_s after it (so the manoeuvre itself is skipped) must differ by at least min_frac of
+    |d(b) - d(a)| (the spacing of the two lane centres).
+    Otherwise the run in lane b is returned to lane a. With too few boxes on either side the change stays.
+    """
+    lane = lane.copy()
+    j = 1
+    while j < len(lane):
+        if lane[j] == lane[j - 1]:
+            j += 1
+            continue
+        a, b = lane[j - 1], lane[j]
+        if a == "" or b == "" or a not in lane_d or b not in lane_d:
+            j += 1
+            continue
+        gap = lane_change_gap_s                       # skip the manoeuvre itself: compare well before with well after
+        before = d[(t >= t[j] - gap - window_s) & (t < t[j] - gap)]
+        after = d[(t > t[j] + gap) & (t <= t[j] + gap + window_s)]
+        need = min_frac * abs(lane_d[b] - lane_d[a])
+        if len(before) >= 2 and len(after) >= 2 and abs(np.median(after) - np.median(before)) < need:
+            k = j
+            while k < len(lane) and lane[k] == b:
+                k += 1
+            lane[j:k] = a                                  # no sideways movement: it never left lane a
+        j += 1
+    return lane
+
+
 def build(road: pd.DataFrame, lane_d: dict[str, float], lane_dir: dict[str, str],
-          min_dwell_s: float) -> tuple[pd.DataFrame, pd.DataFrame]:
+          min_dwell_s: float, lane_change: dict | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """Smooth lanes per segment; return (segments, lane_changes).
 
     road: boxes with seg_id, t, s, d, lane ("" outside lanes), cls; sorted by seg_id, t.
     segments: one row per straight piece between consecutive boxes (or a part of one, at a lane
     change): seg_id, cls, lane, t_a, t_b, s_a, s_b.
-    lane_changes: seg_id, t, from_lane, to_lane.
+    lane_changes: seg_id, t, s (road position of the crossing), from_lane, to_lane.
+    lane_change: {"min_lateral_frac", "window_s"} applies require_lateral (None: label changes only).
     """
     road = road.sort_values(["seg_id", "t"]).reset_index(drop=True)
     sm = np.empty(len(road), dtype=object)
@@ -91,8 +124,11 @@ def build(road: pd.DataFrame, lane_d: dict[str, float], lane_dir: dict[str, str]
     bounds = np.flatnonzero(np.r_[True, road.seg_id.to_numpy()[1:] != road.seg_id.to_numpy()[:-1], True])
     d_all = road.d.to_numpy()
     for a, b in zip(bounds[:-1], bounds[1:]):
-        sm[a:b] = move_to_crossings(t_all[a:b], d_all[a:b], smooth_lanes(t_all[a:b], l_all[a:b], min_dwell_s),
-                                    lane_d, min_dwell_s)
+        ln = smooth_lanes(t_all[a:b], l_all[a:b], min_dwell_s)
+        if lane_change:
+            ln = require_lateral(t_all[a:b], d_all[a:b], ln, lane_d, lane_change["min_lateral_frac"], lane_change["window_s"],
+                                 lane_change.get("gap_s", 0.0))
+        sm[a:b] = move_to_crossings(t_all[a:b], d_all[a:b], ln, lane_d, min_dwell_s)
     road = road.assign(lane_s=sm)
 
     same_seg = road.seg_id.to_numpy()[1:] == road.seg_id.to_numpy()[:-1]
@@ -116,5 +152,5 @@ def build(road: pd.DataFrame, lane_d: dict[str, float], lane_dir: dict[str, str]
     segments = pd.concat(segs, ignore_index=True)
     segments = segments[segments.lane != ""].reset_index(drop=True)
     real = np.array([x != "" and y != "" and lane_dir.get(x) == lane_dir.get(y) for x, y in zip(la[ch], lb[ch])], bool)
-    changes = pd.DataFrame({"seg_id": seg[i][real], "t": tc[real], "from_lane": la[ch][real], "to_lane": lb[ch][real]})
+    changes = pd.DataFrame({"seg_id": seg[i][real], "t": tc[real], "s": sc[real], "from_lane": la[ch][real], "to_lane": lb[ch][real]})
     return segments, changes

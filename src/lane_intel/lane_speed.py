@@ -175,7 +175,8 @@ def compute(cfg: dict, ls: dict, g: pd.DataFrame, geo, lanes: list[dict], rf, co
     for l in lanes:
         l["auxiliary"] = l["id"] in aux
     lane_dir = {l["id"]: l["direction"] for l in lanes}
-    segs, changes = lane_pieces.build(road, lane_d, lane_dir, ls["pieces"]["min_dwell_s"])
+    segs, changes = lane_pieces.build(road, lane_d, lane_dir, ls["pieces"]["min_dwell_s"],
+                                          lc if (lc := ls.get("lane_change")) and lc.get("enabled", True) else None)
     segs = add_sign_and_gaps(segs, lanes, road.t)
     stretches = {}
     for direction in sorted(set(lane_dir.values())):
@@ -188,6 +189,94 @@ def compute(cfg: dict, ls: dict, g: pd.DataFrame, geo, lanes: list[dict], rf, co
     return {"road": road, "segs": segs, "changes": changes, "lanes": lanes, "lane_d": lane_d, "aux": aux,
             "aux_info": aux_info, "stretches": stretches, "t_span": t_span, "lanes_tab": lanes_tab, "veh": veh,
             "ann": ann}
+
+
+MIN_PAYOFF_CASES = 5    # the Answer sentence about speed after moving needs at least this many changes
+
+
+def moves_summary(out_dir: Path, lane_info: dict) -> dict:
+    """Per direction: the most common lane change and, per target lane with enough cases, the average speed
+    change of the vehicles that moved into it (after minus before, km/h)."""
+    p = Path(out_dir) / "lane_changes.parquet"
+    if not p.exists():
+        return {}
+    ch = pd.read_parquet(p)
+    out = {}
+    for x in ch.itertuples():
+        li = lane_info.get(x.from_lane)
+        if li is None:
+            continue
+        out.setdefault(li["direction"], []).append(x)
+    res = {}
+    for d, rows in out.items():
+        q = pd.DataFrame(rows)
+        top = q.groupby(["from_lane", "to_lane"]).size().sort_values(ascending=False)
+        gain = []
+        if "v_before" in q:
+            ok = q.dropna(subset=["v_before", "v_after"])
+            for to, g in ok.groupby("to_lane"):
+                if len(g) >= MIN_PAYOFF_CASES:
+                    gain.append({"to": to, "n": int(len(g)), "gain_kmh": round(float((g.v_after - g.v_before).median()), 1)})
+        res[d] = {"count": int(len(q)), "top": {"from": top.index[0][0], "to": top.index[0][1], "n": int(top.iloc[0])},
+                  "gain": gain}
+    return res
+
+
+def track_lanes(out_dir: str | Path, window: str | None = None) -> dict[int, dict] | None:
+    """Lane pieces and changes per vehicle of one analysis window (keys: the window's own track ids).
+    window None: the only window there is (uploaded clips)."""
+    out_dir = Path(out_dir)
+    pp, cp = out_dir / "lane_pieces.parquet", out_dir / "lane_changes.parquet"
+    if not pp.exists():
+        return None
+    pieces, ch = pd.read_parquet(pp), pd.read_parquet(cp)
+    if window is None:
+        if pieces.window.nunique() != 1:
+            return None
+        window = pieces.window.iat[0]
+    pieces, ch = pieces[pieces.window == window], ch[ch.window == window]
+    res: dict[int, dict] = {}
+    for k, q in pieces.sort_values("t0").groupby("track_local"):
+        res[int(k)] = {"pieces": [[float(a), float(b), l] for a, b, l in zip(q.t0, q.t1, q.lane)], "changes": []}
+    for x in ch.sort_values("t").itertuples():
+        f = lambda v: None if not np.isfinite(v) else round(float(v), 1)  # noqa: E731
+        res.setdefault(int(x.track_local), {"pieces": [], "changes": []})["changes"].append(
+            [float(x.t), x.from_lane, x.to_lane, f(x.v_before), f(x.v_after)])
+    return res
+
+
+PAYOFF_S = 5.0          # "did it pay off?": average speed over this long before vs after the change ...
+PAYOFF_MIN_S = 2.0      # ... from at least this much of the track on each side
+
+
+def track_moves(road: pd.DataFrame, segs: pd.DataFrame, changes: pd.DataFrame) -> dict[str, pd.DataFrame]:
+    """Per vehicle, the lane pieces and lane changes the measurement used (for the viewers).
+
+    pieces: window, track_local, t0, t1, lane (consecutive Edie segments of one lane, joined).
+    changes: + window, track_local, v_before / v_after (km/h; average speed along the road over
+    PAYOFF_S before and after the crossing, NaN with less than PAYOFF_MIN_S of track on a side).
+    """
+    ids = road.groupby("seg_id")[["window", "track_local"]].first() if "window" in road else None
+    sg = segs.sort_values(["seg_id", "t_a"])
+    new = (sg.seg_id != sg.seg_id.shift()) | (sg.lane != sg.lane.shift())
+    pieces = (sg.assign(k=new.cumsum()).groupby("k")
+              .agg(seg_id=("seg_id", "first"), t0=("t_a", "min"), t1=("t_b", "max"), lane=("lane", "first"))
+              .reset_index(drop=True))
+    by = {k: (q.t.to_numpy(), q.s.to_numpy()) for k, q in road.groupby("seg_id")}
+
+    def avg(k, a, b):
+        t, s_ = by[k]
+        m = (t >= a) & (t <= b)
+        if m.sum() < 2 or t[m][-1] - t[m][0] < PAYOFF_MIN_S:
+            return np.nan
+        return abs(s_[m][-1] - s_[m][0]) / (t[m][-1] - t[m][0]) * 3.6
+    ch = changes.copy()
+    ch["v_before"] = [avg(k, t - PAYOFF_S, t) for k, t in zip(ch.seg_id, ch.t)]
+    ch["v_after"] = [avg(k, t, t + PAYOFF_S) for k, t in zip(ch.seg_id, ch.t)]
+    if ids is not None:
+        pieces = pieces.join(ids, on="seg_id")
+        ch = ch.join(ids, on="seg_id")
+    return {"pieces": pieces, "changes": ch}
 
 
 def add_sign_and_gaps(segs: pd.DataFrame, lanes: list[dict], t: pd.Series) -> pd.DataFrame:
@@ -220,7 +309,9 @@ def run(cfg_path: str | Path, interim: str | Path = "data/interim", out_root: st
     out.mkdir(parents=True, exist_ok=True)
     r["lanes_tab"].to_parquet(out / "lanes.parquet", index=False)
     r["veh"].to_parquet(out / "vehicles.parquet", index=False)
-    r["changes"].to_parquet(out / "lane_changes.parquet", index=False)
+    moves = track_moves(r["road"], r["segs"], r["changes"])
+    moves["pieces"].to_parquet(out / "lane_pieces.parquet", index=False)
+    moves["changes"].to_parquet(out / "lane_changes.parquet", index=False)
     r["ann"].to_parquet(out / "announcements.parquet", index=False)
     road = r["road"]
     lt, ann = r["lanes_tab"], r["ann"]
@@ -280,8 +371,9 @@ def viewer_payload(out_dir: str | Path) -> dict | None:
         v = json.loads((out_dir / "validation.json").read_text())["main"]
         val = {"median_rel_err": v["speed"]["median_rel_err"], "median_abs_err_kmh": v["speed"]["median_abs_err_kmh"],
                "precision": {t: v["announcement_precision"][t]["gt_gap_confirms"] for t in ("fastest", "slowest")},
-               "per_lane": {x["lane"]: r(x["v_kmh_gt"], 1) for x in v["speed_by_lane_whole_span"]}}
-    return {"span_s": summ["span_s"], "stretches": {d: {k: st[k] for k in ("s0", "s1", "length_m", "ok")}
+               "per_lane": {x["lane"]: r(x["v_kmh_gt"], 1) for x in v["speed_by_lane_whole_span"]},
+               "lane_changes": json.loads((out_dir / "validation.json").read_text()).get("lane_changes", {}).get("all")}
+    return {"span_s": summ["span_s"], "moves": moves_summary(out_dir, {l["lane"]: l for l in lanes}), "stretches": {d: {k: st[k] for k in ("s0", "s1", "length_m", "ok")}
                                                     for d, st in summ["stretches"].items()},
             "lanes": lanes, "announcement": announce_, "timeline": timeline, "validation": val,
             "lane_changes": summ["lane_changes"]}

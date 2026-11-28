@@ -83,6 +83,32 @@ def test_lane_change_is_split_where_the_vehicle_crosses():
     assert veh.loc["R2", "D"] == pytest.approx(100 - 20 / FPS, abs=2.5)
 
 
+def test_double_lane_change_gives_three_pieces_and_keeps_all_distance():
+    t = np.arange(0, 15, 1 / FPS)
+    d = (np.clip((t - 4) / 2, 0, 1) - np.clip((t - 9) / 2, 0, 1)) * 3.6        # R1 -> R2 at 5 s, back at 10 s
+    lane = np.where(d < 1.8, "R1", "R2").astype(object)
+    road = pd.DataFrame({"seg_id": 1, "track_id": 1, "t": t, "s": 20 * t, "d": d, "lane": lane, "cls": "car"})
+    segs, ch = segments_of(road)
+    assert list(zip(ch.from_lane, ch.to_lane)) == [("R1", "R2"), ("R2", "R1")]
+    assert ch.t.tolist() == pytest.approx([5.0, 10.0], abs=0.05) and ch.s.tolist() == pytest.approx([100, 200], abs=1.5)
+    veh = lane_speed.edie_vehicles(segs, -1, 1e3, 0, 15).set_index("lane")
+    assert veh.loc["R2", "D"] == pytest.approx(100, abs=2.5)
+    assert veh["D"].sum() == pytest.approx(20 * (t[-1] - t[0]), abs=0.5)        # nothing counted twice or lost
+
+
+def test_box_sliding_across_a_line_without_sideways_movement():
+    """A7 (rejected on MiTra, off by default) still does what it says: no sideways movement, no change."""
+    t = np.arange(0, 10, 1 / FPS)
+    lane = np.where(t < 5, "R1", "R2").astype(object)
+    still = np.full_like(t, 1.7)                                                # stays near the line
+    moved = np.clip((t - 4) / 2, 0, 1) * 3.6
+    rule = {"min_lateral_frac": 0.6, "window_s": 2.0}
+    for d, n in ((still, 0), (moved, 1)):
+        road = pd.DataFrame({"seg_id": 1, "track_id": 1, "t": t, "s": 0.1 * t, "d": d, "lane": lane, "cls": "truck"})
+        assert len(lane_pieces.build(road, LANE_D, DIR, 0.5, rule)[1]) == n
+    assert len(segments_of(road.assign(d=still))[1]) == 1                       # labels only (the default) keeps it
+
+
 # --------------------------------------------------------------------------- plausibility
 def test_identity_jump_is_cut_once_and_smooth_driving_is_not():
     rng = np.random.default_rng(2)

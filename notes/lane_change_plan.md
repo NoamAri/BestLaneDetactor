@@ -1,6 +1,6 @@
 # Plan: lane changes (track them, show them, count them correctly)
 
-Status: plan. Section 1 describes what already exists; sections 3–5 are new work.
+Status: LC1, LC2, LC5 built; LC3 (T1) tested and rejected; LC4 (ramp merges) not started. Results in section 7.
 
 ## 1. What happens today when a vehicle changes lane
 
@@ -98,3 +98,47 @@ Already true by construction (section 1). The plan keeps it true and proves it:
 | LC3 | T1 + T2 (rules first), synthetic tests, validation on 0–120 s and held-out 120–180 s | targets in T4 met, T5 no worse |
 | LC4 | T3 ramp merges | R4 → R3 recall ≥ 70%, T5 no worse |
 | LC5 | "Did it pay off?" on the car card and the Answer tab sentence | shown only with enough data (≥ 2 s before and after, ≥ 5 cases per sentence) |
+
+## 7. Results (28 Nov 2026)
+
+### LC3 · T1 "real sideways movement" (amendment A7): rejected
+
+Rule set in `configs/lane_speed.json` before measuring (`lane_change`): a change counts only if the median lateral
+position over 2 s before vs 2 s after the crossing differs by ≥ 60% of the lane spacing. Development window 0–120 s,
+matched to ground truth by from/to lane, ±1 s, ±15 m (`validate.lane_change_check`):
+
+| Development 0–120 s | → right: ours / truth / matched | precision | recall | ← left: ours / truth / matched |
+|---|---|---|---|---|
+| Labels only (today) | 13 / 20 / 10 | 0.77 | 0.50 | 6 / 4 / 1 |
+| A7 as registered | 3 / 20 / 1 | 0.33 | 0.05 | 5 / 4 / 0 |
+| A7 redesign: 1.5 s skipped either side, ≥ 0.5 | 8 / 20 / 5 | 0.63 | 0.25 | 6 / 4 / 1 |
+| A7 redesign: 1.5 s skipped either side, ≥ 0.35 | 9 / 20 / 6 | 0.67 | 0.30 | 6 / 4 / 1 |
+
+The rule removes real changes in flowing traffic and does not remove the jam's false ones (they come with real sideways
+drift of the box, not only shape changes). It is disabled (`lane_change.enabled: false`); the code stays, with a test.
+The held-out window 120–180 s was not used for this decision. Lane speeds do not depend on it (2.50% vs 2.58% median
+error at 60 s windows).
+
+### Labels-only lane changes, whole 0–180 s (validation.json, `lane_changes.all`)
+
+| | Ours | Truth | Matched | Precision | Recall |
+|---|---|---|---|---|---|
+| → right (flowing) | 21 | 32 | 15 | 0.71 | 0.47 |
+| ← left (jam) | 11 | 11 | 1 | 0.09 | 0.09 |
+
+Targets (precision ≥ 0.8, recall ≥ 0.7) are **not met**. Lane speeds with the owner's 25 s windows: median error 2.3%,
+announcement precision 18/18 fastest and 18/18 slowest; held-out 120–180 s: 4.2%, rule agreement 100%.
+
+### Built: LC1, LC2, LC5 (phone app)
+
+* Viewer bundle: per track `lp` (lane pieces) and `lc` (changes with km/h before and after), from the same lane pieces
+  the measurement sums (`lane_speed.track_moves` → `lane_pieces.parquet`, `lane_changes.parquet`;
+  `export_viewer.add_lane_moves`). What is shown and what is counted cannot disagree.
+* Video: the followed car's box and bubble take its current lane's colour; "↑ lane 4" for 2 s after a change, with a haptic tick.
+* Car card: lane strip aligned with the speed graph, each change with its time, **"Did it pay off?"** (average speed over
+  5 s before vs after; only with ≥ 2 s seen on each side).
+* Cars tab: "Lane changes" tile, "Lane changers" filter, the lanes in driving order in each row ("3 → 2"), a "changed lane" badge.
+* Answer tab (when lane speeds are shown): per direction the number of changes, the most common move and, with ≥ 5
+  cases, the median speed gain of drivers who moved into a lane, plus the ground-truth check. Where the check shows
+  precision < 0.5 (the MiTra jam) the app says the changes are unreliable instead. Lane card: "moved into / out of this lane".
+* Not done: the "+1" on the lane signs; LC4 ramp merges at track breaks.

@@ -51,7 +51,7 @@ def measure_gt(cfg: dict, ls: dict, ours: dict, rf, gt: pd.DataFrame) -> dict:
     segs = lane_speed.add_sign_and_gaps(segs, ours["lanes"], road.t)
     lanes_tab, veh = lane_speed.measure(segs, changes, ours["lanes"], ours["stretches"], ours["t_span"], ls)
     ann = announce.announce_all(lanes_tab, veh, ls["announce"], cfg["lane_speed"].get("speed_limit_kmh"), 0.0)
-    return {"lanes_tab": lanes_tab, "veh": veh, "ann": ann, "lane_map": lane_map}
+    return {"lanes_tab": lanes_tab, "veh": veh, "ann": ann, "lane_map": lane_map, "changes": changes}
 
 
 def merged_view(cfg: dict, ls: dict, ours: dict) -> dict:
@@ -144,6 +144,26 @@ def compare(ours: dict, ref: dict, gap: float) -> dict:
     }
 
 
+def lane_change_check(ours: dict, ref: dict, t_from: float = -1e9, t_to: float = 1e9,
+                      max_dt: float = 1.0, max_ds: float = 15.0) -> dict:
+    """Lane changes ours vs ground truth inside each direction's measuring stretch: an event of ours matches a
+    ground-truth event with the same from/to lanes within max_dt seconds and max_ds metres (one-to-one, nearest first)."""
+    lane_dir = {l["id"]: l["direction"] for l in ours["lanes"]}
+    out = {}
+    for d, st in ours["stretches"].items():
+        sel = lambda c: c[(c.from_lane.map(lane_dir) == d) & (c.s >= st["s0"]) & (c.s <= st["s1"]) & (c.t >= t_from) & (c.t < t_to)]  # noqa: E731
+        o, g = sel(ours["changes"]).reset_index(drop=True), sel(ref["changes"]).reset_index(drop=True)
+        used, hit = set(), 0
+        for r in o.itertuples():
+            cand = g[(g.from_lane == r.from_lane) & (g.to_lane == r.to_lane) & ((g.t - r.t).abs() <= max_dt) & ((g.s - r.s).abs() <= max_ds)]
+            cand = cand[~cand.index.isin(used)]
+            if len(cand):
+                used.add((cand.t - r.t).abs().idxmin()); hit += 1
+        out[d] = {"ours": int(len(o)), "ground_truth": int(len(g)), "matched": hit,
+                  "precision": round(hit / len(o), 3) if len(o) else None, "recall": round(hit / len(g), 3) if len(g) else None}
+    return out
+
+
 def subset(res: dict, keep) -> dict:
     """The same results restricted to the windows for which keep(window, t0, t1) is true."""
     out = dict(res)
@@ -171,6 +191,7 @@ def run(cfg_path: str | Path, interim: str | Path = "data/interim", out_root: st
            "merged_for_comparison": ours["merged"],
            "lane_assignment_agreement": ours["aux_info"]["agreement"], "stretches": ours["stretches"],
            "main": compare(ours, ref, gap)}
+    res["lane_changes"] = {"all": lane_change_check(ours, ref)}
     split = cfg["lane_speed"].get("held_out_from_s")
     if split is not None:
         res["held_out_from_s"] = split
@@ -180,6 +201,8 @@ def run(cfg_path: str | Path, interim: str | Path = "data/interim", out_root: st
         held = lambda w, a, b: w == "held_out"                                         # noqa: E731
         res["development_span"] = compare(subset(ours, dev), subset(ref, dev), gap)
         res["held_out_span"] = compare(subset(ours, held), subset(ref, held), gap)
+        res["lane_changes"]["development"] = lane_change_check(ours, ref, t_to=split)
+        res["lane_changes"]["held_out"] = lane_change_check(ours, ref, t_from=split)
     if ablations:
         variants = {
             "no occlusion filter": {**ls, "occlusion_height_frac": 0.0},

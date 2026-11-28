@@ -109,7 +109,8 @@ def wrap_page(fragment: str) -> str:
 def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, start: float,
                  duration: float, crop_y: tuple[int, int] | None = None, width: int | None = None,
                  crf: int = 32, write_page: bool = True, lanes_file: str | Path | None = None,
-                 stab: pd.DataFrame | None = None, lane_speed: dict | None = None, road_frame=None) -> dict:
+                 stab: pd.DataFrame | None = None, lane_speed: dict | None = None, road_frame=None,
+                 lane_moves: dict | None = None, moves_variant: str | None = None) -> dict:
     """Write video.mp4, tags_<variant>.json, meta.json (and index.html); return meta.
 
     The first variant is the one the viewer opens with. crop_y / width default to the camera
@@ -162,6 +163,8 @@ def build_bundle(cfg: dict, variants: list[ViewerVariant], out_dir: str | Path, 
                 lane_of_first = lane_of
             for t in tracks:
                 t["lane"] = int(lane_of.get(t["track_id"], -1))
+            if lane_moves and v.name == moves_variant:
+                add_lane_moves(tracks, lane_moves, {l["id"]: i for i, l in enumerate(lanes)}, cfg.get("native_fps") or fps)
         meta_variants.append({
             "name": v.name, "label": v.label or v.name, "note": v.note, "file": fname,
             "quality": v.quality, "tags": int(len(df)), "tracks": tracks,
@@ -259,6 +262,26 @@ def add_road_speed(tracks: list[dict], ref: pd.DataFrame, rf, fps: float = 0.0) 
             t["m_per_px"] = round(float(ds[k] / dx[k]), 5) if dx[k] > 1 else None
         if k in series:
             t["vs"] = series[k]
+
+
+def add_lane_moves(tracks: list[dict], moves: dict, lane_idx: dict[str, int], fps: float) -> None:
+    """Per track, the lane pieces and changes of the lane-speed measurement, in frames and lane indices:
+    lp = [[first_frame, lane], ...] (one per piece), lc = [[frame, from, to, kmh_before, kmh_after], ...].
+    The track's lane becomes the lane it spent most time in according to the same pieces."""
+    for t in tracks:
+        m = moves.get(int(t["track_id"]))
+        if not m or not m["pieces"]:
+            continue
+        t["lp"] = [[int(round(a * fps)), lane_idx[l]] for a, _, l in m["pieces"] if l in lane_idx]
+        if m["changes"]:
+            t["lc"] = [[int(round(x * fps)), lane_idx[a], lane_idx[b], vb, va] for x, a, b, vb, va in m["changes"]
+                       if a in lane_idx and b in lane_idx]
+        dur: dict[int, float] = {}
+        for a, b, l in m["pieces"]:
+            if l in lane_idx:
+                dur[lane_idx[l]] = dur.get(lane_idx[l], 0.0) + (b - a)
+        if dur:
+            t["lane"] = max(dur, key=dur.get)
 
 
 def _on_vehicles(polys: list[dict], pts: pd.DataFrame, lane_of) -> list[dict]:

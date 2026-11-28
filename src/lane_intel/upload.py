@@ -302,7 +302,7 @@ def answer_lines(summ: dict) -> list[str]:
 def publish(cfg_path: Path, cfg: dict, paths: dict, docs: Path, rules: dict) -> dict:
     from lane_intel.calibrate import calib_path, load_road_frame
     from lane_intel.export_viewer import ViewerVariant, build_bundle
-    from lane_intel.lane_speed import viewer_payload
+    from lane_intel.lane_speed import track_lanes, viewer_payload
     vid = cfg["uploaded"]["id"]
     out = docs / "clips" / vid
     if out.exists():
@@ -310,7 +310,8 @@ def publish(cfg_path: Path, cfg: dict, paths: dict, docs: Path, rules: dict) -> 
     dur = cfg["lane_speed"]["windows"][0][1]
     build_bundle(cfg, [ViewerVariant(name=cfg["tracking"]["variant"], points=pd.read_parquet(paths["points"]), label="uploaded")],
                  out, 0.0, dur, write_page=False, lanes_file=ROOT / cfg["lanes_file"], stab=pd.read_parquet(paths["stab"]),
-                 lane_speed=viewer_payload(paths["speeds"]), road_frame=load_road_frame(ROOT / calib_path(cfg_path)))
+                 lane_speed=viewer_payload(paths["speeds"]), road_frame=load_road_frame(ROOT / calib_path(cfg_path)),
+                 lane_moves=track_lanes(paths["speeds"]), moves_variant=cfg["tracking"]["variant"])
     reg_path = docs / "uploads.json"
     reg = json.loads(reg_path.read_text()) if reg_path.exists() else []
     reg = [r for r in reg if r["id"] != vid]

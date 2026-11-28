@@ -31,7 +31,8 @@
     "A3 (before any lane speed): camera motion is removed (stabilize.py); lanes come from all analysis windows of a camera.",
     "A4 (before any lane speed): a plausibility limit counts as exceeded only beyond 3x the step's own measurement noise.",
     "A5 (POST HOC, after validating MiTra 0-120 s; confirmed on held-out 120-180 s): the stretch is the longest contiguous run of well-covered bins (a tree zone inside the stretch biased speeds by -10..-25%); the acceleration test's noise includes each track's slow speed wobble.",
-    "A6 (POST HOC, same procedure): plausibility cuts are off (plausibility.enabled = false). 535 of 535 remaining cuts were ordinary steps; with no cuts the median error was 3.4% vs 3.8-4.0%, precision 0.94 vs 0.88. Edie sums are invariant to identity breaks anyway. Chosen by a rule fixed before the comparison: lower median relative error, then precision."
+    "A6 (POST HOC, same procedure): plausibility cuts are off (plausibility.enabled = false). 535 of 535 remaining cuts were ordinary steps; with no cuts the median error was 3.4% vs 3.8-4.0%, precision 0.94 vs 0.88. Edie sums are invariant to identity breaks anyway. Chosen by a rule fixed before the comparison: lower median relative error, then precision.",
+    "A7 (28 Nov 2026, set before measuring lane-change accuracy, then REJECTED): lane changes need real sideways movement (lane_change block). On development 0-120 s it cut right-moving recall from 0.50 to 0.05 (redesign with the manoeuvre skipped: 0.25-0.30) without removing the jam's false changes, so lane_change.enabled = false. Held-out 120-180 s not used. Lane speeds unaffected."
   ],
   "ground_point_mode": "box_centre",
   "_ground_point_note": "'box_centre' is a misnomer kept for compatibility: the point used is the tracker's anchor, x_px / y_px = bottom-centre of the box (see notes/lane_speed.md 1.3).",
@@ -53,6 +54,14 @@
   },
 
   "pieces": { "min_dwell_s": 0.5 },
+
+  "lane_change": {
+    "enabled": false,
+    "min_lateral_frac": 0.6,
+    "window_s": 2.0,
+    "gap_s": 0.0,
+    "_note": "A7 (rule set before measuring lane-change accuracy): a change counts only if the vehicle's position across the road moves by >= min_lateral_frac of the lane spacing (median over window_s before vs after the crossing, gap_s skipped either side). Targets: precision >= 0.8, recall >= 0.7 per direction. RESULT on development 0-120 s (right-moving): labels only P 0.77 R 0.50; A7 as set P 0.33 R 0.05; redesign with 1.5 s gaps P 0.63-0.67 R 0.25-0.30. It removes real changes and does not remove false ones, so it is REJECTED and disabled (enabled false). Held-out 120-180 s was not used for this decision. Lane changes stay label-based (0.5 s hysteresis, placed at the line crossing)."
+  },
 
   "stretch": {
     "min_length_m": 40.0,

@@ -148,6 +148,18 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 
 /* ---------------------------------------------------------------- Cars tab */
 .cstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.cstats.four { grid-template-columns: repeat(2, 1fr); }
+.lcb { font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.lstrip { position: relative; height: 10px; border-radius: 5px; overflow: hidden; display: flex; margin: 2px 0 4px; background: var(--line); }
+.lstrip i { display: block; height: 100%; }
+.lstrip b { position: absolute; top: -2px; bottom: -2px; width: 2px; margin-left: -1px; background: var(--fg); border-radius: 1px; }
+.lsub { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-bottom: 6px; }
+.moves { font-size: 13.5px; color: var(--fg); margin: 6px 0 10px; display: grid; gap: 4px; }
+.moves .m { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.moves .pay { color: var(--muted); font-size: 12.5px; }
+.moves .pay b { color: var(--fg); font-weight: 500; }
+.lanemoves { margin: 10px 2px 4px; font-size: 13px; color: var(--muted); line-height: 1.45; }
+.lanemoves b { color: var(--fg); font-weight: 500; }
 .tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 11px; text-align: left; min-width: 0; }
 .tile .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
 .tile .v { font-size: 20px; font-weight: 600; margin-top: 2px; white-space: nowrap; }
@@ -170,13 +182,15 @@ button.tile:active { transform: scale(.98); }
 .fchip .n { opacity: .6; margin-left: 4px; font-variant-numeric: tabular-nums; }
 .fsep { flex: none; width: 1px; background: var(--line); margin: 6px 2px; }
 .clist { display: grid; gap: 6px; }
-.crow { display: grid; grid-template-columns: 34px 1fr 64px 58px; gap: 10px; align-items: center; width: 100%; text-align: left;
+.crow { display: grid; grid-template-columns: 34px minmax(0, 1fr) 64px 58px; gap: 10px; align-items: center; width: 100%; text-align: left;
   background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px 9px 10px; position: relative; }
 .crow:active { transform: scale(.985); }
 .crow.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
 .crow .cico { font-size: 22px; text-align: center; line-height: 1; }
 .crow .ct { display: block; font-weight: 600; font-size: 14.5px; }
-.crow .cs { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
+.crow .cs { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; overflow: hidden; }
+.crow .lsg small { color: var(--muted); font-weight: 400; margin: 0 1px; }
+.crow .ct { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .crow .lsg { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; color: var(--fg); }
 .crow .lsg b { display: inline-grid; place-items: center; min-width: 15px; height: 15px; border-radius: 8px; font-size: 9.5px; padding: 0 3px; }
 .crow svg { width: 64px; height: 26px; display: block; }
@@ -378,6 +392,25 @@ button.tile:active { transform: scale(.98); }
   const laneById = (id) => lanes().find((l) => l.id === id);
   const laneIdx = (id) => lanes().findIndex((l) => l.id === id);
   const speedOf = (id) => (ls() ? ls().lanes.find((l) => l.lane === id) : null);
+  // lane pieces of the measurement: t.lp = [[first_frame, lane], ...], t.lc = [[frame, from, to, km/h before, after], ...]
+  function laneAt(t, fAbs) {
+    if (!t) return -1;
+    if (!t.lp || !t.lp.length) return t.lane;
+    let l = t.lp[0][1];
+    for (const p of t.lp) { if (p[0] <= fAbs) l = p[1]; else break; }
+    return l;
+  }
+  const nowAbs = () => S.f + S.meta.frame_first;
+  const curLane = (t) => lanes()[laneAt(t, nowAbs())];
+  const recentChange = (t, secs) => (t && t.lc ? t.lc.find((c) => nowAbs() >= c[0] && nowAbs() - c[0] <= secs * S.fps) : null) || null;
+  const changes = (t) => (t && t.lc) || [];
+  // "↑" / "↓": the side of the screen the vehicle moved toward (the new lane's centre vs the old one, at the car)
+  function sideArrow(c, sx) {
+    const a = lanes()[c[1]], b = lanes()[c[2]];
+    if (!a || !b) return "⇄";
+    return laneYAt(b, sx) < laneYAt(a, sx) ? "↑" : "↓";
+  }
+  const laneSeq = (t) => [laneAt(t, -Infinity), ...changes(t).map((c) => c[2])].map((i) => lanes()[i] ? lanes()[i].number : "?").join(" → ");
   const verdictLane = (dir, t) => { const a = ls() && ls().announcement[dir]; return a ? a[t] || a[`${t}_candidate`] : null; };
   // the margin of a not-clear winner, in plain words: "8% ahead" (fastest) / "6% behind" (slowest)
   function margin(dir, t) {
@@ -582,13 +615,18 @@ button.tile:active { transform: scale(.98); }
     }
     const fb = S.followId != null ? boxAt(S.followId, S.f) : null;
     if (fb) {
-      const t = S.info.get(fb.id), ln = t && lanes()[t.lane], col = ln ? laneCol(ln.number) : "#fff";
+      const t = S.info.get(fb.id), ln = t && curLane(t), col = ln ? laneCol(ln.number) : "#fff";
       const [x1, y1] = toScreen(fb.x1, fb.y1), [x2, y2] = toScreen(fb.x2, fb.y2);
       ctx.lineWidth = 3; ctx.strokeStyle = col; rr(ctx, x1 - 2, y1 - 2, x2 - x1 + 4, y2 - y1 + 4, 6); ctx.stroke();
+      const rc = recentChange(t, 2);
+      if (rc && S.lastTick !== `${fb.id}:${rc[0]}`) { S.lastTick = `${fb.id}:${rc[0]}`; buzz(5); }
       if (t && t.kmh != null) {
-        const txt = `${Math.round(nowKmh(t))} km/h`;
+        const txt = `${Math.round(nowKmh(t))} km/h${rc && lanes()[rc[2]] ? `  ${sideArrow(rc, (x1 + x2) / 2)} lane ${lanes()[rc[2]].number}` : ""}`;
         ctx.font = "600 13px " + css("--font-sans");
-        const tw = ctx.measureText(txt).width, bx = Math.max(4, Math.min(W - tw - 16, (x1 + x2) / 2 - tw / 2 - 6)), by = Math.max(4, y1 - 26);
+        const tw = ctx.measureText(txt).width, bx = Math.max(4, Math.min(W - tw - 16, (x1 + x2) / 2 - tw / 2 - 6));
+        const ans = $("answer"), chipB = ans.hidden ? 0 : ans.offsetTop + ans.offsetHeight, chipR = ans.hidden ? 0 : ans.offsetLeft + ans.offsetWidth;
+        let by = Math.max(4, y1 - 26);
+        if (by < chipB + 2 && bx < chipR) by = y2 + 5;                 // under the box when the chip would hide it
         ctx.fillStyle = col; rr(ctx, bx, by, tw + 12, 21, 10); ctx.fill();
         ctx.fillStyle = "#fff"; ctx.textBaseline = "middle"; ctx.fillText(txt, bx + 6, by + 11);
       }
@@ -777,7 +815,7 @@ button.tile:active { transform: scale(.98); }
       f.hidden = false; return;
     }
     f.dataset.html = "";
-    const t = S.followId != null && S.info.get(S.followId), ln = t && lanes()[t.lane];
+    const t = S.followId != null && S.info.get(S.followId), ln = t && curLane(t);
     if (!t || !ln || wholeRoad()) { f.hidden = true; return; }
     f.hidden = false;
     const who = S.mode === "auto" ? (shown() ? "Riding along in the fastest lane" : `Riding along · lane ${ln.number}`)
@@ -817,10 +855,27 @@ button.tile:active { transform: scale(.98); }
         : pct != null && r < 1.1 ? `Small lead: only ${pct}% ahead of the next lane (a clear winner needs 10%).`
         : pct != null ? `Leads by ${pct}%, but not consistently enough to call it clear (${Math.round(a.fastest_p * 100)}% of resamples).` : "";
       return `<button class="vcard${animate ? " reveal-in" : ""}" data-dir="${d}"><div class="dir"><span>${DIRW[d]}</span><span>›</span></div>
-        <div class="pair">${cell("fastest")}${cell("slowest")}</div><p class="why">${why}</p></button>`;
+        <div class="pair">${cell("fastest")}${cell("slowest")}</div><p class="why">${why}</p></button>${movesLine(d)}`;
     }).join("") + `<div class="linkrow"><button id="hideRes"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18M10.6 5.1A10.8 10.8 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-3.2 4.1M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg> Hide lane speeds</button></div>`;
     for (const b of box.querySelectorAll(".vcard")) b.onclick = () => openLane(verdictLane(b.dataset.dir, "fastest"));
     $("hideRes").onclick = () => setRevealed(false);
+  }
+
+  // one short paragraph per direction about lane changes over the whole measurement
+  function movesLine(d) {
+    const L = ls(), m = L && L.moves && L.moves[d];
+    if (!m || !m.count) return "";
+    const num = (id) => (laneById(id) ? laneById(id).number : id);
+    const mins = (L.span_s[1] - L.span_s[0]) / 60;
+    const v = L.validation && L.validation.lane_changes && L.validation.lane_changes[d];
+    if (v && v.precision != null && v.precision < 0.5) {
+      return `<p class="lanemoves"><b>${m.count} lane changes</b> detected in ${mins.toFixed(0)} min, but in this traffic they are not reliable:
+        checked against ground truth on the measured stretch, only ${v.matched} of ${v.ours} were real (boxes of standing trucks drift across the lines). The lane speeds are not affected.</p>`;
+    }
+    const gain = (m.gain || []).map((g) => `drivers who moved into <b>lane ${num(g.to)}</b> went ${Math.abs(g.gain_kmh) < 1 ? "<b>about as fast</b>" : `<b>${Math.abs(Math.round(g.gain_kmh))} km/h ${g.gain_kmh > 0 ? "faster" : "slower"}</b>`} in the next 5 s (median of ${g.n})`);
+    const chk = v ? ` Checked against ground truth: about ${Math.round(v.precision * 10)} in 10 detected changes are real, and ${Math.round(v.recall * 100)}% of real ones are found.` : "";
+    return `<p class="lanemoves"><b>${m.count} lane changes</b> in ${mins < 1.5 ? Math.round(mins * 60) + " s" : mins.toFixed(0) + " min"}. Most common: <b>lane ${num(m.top.from)} → ${num(m.top.to)}</b> (${m.top.n}×).
+      ${gain.length ? gain.join("; ").replace(/^d/, "D") + "." : ""}${chk}</p>`;
   }
 
   // ================================================================ Cars tab: every vehicle, live with the video
@@ -832,8 +887,12 @@ button.tile:active { transform: scale(.98); }
   function laneSignMini(t) {
     const ln = lanes()[t.lane];
     if (!ln) return `<span>no lane</span>`;
-    const col = laneCol(ln.number);
-    return `<span class="lsg"><b style="background:${col};color:${inkOn(col)}">${ln.number}</b>${arrow(ln.direction)}</span>`;
+    const disc = (l) => { const col = laneCol(l.number); return `<b style="background:${col};color:${inkOn(col)}">${l.number}</b>`; };
+    if (changes(t).length) {                          // the lanes in the order driven: 3 → 2
+      const seq = [laneAt(t, -Infinity), ...changes(t).map((c) => c[2])].map((i) => lanes()[i]).filter(Boolean);
+      return `<span class="lsg">${seq.map(disc).join("<small>→</small>")}${arrow(ln.direction)}</span>`;
+    }
+    return `<span class="lsg">${disc(ln)}${arrow(ln.direction)}</span>`;
   }
   function miniSpark(t) {
     const k = (t.vs && t.vs.kmh) || [], vals = k.filter((x) => x != null);
@@ -849,11 +908,16 @@ button.tile:active { transform: scale(.98); }
     if (!all.length) { $("cStats").innerHTML = ""; $("cHist").hidden = true; $("cFilters").innerHTML = ""; $("cList").innerHTML = `<p class="cempty">No vehicles were followed long enough in this video.</p>`; return; }
     const sp = all.map((t) => t.kmh).sort((x, y) => x - y), med = sp[sp.length >> 1];
     const fastest = all.reduce((m, t) => (t.kmh > m.kmh ? t : m)), heavy = all.filter((t) => HEAVY.has(t.cls)).length;
+    const movers = all.filter((t) => changes(t).length), nMoves = movers.reduce((a, t) => a + changes(t).length, 0);
+    const hasLanes = all.some((t) => t.lp);
+    $("cStats").classList.toggle("four", hasLanes);
     $("cStats").innerHTML =
       `<div class="tile"><div class="k">Vehicles</div><div class="v">${all.length}</div><div class="s">${Math.round(100 * heavy / all.length)}% trucks &amp; buses</div></div>` +
       `<div class="tile"><div class="k">Typical</div><div class="v">${Math.round(med)}<small>km/h</small></div><div class="s">median speed</div></div>` +
-      `<button class="tile" id="cFast"><div class="k">Fastest</div><div class="v">${Math.round(fastest.kmh)}<small>km/h</small></div><div class="s">${CLS_ICON[fastest.cls] || "🚗"} tap to follow</div></button>`;
+      `<button class="tile" id="cFast"><div class="k">Fastest</div><div class="v">${Math.round(fastest.kmh)}<small>km/h</small></div><div class="s">${CLS_ICON[fastest.cls] || "🚗"} tap to follow</div></button>` +
+      (hasLanes ? `<button class="tile" id="cMoves"><div class="k">Lane changes</div><div class="v">${nMoves}</div><div class="s">${movers.length} vehicle${movers.length === 1 ? "" : "s"} · tap to list</div></button>` : "");
     $("cFast").onclick = () => goCar(fastest.track_id);
+    if ($("cMoves")) $("cMoves").onclick = () => { C.filter = C.filter === "moved" ? "all" : "moved"; C.limit = 40; buzz(4); renderCars(); };
     // histogram of average speeds; tap a bar to filter
     const nb = Math.max(1, Math.ceil((sp[sp.length - 1] + 0.01) / BAND)), counts = Array(nb).fill(0);
     C.nb = nb;
@@ -865,8 +929,8 @@ button.tile:active { transform: scale(.98); }
       <div class="axis">${counts.map((_, i) => `<span>${i % 2 === 0 || nb <= 7 ? i * BAND : ""}</span>`).join("")}</div>`;
     for (const b of $("cHist").querySelectorAll(".bar")) b.onclick = () => { const i = +b.dataset.b; C.band = C.band === i ? null : i; C.limit = 40; buzz(4); renderCars(); };
     // filters and sorting
-    const n = { all: all.length, now: all.filter(inView).length, car: all.filter((t) => !HEAVY.has(t.cls)).length, heavy };
-    const F = [["all", "All"], ["now", "On screen"], ["car", "Cars"], ["heavy", "Trucks & buses"]];
+    const n = { all: all.length, now: all.filter(inView).length, car: all.filter((t) => !HEAVY.has(t.cls)).length, heavy, moved: movers.length };
+    const F = [["all", "All"], ["now", "On screen"], ...(hasLanes ? [["moved", "Lane changers"]] : []), ["car", "Cars"], ["heavy", "Trucks & buses"]];
     const O = [["fast", "Fastest"], ["slow", "Slowest"], ["lane", "By lane"]];
     $("cFilters").innerHTML = F.map(([k, l]) => `<button class="fchip" data-f="${k}" aria-pressed="${C.filter === k}">${l}<span class="n">${n[k]}</span></button>`).join("") +
       `<span class="fsep"></span>` + O.map(([k, l]) => `<button class="fchip" data-o="${k}" aria-pressed="${C.sort === k}">${l}</button>`).join("");
@@ -876,7 +940,8 @@ button.tile:active { transform: scale(.98); }
   }
   function renderCarList(all) {
     all = all || carList();
-    let rows = all.filter((t) => C.filter === "all" || (C.filter === "now" ? inView(t) : C.filter === "car" ? !HEAVY.has(t.cls) : HEAVY.has(t.cls)));
+    let rows = all.filter((t) => C.filter === "all" || (C.filter === "now" ? inView(t) : C.filter === "moved" ? changes(t).length > 0
+      : C.filter === "car" ? !HEAVY.has(t.cls) : HEAVY.has(t.cls)));
     if (C.band != null) rows = rows.filter((t) => Math.min(C.nb - 1, Math.floor(t.kmh / BAND)) === C.band);   // same bars as the histogram
     const laneKey = (t) => { const ln = lanes()[t.lane]; return ln ? (ln.direction === "right" ? 0 : 100) + ln.number : 999; };
     rows.sort(C.sort === "fast" ? (x, y) => y.kmh - x.kmh : C.sort === "slow" ? (x, y) => x.kmh - y.kmh : (x, y) => laneKey(x) - laneKey(y) || y.kmh - x.kmh);
@@ -892,12 +957,13 @@ button.tile:active { transform: scale(.98); }
       const name = t.cls[0].toUpperCase() + t.cls.slice(1);
       return `<button class="crow${inView(t) ? " inview" : ""}${t.track_id === S.followId ? " on" : ""}" data-id="${t.track_id}">
         <i class="now" aria-hidden="true"></i><span class="cico" aria-hidden="true">${CLS_ICON[t.cls] || "🚗"}</span>
-        <span><span class="ct">${name}</span><span class="cs">${laneSignMini(t)}<span>${a.toFixed(0)}–${z.toFixed(0)} s</span></span></span>
+        <span><span class="ct">${name}${changes(t).length ? ` <span class="lcb">changed lane${changes(t).length > 1 ? "s" : ""}</span>` : ""}</span><span class="cs">${laneSignMini(t)}<span>${a.toFixed(0)}–${z.toFixed(0)} s</span></span></span>
         ${miniSpark(t)}<span class="cv">${Math.round(t.kmh)}<small>km/h avg</small></span></button>`;
     }).join("") + (rows.length > C.limit ? `<button class="cmore" id="cMore">Show ${Math.min(40, rows.length - C.limit)} more of ${rows.length - C.limit}</button>` : "");
     for (const r of $("cList").querySelectorAll(".crow")) r.onclick = () => goCar(+r.dataset.id);
     if ($("cMore")) $("cMore").onclick = () => { C.limit += 40; renderCarList(); };
-    $("cNote").textContent = "Green dot: on screen now. Tap a vehicle to jump to it and follow it.";
+    $("cNote").textContent = "Green dot: on screen now. Tap a vehicle to jump to it and follow it." +
+      (all.some((t) => t.lp) ? " Lanes are listed in the order driven (3 → 2 = moved from lane 3 to lane 2)." : "");
   }
   // tap a vehicle: jump in time if it is not on screen, follow it, open its card
   function goCar(id) {
@@ -987,6 +1053,7 @@ button.tile:active { transform: scale(.98); }
     const dist = t.kmh != null ? t.kmh / 3.6 * secs : null, sp = ln && speedOf(ln.id);
     const diff = sp && t.kmh != null ? Math.round(t.kmh - sp.v_kmh) : null;
     S.mode = "car"; S.followId = id; S.lostFrames = 0; S.exploring = false; S.glide = false;
+    const strip = laneStrip(t), moves = carMoves(t);
     const icon = { truck: "🚚", bus: "🚌", motorcycle: "🏍" }[t.cls] || "🚗";
     const cmp = !shown() || diff == null ? "" : diff === 0 ? "same as its lane's average"
       : `${Math.abs(diff)} km/h ${diff > 0 ? "faster" : "slower"} than lane ${ln.number}'s average`;
@@ -1007,13 +1074,38 @@ button.tile:active { transform: scale(.98); }
       `<div class="peekblk"><div class="carhead"><div class="big mono"><span id="carNow">${nowKmh(t) != null ? Math.round(nowKmh(t)) : "–"}</span> <small>km/h now</small></div>
         <div class="trend" id="carTrend"></div></div>
       <div class="avgline">average <b class="mono">${t.kmh != null ? Math.round(t.kmh) : "–"} km/h</b>${cmp ? ` · ${cmp}` : ""}</div>
-      <div class="csparkwrap">${spark}</div>
-      <div class="facts"><span>${ln ? `<span style="color:${laneCol(ln.number)}">●</span> <b>Lane ${ln.number} ${arrow(ln.direction)}</b>` : "not in a lane"}</span>
+      <div class="csparkwrap">${spark}</div>${strip}${moves}
+      <div class="facts"><span>${ln ? `<span style="color:${laneCol(ln.number)}">●</span> <b>${changes(t).length ? `Lane ${laneSeq(t)}` : `Lane ${ln.number}`} ${arrow(ln.direction)}</b>` : "not in a lane"}</span>
         <span><b class="mono">${secs.toFixed(1)} s</b> on screen</span>${dist != null ? `<span><b class="mono">${Math.round(dist)} m</b> seen</span>` : ""}</div>
       ${ln ? `<button class="sbtn ghost" id="sLane">Lane ${ln.number} details</button>` : ""}<button class="sbtn ghost" id="sStop">Stop following</button></div>`, { car: id }, quiet);
     updateCarLive();
     if ($("sLane")) $("sLane").onclick = () => openLane(ln.id);
     $("sStop").onclick = () => { S.mode = "auto"; S.followLane = null; S.followId = null; closeSheet(); };
+  }
+  // the lane of each moment the vehicle was seen, aligned with the speed graph above it
+  function laneStrip(t) {
+    if (!t.lp || !t.lp.length) return "";
+    const a = t.vs ? t.vs.f0 : t.first, z = t.vs ? t.vs.f0 + t.vs.df * (t.vs.kmh.length - 1) : t.last, w = Math.max(1, z - a);
+    const ends = [...t.lp.slice(1).map((p) => p[0]), Math.max(z, t.lp[t.lp.length - 1][0])];
+    const segs = t.lp.map((p, i) => { const ln = lanes()[p[1]], x0 = Math.max(a, p[0]), x1 = Math.min(z, ends[i]);
+      return x1 > x0 && ln ? `<i style="width:${100 * (x1 - x0) / w}%;background:${laneCol(ln.number)}" title="lane ${ln.number}"></i>` : ""; }).join("");
+    const ticks = changes(t).map((c) => `<b style="left:${100 * (c[0] - a) / w}%"></b>`).join("");
+    const first = lanes()[t.lp[0][1]];
+    return `<div class="lstrip" aria-label="Lane over time">${segs}${ticks}</div>
+      <div class="lsub"><span>lane over time</span><span>${changes(t).length ? `${changes(t).length} lane change${changes(t).length > 1 ? "s" : ""}` : first ? `stayed in lane ${first.number}` : ""}</span></div>`;
+  }
+  // each change with its time, and whether the vehicle went faster afterwards ("Did it pay off?")
+  function carMoves(t) {
+    const cs = changes(t); if (!cs.length) return "";
+    return `<div class="moves">${cs.map((c) => {
+      const a = lanes()[c[1]], b = lanes()[c[2]], at = (c[0] - S.meta.frame_first) / S.fps;
+      if (!a || !b) return "";
+      const d = c[3] != null && c[4] != null ? Math.round(c[4] - c[3]) : null;
+      const pay = d == null ? `<span class="pay">too little seen before or after to judge the speed change</span>`
+        : Math.abs(d) < 2 ? `<span class="pay">Did it pay off? <b>about the same speed</b> (${Math.round(c[3])} → ${Math.round(c[4])} km/h)</span>`
+        : `<span class="pay">Did it pay off? <b>${d > 0 ? "yes" : "no"}, ${Math.abs(d)} km/h ${d > 0 ? "faster" : "slower"}</b> in the 5 s after (${Math.round(c[3])} → ${Math.round(c[4])} km/h)</span>`;
+      return `<div class="m"><b>Lane ${a.number} → ${b.number}</b><span class="pay">at ${at.toFixed(1)} s</span></div>${pay}`;
+    }).join("")}</div>`;
   }
   // the open car card follows the video: live number, speeding up / slowing down, the dot on the graph
   function updateCarLive() {
@@ -1069,7 +1161,7 @@ button.tile:active { transform: scale(.98); }
       <div class="more">drag up for more ↑</div></div>
       ${spark}
       ${sp ? `<dl class="kv"><dt>Vehicles counted</dt><dd class="mono">${sp.vehicles}</dd><dt>Trucks and buses</dt><dd class="mono">${Math.round((sp.heavy_share || 0) * 100)}%</dd>
-        <dt>Lane changes in / out</dt><dd class="mono">${sp.changes_in} / ${sp.changes_out}</dd>
+        <dt>Moved into / out of this lane</dt><dd class="mono">+${sp.changes_in} / −${sp.changes_out}</dd>
         ${L.validation && L.validation.per_lane[id] != null ? `<dt>Ground truth</dt><dd class="mono">${L.validation.per_lane[id]} km/h</dd>` : ""}</dl>` : ""}
       `, { lane: id });
   }

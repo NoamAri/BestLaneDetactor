@@ -152,21 +152,22 @@ tr:last-child td { border-bottom: 0; }
     <p class="eyebrow">BestLaneDetactor · branch claude/happy-faraday-r67vcd</p>
     <h1>Lane Intel Code Map</h1>
     <p class="lede">
-      The project turns motorway video into a list of vehicles, each with an ID, a class, a box in every frame, a speed,
-      a direction and a lane, and shows it on top of the video so you can check it frame by frame. Two videos are in so
-      far: a 4K drone clip of the A50 in Milan (MiTra dataset, with ground truth) and an uploaded clip filmed from a
-      building. The goal: measure each lane and say which one is measurably fastest.
+      The project turns motorway video into per-lane speeds and says which lane is fastest and which is slowest, but only
+      as firmly as the data allows. Every vehicle gets an ID, a class, a box in every frame, a position in metres, a live
+      speed and a lane at each moment (lane changes included). Two videos are in: a 4K drone clip of the A50 in Milan (MiTra
+      dataset, with ground truth, used to validate every step) and an uploaded clip filmed from a building. Results are shown
+      in a phone app and a desktop Inspector at the same address, and new videos can be uploaded through GitHub.
     </p>
     <p class="muted">
       Every stage reads files written by the stage before it. Detection runs once and saves every box; tracking reads
       those boxes, so tracker settings are compared on identical input in seconds and nothing downstream reruns the model.
     </p>
     <div class="stats">
-      <div><b>16</b><span>Python modules</span></div>
-      <div><b>1,940</b><span>lines of pipeline code</span></div>
-      <div><b>937</b><span>lines of viewer (HTML/CSS/JS)</span></div>
-      <div><b>48</b><span>tests, all passing</span></div>
-      <div><b>2</b><span>videos in the viewer</span></div>
+      <div><b>24</b><span>Python modules</span></div>
+      <div><b>4,276</b><span>lines of pipeline code</span></div>
+      <div><b>2,709</b><span>lines of app (phone + desktop)</span></div>
+      <div><b>93</b><span>tests, all passing</span></div>
+      <div><b>2.3%</b><span>lane-speed error vs ground truth</span></div>
       <div><b>8 + 6</b><span>lanes found (MiTra, upload)</span></div>
     </div>
   </header>
@@ -258,7 +259,7 @@ tr:last-child td { border-bottom: 0; }
           <g class="node" data-file="data" tabindex="0">
             <rect x="20" y="186" width="190" height="36" rx="6" fill="none" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="4 3"/>
             <text x="115" y="201" text-anchor="middle" font-size="11" class="mono" fill="currentColor" opacity=".8">data/raw/gt/T8_D1.csv</text>
-            <text x="115" y="215" text-anchor="middle" font-size="10" fill="currentColor" opacity=".6">ground truth · not wired in yet</text>
+            <text x="115" y="215" text-anchor="middle" font-size="10" fill="currentColor" opacity=".6">ground truth · calibration + validation</text>
           </g>
           <line x1="95" y1="174" x2="95" y2="184" stroke="currentColor" stroke-opacity=".45" stroke-dasharray="3 3"/>
 
@@ -293,7 +294,7 @@ tr:last-child td { border-bottom: 0; }
             <text x="410" y="292" text-anchor="middle" font-size="11.5" class="mono" fill="currentColor">&lt;tag&gt;_points.parquet</text>
             <text x="410" y="311" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">one row per tracked box,</text>
             <text x="410" y="326" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">chosen tracker only</text>
-            <text x="410" y="341" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">input for speeds (later phases)</text>
+            <text x="410" y="341" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">input for lane speeds</text>
           </g>
           <path d="M880 334 H858 V360 H410 V352" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
           <text x="560" y="376" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".75">track (chosen variant)</text>
@@ -305,7 +306,7 @@ tr:last-child td { border-bottom: 0; }
             <text x="130" y="341" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">+ lane of every vehicle</text>
           </g>
           <line x1="290" y1="310" x2="242" y2="310" stroke="currentColor" marker-end="url(#ah)"/>
-          <text x="20" y="380" font-size="10.5" fill="currentColor" opacity=".6">next: calibration to metres, then per-lane speed (fastest lane)</text>
+          <text x="20" y="380" font-size="10.5" fill="currentColor" opacity=".6">then: stabilise, metres, lane speeds, fastest lane (section 9)</text>
 
           <!-- row C: packaging -->
           <path d="M705 350 V412 H1015 V466" stroke="currentColor" fill="none" marker-end="url(#ah)"/>
@@ -346,10 +347,10 @@ tr:last-child td { border-bottom: 0; }
 
           <g class="node" data-file="viewer" tabindex="0">
             <rect x="20" y="470" width="340" height="104" rx="6" fill="none" stroke="#a3489a" stroke-width="2.2"/>
-            <text x="190" y="494" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">app/viewer/index.html</text>
-            <text x="190" y="513" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">in your browser: video + canvas overlay,</text>
-            <text x="190" y="529" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">video selector, lanes, speed + direction,</text>
-            <text x="190" y="545" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">frame stepping, quality + lane panels</text>
+            <text x="190" y="494" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">app/viewer + app/mobile</text>
+            <text x="190" y="513" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">one address: phone app on phones,</text>
+            <text x="190" y="529" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">desktop Inspector elsewhere; video +</text>
+            <text x="190" y="545" text-anchor="middle" font-size="11.5" fill="currentColor" opacity=".8">lanes, live speeds, verdict, cars</text>
             <text x="190" y="565" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".6">no server logic: it only reads the bundle files</text>
           </g>
           <line x1="420" y1="472" x2="362" y2="500" stroke="currentColor" marker-end="url(#ah)"/>
@@ -358,16 +359,17 @@ tr:last-child td { border-bottom: 0; }
 
           <g class="node" data-file="tests" tabindex="0">
             <rect x="690" y="600" width="410" height="44" rx="6" fill="none" stroke="#5b6875" stroke-dasharray="4 3"/>
-            <text x="895" y="619" text-anchor="middle" font-size="12" class="mono" fill="currentColor">tests/ · 48 tests</text>
-            <text x="895" y="635" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">tracking, stitching, lanes, metrics, export, site, server</text>
+            <text x="895" y="619" text-anchor="middle" font-size="12" class="mono" fill="currentColor">tests/ · 93 tests</text>
+            <text x="895" y="635" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">tracking, lanes, calibration, lane speeds, uploads, export, site</text>
           </g>
         </svg>
       </div>
       <figcaption>
         Band 1 is the heavy work, done once per window (about 12 minutes per 30 s of 4K video on this CPU). It saves every box YOLO finds, with no IDs.
         Band 2 links those boxes into vehicles (the tracker is chosen per camera in seconds, on identical input) and finds the lanes from where those
-        vehicles drive. Band 3 builds one folder per video and a single page with a video selector. The dashed ground-truth file is downloaded but not
-        used by any code yet; it becomes the reference for validation in a later phase.
+        vehicles drive. Band 3 builds one folder per video and one site with a video selector. Between bands 2 and 3 sits the measurement (section 9):
+        stabilisation, metres, lane speeds and the verdict. The MiTra ground truth fixes MiTra's scale and checks every result. Uploaded videos take
+        the same path on GitHub's runner (section 12).
       </figcaption>
     </figure>
   </section>
@@ -588,10 +590,16 @@ python run.py detect    # YOLO once on 0-30 s (slow)
 python run.py tune      # all trackers + report (seconds)
 python run.py track     # chosen tracker -> points
 python run.py lanes     # lanes + lane per vehicle
+python run.py stabilize # remove camera drift
+python run.py ground    # all windows -> one table
+python run.py calibrate # pixels -> metres
+python run.py speeds    # lane speeds + verdict
+python run.py validate  # vs MiTra ground truth
 python run.py viewer    # all videos -> data/out/viewer/
 python run.py serve     # http://localhost:8000
 python run.py pages     # copy to docs/
-python run.py test      # 48 tests
+python run.py analyze --video x.mp4  # an upload
+python run.py test      # 93 tests
 # another camera: add --cfg configs/&lt;camera&gt;.json</div>
       <div class="cmd">make setup
 make clip
@@ -672,36 +680,235 @@ make test</div>
         </tbody>
       </table>
     </div>
-    <p class="hint">Speeds per lane are not compared yet: pixels shrink with distance from the camera, so far lanes look slower in px/s.
-      That comparison needs the calibration to metres (next step). Details: <code>notes/lanes.md</code>.</p>
+    <p class="hint">On the video the lane bands are drawn through the vehicles' boxes (the measurement uses the bottom-centre of each box, the bands are shifted for display only).
+      Details: <code>notes/lanes.md</code>. Speeds are compared in metres, not pixels (section 9).</p>
   </section>
 
-  <!-- ===================================================== 9. status -->
+  <!-- ===================================================== 9. lane speeds -->
   <section>
     <div class="prose">
-      <p class="eyebrow">9 · Where this sits in the plan</p>
+      <p class="eyebrow">9 · From tracks to the fastest lane</p>
+      <h2>Metres, lanes, and a rule that only speaks when the difference is real</h2>
+      <p>
+        Pixels shrink with distance from the camera, so lanes are compared only after every box is placed on the road in metres.
+        Each vehicle's trajectory is then split by lane, summed per lane over one common stretch of road, and judged by a rule fixed
+        before the results were seen. Click a box to open the file in the explorer.
+      </p>
+    </div>
+    <figure>
+      <div class="fig">
+        <svg viewBox="0 0 1120 250" role="img" aria-label="Measurement chain: stabilize.py, calibrate.py, world.py, lane_pieces.py, lane_speed.py, announce.py, then validate.py against ground truth and the viewers.">
+          <defs><marker id="ah5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+          <g class="node" data-file="stabilize" tabindex="0"><rect x="20" y="30" width="190" height="70" rx="6" fill="none" stroke="#2563a8" stroke-width="1.8"/>
+            <text x="115" y="54" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">stabilize.py</text>
+            <text x="115" y="72" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">camera drift removed: every</text>
+            <text x="115" y="87" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">frame mapped to the first</text></g>
+          <g class="node" data-file="calibrate" tabindex="0"><rect x="245" y="30" width="190" height="70" rx="6" fill="none" stroke="#2563a8" stroke-width="1.8"/>
+            <text x="340" y="54" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">calibrate.py</text>
+            <text x="340" y="72" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">pixels → metres: ground truth</text>
+            <text x="340" y="87" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">(MiTra) or vehicle sizes</text></g>
+          <g class="node" data-file="world" tabindex="0"><rect x="470" y="30" width="190" height="70" rx="6" fill="none" stroke="#2563a8" stroke-width="1.8"/>
+            <text x="565" y="54" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">world.py</text>
+            <text x="565" y="72" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">each box: s along the road,</text>
+            <text x="565" y="87" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">d across it, lane, direction</text></g>
+          <g class="node" data-file="lanepieces" tabindex="0"><rect x="695" y="30" width="190" height="70" rx="6" fill="none" stroke="#2563a8" stroke-width="1.8"/>
+            <text x="790" y="54" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">lane_pieces.py</text>
+            <text x="790" y="72" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">track split per lane, lane</text>
+            <text x="790" y="87" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">changes at the line crossing</text></g>
+          <g class="node" data-file="lanespeed" tabindex="0"><rect x="920" y="30" width="180" height="70" rx="6" fill="none" stroke="#2563a8" stroke-width="2.4"/>
+            <text x="1010" y="54" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">lane_speed.py</text>
+            <text x="1010" y="72" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">km/h per lane = distance</text>
+            <text x="1010" y="87" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">÷ time (Edie), one stretch</text></g>
+          <line x1="210" y1="65" x2="243" y2="65" stroke="currentColor" marker-end="url(#ah5)"/>
+          <line x1="435" y1="65" x2="468" y2="65" stroke="currentColor" marker-end="url(#ah5)"/>
+          <line x1="660" y1="65" x2="693" y2="65" stroke="currentColor" marker-end="url(#ah5)"/>
+          <line x1="885" y1="65" x2="918" y2="65" stroke="currentColor" marker-end="url(#ah5)"/>
+          <path d="M1010 100 V140" stroke="currentColor" fill="none" marker-end="url(#ah5)"/>
+          <g class="node" data-file="announce" tabindex="0"><rect x="900" y="142" width="200" height="70" rx="6" fill="none" stroke="#2563a8" stroke-width="1.8"/>
+            <text x="1000" y="166" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">announce.py</text>
+            <text x="1000" y="184" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">bootstrap: P ≥ 0.9, gap ≥ 10%</text>
+            <text x="1000" y="199" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">→ fastest / slowest or "small lead"</text></g>
+          <g class="node" data-file="validate" tabindex="0"><rect x="560" y="142" width="290" height="70" rx="6" fill="none" stroke="#0b7a4b" stroke-width="1.8"/>
+            <text x="705" y="166" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">validate.py (MiTra only)</text>
+            <text x="705" y="184" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">ground-truth trajectories through the</text>
+            <text x="705" y="199" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">same chain: speeds, verdicts, lane changes</text></g>
+          <g class="node" data-file="site" tabindex="0"><rect x="20" y="142" width="300" height="70" rx="6" fill="none" stroke="#a3489a" stroke-width="1.8"/>
+            <text x="170" y="166" text-anchor="middle" font-size="12.5" class="mono" fill="currentColor">viewer_site.py → meta.json</text>
+            <text x="170" y="184" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">lane speeds, verdicts, live speed per car,</text>
+            <text x="170" y="199" text-anchor="middle" font-size="11" fill="currentColor" opacity=".75">lane pieces and changes per car</text></g>
+          <line x1="900" y1="177" x2="852" y2="177" stroke="currentColor" marker-end="url(#ah5)"/>
+          <path d="M560 177 H322" stroke="currentColor" fill="none" marker-end="url(#ah5)"/>
+          <text x="440" y="170" text-anchor="middle" font-size="10.5" fill="currentColor" opacity=".7">results + check</text>
+          <text x="20" y="240" font-size="10.5" fill="currentColor" opacity=".6">python run.py stabilize · ground · lanes · calibrate · speeds · validate · viewer · pages</text>
+        </svg>
+      </div>
+      <figcaption>
+        Each lane's speed is its <b>space-mean speed</b>: all distance driven in the lane on the stretch ÷ all time spent there.
+        A slow car that stays in view for a long time counts for exactly that long, so the average is not pulled toward fast cars that cross quickly.
+      </figcaption>
+    </figure>
+    <div class="grid2">
+      <div class="why">
+        <h4>How the answer is decided</h4>
+        <ul>
+          <li><b>One common stretch</b> per direction: the longest run of road where every lane is well covered (it skips the trees on MiTra).</li>
+          <li><b>Clear winner</b> only if, in ≥ 90% of 1000 resamples of whole vehicles, the lane is fastest and its lead is ≥ 10%. Otherwise the app still names the leader, as a "small lead" with its margin ("8% ahead").</li>
+          <li><b>Over time</b>: rolling 25 s windows (the owner's choice, so the 30 s MiTra clip gets an answer); a lane keeps its title until its lead falls under 5%.</li>
+          <li><b>Calibration check</b>: a verdict that a plausible scale error per lane could flip is marked.</li>
+        </ul>
+      </div>
+      <div class="why" style="background:var(--code-bg)">
+        <h4 style="color:var(--muted)">Rules changed after first results (recorded as amendments)</h4>
+        <ul>
+          <li>A5: the stretch is the longest <i>contiguous</i> well-covered run (the tree zone biased speeds); confirmed on held-out 120–180 s.</li>
+          <li>A6: plausibility cuts off (they removed good data; with them the error is 2.5% instead of 2.3%).</li>
+          <li>A7, lane changes need real sideways movement: <b>rejected</b> (section 10).</li>
+        </ul>
+      </div>
+    </div>
+    <div class="tbl" style="margin-top:14px">
+      <table>
+        <thead><tr><th>MiTra, 0–180 s, against ground truth</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td>Per-lane speed, median error (all 25 s windows)</td><td class="num">2.3% (0.38 km/h), bias −1.2%</td></tr>
+          <tr><td>Fastest / slowest announcements confirmed by ground truth</td><td class="num">18 of 18 / 18 of 18</td></tr>
+          <tr><td>Held-out 120–180 s (never used to set a rule): speed error, verdict agreement</td><td class="num">4.2%, 100%</td></tr>
+          <tr><td>Whole span, right-moving: lane 1 / 2 / 3</td><td class="num">41.6 / 38.4 / 36.1 km/h (truth 42.6 / 38.9 / 36.7)</td></tr>
+          <tr><td>Whole span verdict</td><td class="num">→ lane 1 leads by 8% (small lead) · ← lane 2 slowest</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">The uploaded clip has no ground truth: its scale comes from vehicle sizes (lane 3.6 m, car 4.5 m), so its numbers are estimates. Details: <code>notes/lane_speed.md</code>, <code>data/out/lane_speed/T8_D1/validation.json</code>.</p>
+  </section>
+
+  <!-- ===================================================== 10. lane changes -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">10 · Lane changes</p>
+      <h2>A car that changes lanes is counted in each lane for exactly what it drove there</h2>
+      <p>
+        Lanes are taken per box, not per car. A new lane counts after the vehicle stays in it for 0.5 s (so wobbling on a line is ignored),
+        and the change is placed where the vehicle crosses the line between the two lanes. The track is cut there: the distance and time
+        before the crossing go to the old lane, the rest to the new one. That is why a lane change cannot distort the fastest-lane answer;
+        two synthetic tests (one change, and 2 → 1 → 2) check that nothing is lost or counted twice.
+      </p>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Lane changes vs MiTra ground truth (matched by from/to lane, ±1 s, ±15 m)</th><th>Precision</th><th>Recall</th></tr></thead>
+        <tbody>
+          <tr><td>→ Right-moving (flowing traffic), 0–180 s</td><td class="num">0.71 (15 of 21)</td><td class="num">0.47 (15 of 32)</td></tr>
+          <tr><td>← Left-moving (jam), 0–180 s</td><td class="num">0.09 (1 of 11)</td><td class="num">0.09</td></tr>
+          <tr><td>Target set before testing</td><td class="num">≥ 0.8</td><td class="num">≥ 0.7</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="grid2" style="margin-top:14px">
+      <div class="why">
+        <h4>What we tried (A7) and why it is off</h4>
+        <ul>
+          <li>Rule: a change counts only if the car's position across the road moves by ≥ 60% of the lane spacing, so a standing truck whose box slides over a line is not a change.</li>
+          <li>On 0–120 s it removed real changes (right-moving recall 0.50 → 0.05) and kept the false ones. A version that skips the manoeuvre itself did no better (recall 0.25–0.30, precision 0.63–0.67).</li>
+          <li>Rejected and disabled (<code>lane_change.enabled: false</code>); the held-out data was not used for this decision. Lane speeds are unchanged either way.</li>
+        </ul>
+      </div>
+      <div class="why" style="background:var(--code-bg)">
+        <h4 style="color:var(--muted)">Known gaps</h4>
+        <ul>
+          <li>Merges from the on-ramp are mostly missed: the tracks break during the merge (planned: join a track ending at the merge with one starting in the next lane).</li>
+          <li>In the jam, box drift creates false changes; the app says so and shows no "most common move" there.</li>
+          <li>About half of real changes in flowing traffic are found; most misses are changes that happen where a track breaks.</li>
+        </ul>
+      </div>
+    </div>
+    <p class="hint">In the app (section 11): the followed car's box and bubble take the colour of the lane it is in <i>now</i>, with "↑ lane 4" for 2 s after a change;
+      the car card has a lane strip under the speed graph and "Did it pay off?" (the car's speed over 5 s before vs after, only with ≥ 2 s seen on each side);
+      the Cars tab has a "Lane changers" filter; the Answer tab names the most common move and, with ≥ 5 cases, how much faster movers went.</p>
+  </section>
+
+  <!-- ===================================================== 11. phone app -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">11 · The app on a phone</p>
+      <h2>One address, two apps: the page picks the phone app on a phone</h2>
+      <p>
+        <code>https://noamari.github.io/BestLaneDetactor/</code> loads the desktop Inspector (<code>app/viewer/index.html</code>) or, on a touch screen
+        no wider than 900 px, the phone app (<code>app/mobile/index.html</code>, published as <code>m.html</code>). <code>?view=phone</code> / <code>?view=desktop</code>
+        overrides the choice. Both read the same files: <code>clips.json</code>, then each clip's <code>meta.json</code>, tags and video,
+        always revalidated with the server so a phone never shows an old version (the About tab shows the build time).
+      </p>
+    </div>
+    <div class="grid2">
+      <div class="why">
+        <h4>Watch (always on top)</h4>
+        <ul>
+          <li>The video is pinned at the top and zoomed so cars are big; a virtual camera rides along with a car. Swipe sideways to pan, pinch to zoom, tap a car to follow it, tap empty road to pause. The road map under it shows the whole road.</li>
+          <li>Rotate the phone for the whole road at once.</li>
+          <li>Lane signs at the left edge, one per lane, pointing at their lane.</li>
+          <li><b>Lane speeds are closed</b> every time the page opens; "Lane speeds · Show" opens them for this visit only.</li>
+        </ul>
+      </div>
+      <div class="why">
+        <h4>Answer · Cars · About</h4>
+        <ul>
+          <li><b>Answer</b>: per direction, fastest and slowest lane with the margin, the lane-change summary, and lane cards (speed, 95% range, rank, cars counted, moved in / out, ground truth for MiTra).</li>
+          <li><b>Cars</b>: every vehicle seen ≥ 1.5 s: tiles (vehicles, typical speed, fastest, lane changes), a speed histogram you tap to filter, filters (on screen, lane changers, cars, trucks) and a list. Tap a row to jump to that car.</li>
+          <li><b>Car card</b>: speed <i>now</i> (from the last 2 s, 5 times a second), speeding up / slowing down, a speed graph with a moving dot, lane strip, lane changes. It never covers the video.</li>
+          <li><b>About</b>: how it works in five cards.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================================================== 12. uploads -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">12 · Analyse your own video</p>
+      <h2>Upload through GitHub; only good videos are analysed</h2>
+      <p>
+        "＋ Analyse your video" opens a GitHub issue form (<code>.github/ISSUE_TEMPLATE/analyze.yml</code>). Attaching an mp4 starts the workflow
+        <code>.github/workflows/analyze.yml</code>, which runs <code>python run.py analyze</code> on GitHub's free runner (<code>src/lane_intel/upload.py</code>), replies
+        on the issue, and on success adds the video to the site. Rules are in <code>configs/upload_rules.json</code> and were written before any upload.
+      </p>
+    </div>
+    <div class="tbl">
+      <table>
+        <thead><tr><th>Stage</th><th>Checks (fails → a comment saying why, nothing analysed)</th></tr></thead>
+        <tbody>
+          <tr><td>A · the file</td><td>mp4 / mov / m4v / webm, ≤ 10 MB, longer than 30 s and shorter than 60 s, ≥ 960 px wide, ≥ 4 fps</td></tr>
+          <tr><td>B · camera and picture</td><td>steady camera (no pan, no cuts), not too dark, bright or blurred, ≥ 8 vehicles per frame, vehicles ≥ 20 px long</td></tr>
+          <tr><td>Analysis</td><td>at most 10 fps and 1920 px, whole frame; detect → track → lanes → vehicle-size calibration → lane speeds</td></tr>
+          <tr><td>C · the result</td><td>≥ 30 tracks, ≥ 2 lanes in one direction, ≥ 85% of boxes in a lane, a ≥ 40 m stretch, plausible lane speeds; only then published (newest 12 kept)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="hint">Who can upload: the workflow runs only for the repository owner and collaborators; anyone else's issue is ignored. Clip names are cleaned to plain text before they appear in the app.
+      The repository is public, so published videos are public. The workflow must live on the default branch (<code>main</code>) for GitHub to run it; today it is on the development branch only.</p>
+  </section>
+
+  <!-- ===================================================== 13. status -->
+  <section>
+    <div class="prose">
+      <p class="eyebrow">13 · Where this sits in the plan</p>
       <h2>Built so far, and what comes next</h2>
     </div>
     <div class="phases">
-      <div class="phase"><span class="st done">Done</span><div><b>Data access.</b> Remote byte-range reads of the 75 GB zip; 3-min clip; D1 ground-truth CSV downloaded.</div></div>
-      <div class="phase"><span class="st done">Done</span><div><b>Phase 4 · detection.</b> <code>video.py</code>, <code>detect.py</code> → saved boxes with provenance. About 96 vehicles tagged per frame; 110 in ground truth.</div></div>
-      <div class="phase"><span class="st done">Done</span><div><b>Tracking steps 0–2.</b> Tracking package, quality metrics, 15 variants, held-out confirmation; BoT-SORT setting chosen (section 7).</div></div>
-      <div class="phase"><span class="st done">Done</span><div><b>Second video.</b> An uploaded clip (1050×450, 4 fps) runs through the same pipeline with its own camera config; the viewer lets you pick the video.</div></div>
-      <div class="phase"><span class="st done">Done</span><div><b>Inspection tooling.</b> Viewer with tracker switch and break markers, local server, GitHub Pages and claude.ai hosting, this page.</div></div>
-      <div class="phase"><span class="st todo">In progress</span><div><b>Tracking step 3 · stitching.</b> <code>stitch.py</code> and <code>audit.py</code> built and tested. Joins cut breaks by 25–55%, but audits rejected the 5 s and loose settings (wrong joins under the trees and in queues). Next: audit the 2 s setting; if it fails, add a colour check. Not used yet.</div></div>
-      <div class="phase"><span class="st todo">Planned</span><div><b>Tracking steps 4–5.</b> Occlusion zones for the trees and gantry; removal of short junk tracks.</div></div>
-      <div class="phase"><span class="st todo">Planned</span><div><b>Phase 0 · ground truth check.</b> <code>gt_mitra.py</code>: per-lane 60 s speed windows from the CSV, the fit test, choice of direction.</div></div>
-      <div class="phase"><span class="st done">Done</span><div><b>Phase 2 · lanes.</b> <code>lanes.py</code>: lanes found from vehicle paths on both cameras (MiTra 4 + 4, matching ground truth; upload 6), lane per vehicle, shown in the viewer.</div></div>
-      <div class="phase"><span class="st done">Done</span><div><b>Viewer.</b> Video selector, speed always positive with a → / ← direction, distance-travelled graph, lanes layer and panel, one tracker per video.</div></div>
-      <div class="phase"><span class="st todo">Next</span><div><b>Calibration to metres</b> (phase 2): turns px/s into km/h so lanes can be compared; then per-lane windows, status and the fastest lane (phases 5–8).</div></div>
-      <div class="phase"><span class="st todo">Planned</span><div><b>Phases 2–3 · calibration.</b> <code>calibrate.py</code>, <code>stabilize.py</code>: pixels → metres (fills <code>x_w</code>, <code>y_w</code>), lane polygons (fills <code>lane_frame</code>), drone drift. Unlocks tracking step 6: IDF1 against MiTra's true IDs.</div></div>
-      <div class="phase"><span class="st todo">Planned</span><div><b>Phases 5–8 · measurements.</b> <code>tracks.py</code> (km/h per track), <code>metrics.py</code>, <code>status.py</code>, <code>validate.py</code>, <code>persistence.py</code>.</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Data, detection, tracking.</b> Byte-range clip from the 75 GB zip; YOLO26s once per window; 15 tracker settings compared on identical boxes, BoT-SORT with a loose first match chosen on held-out video (section 7).</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Lanes.</b> Found from vehicle paths on both cameras (MiTra 4 + 4, matching ground truth; upload 6); lane of every box.</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Metres and lane speeds.</b> Drift removal, calibration (ground truth on MiTra, vehicle sizes elsewhere), Edie lane speeds on a common stretch, bootstrap verdict with hysteresis. MiTra: 2.3% median error, every announcement confirmed (section 9).</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Phone app at the same address.</b> Video first, ride-along camera, lane signs, Answer / Cars / About tabs, lane speeds closed by default, live speed per car (section 11).</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Uploads.</b> GitHub issue form + workflow, quality gate A/B/C, owner and collaborators only (section 12). Needs the two files on <code>main</code> to run.</div></div>
+      <div class="phase"><span class="st done">Done</span><div><b>Lane changes, shown.</b> Each car's lane pieces and changes in the app (bubble colour, lane strip, "Did it pay off?", Cars filter, Answer summary); synthetic tests for double changes.</div></div>
+      <div class="phase"><span class="st todo">Rejected</span><div><b>A7 · sideways-movement rule for lane changes.</b> Lowered recall without removing false changes; disabled (section 10).</div></div>
+      <div class="phase"><span class="st todo">Next</span><div><b>Ramp merges at track breaks</b> (join a track ending at the merge with one starting in the next lane), aiming at ≥ 70% of on-ramp merges found.</div></div>
+      <div class="phase"><span class="st todo">Planned</span><div><b>Tracking steps 3–5.</b> Stitching (built; audits rejected the loose settings), occlusion zones for trees and the gantry, removal of short junk tracks; IDF1 against MiTra's true IDs.</div></div>
+      <div class="phase"><span class="st todo">Planned</span><div><b>Faster phone loading.</b> Smaller phone videos and tags loaded in chunks.</div></div>
     </div>
   </section>
 
   <footer class="muted" style="font-size:13px">
     Video and ground truth: <a href="https://opara.zih.tu-dresden.de/items/68482417-ddc5-40ac-885a-83124bd459e8">MiTra dataset</a>, CC BY 4.0.
-    Figures as of 26 Nov 2026 (notes/tracking.md, notes/lanes.md).
+    Figures as of 28 Nov 2026 (notes/tracking.md, notes/lanes.md, notes/lane_speed.md, notes/lane_change_plan.md).
   </footer>
 </div>
 
@@ -778,7 +985,7 @@ make test</div>
         "<code>detector</code>: model, classes [2, 3, 5, 7] (car, motorcycle, bus, truck), <code>imgsz 3840</code> (full width), <code>conf_min 0.05</code> (save faint boxes too; trackers decide what to use), <code>max_det 1000</code>.",
         "<code>tracking</code>: the variants file, the chosen <code>variant</code>, the <code>reference</code> the guards compare against, and <code>viewer_variants</code> (which trackers the viewer offers; <code>@selected</code> = the experiment's pick).",
         "<code>label</code>, <code>time_label</code> (\"Flight time\") and <code>viewer</code> (crop rows 1040–1660, width 2560) for the browser video.",
-        "Placeholders for later phases: <code>roi</code>, <code>lanes</code>, <code>calib_src_px</code>, <code>calib_dst_m</code>, <code>count_line_y_m</code>, <code>speed_limit_kmh</code>; <code>crs</code> EPSG:32632 because the ground truth is in UTM 32N.",
+        "<code>calibration</code>: method <code>gt_homography</code> (fitted on ground-truth positions) and the ground-truth CSV; <code>lane_speed</code>: the analysis windows, the on-ramp as an auxiliary lane (measured, not ranked), the speed limit; <code>crs</code> EPSG:32632 because the ground truth is in UTM 32N.",
       ],
       inputs: [], outputs: [], fns: [], related: ["detect", "tracking", "tvariants", "export"],
       why: ["All manual per-camera work will live here, so a second drone just needs a second file."] },
@@ -958,6 +1165,9 @@ make test</div>
       what: [
         "Encodes a strip (rows 1040–1660) at 2560 px wide, H.264, a keyframe every 10 frames so any frame is reachable quickly.",
         "Per variant: <code>tags_&lt;variant&gt;.json</code> (one short integer record per box) and, in <code>meta.json</code>, its label, note, quality numbers and one summary row per track, including the mid-image start/end flags from <code>quality.track_table</code>.",
+        "Per track, from the calibration: the average speed in km/h and a <b>live speed</b> series <code>vs = {f0, df, kmh[]}</code>, 5 values per second, each the slope of a least-squares line through the last 2 s of road positions (null when less than 0.8 s is in view).",
+        "Per track, from the lane-speed measurement: lane pieces <code>lp = [[frame, lane], …]</code> and lane changes <code>lc = [[frame, from, to, km/h before, km/h after], …]</code>; the track's lane is the one it spent most time in.",
+        "Lane outlines are moved back from the stabilised frame into each video frame and shifted (display only) so the bands run through the vehicles' boxes; <code>NaN</code> values are cleaned so browsers can parse <code>meta.json</code>.",
       ],
       inputs: ["config", "an experiment folder + variant names (<code>@selected</code> allowed) or a single points file"],
       outputs: ["video.mp4", "tags_&lt;variant&gt;.json", "meta.json (label, time label, pixel scale, lanes, per-track lane)"],
@@ -968,8 +1178,11 @@ make test</div>
         ["wrap_page(fragment)", "Turns a page fragment into a complete HTML document (title and font links in &lt;head&gt;)."],
         ["build_bundle(cfg, variants, …)", "Writes all of the above; the first variant is the one the viewer opens with."],
         ["variants_from_experiment(dir, names)", "Loads points, labels and quality from an experiment's report."],
+        ["live_speed / add_road_speed", "Average and live km/h per track along the road."],
+        ["add_lane_moves(tracks, moves, lane_idx, fps)", "Lane pieces and changes per track, in frames and lane indices."],
+        ["_on_vehicles / _to_video", "Lane bands drawn through the vehicles, in video coordinates."],
       ],
-      related: ["experiment", "quality", "viewer", "serve", "docs"], why: [] },
+      related: ["experiment", "quality", "viewer", "mobile", "serve", "docs"], why: [] },
 
     { id: "lanesmod", dir: "src/lane_intel/", name: "lanes.py", role: "module", lines: 352,
       summary: "Finds each lane from where tracked vehicles drive, numbers it (lane 1 = leftmost in the direction of travel) and assigns every vehicle to a lane.",
@@ -1003,7 +1216,8 @@ make test</div>
         ["build_site(spec, out, only)", "Builds every clip (or only some with <code>--only</code>), removes clips no longer listed and files of the old single-clip layout, writes the index and the page."],
         ["site_files(out)", "Exactly the files the site needs, for publishing."],
       ],
-      related: ["export", "viewer", "run", "docs"], why: [] },
+      related: ["export", "viewer", "mobile", "run", "docs"],
+      why: ["Also writes <code>m.html</code> (the phone app, stamped with its build time) and <code>architecture.html</code>, and passes each clip its lane-speed results and per-car lane pieces."] },
 
     { id: "serve", dir: "src/lane_intel/", name: "serve.py", role: "module", lines: 111,
       summary: "A tiny local web server that supports the partial-file requests browsers need to jump inside a video.",
@@ -1016,9 +1230,11 @@ make test</div>
       related: ["viewer", "export"], why: ["This fixed the first viewer bug: boxes drawn on a different frame than the one shown."] },
 
     // ------------------------------------------------------------- app
-    { id: "viewer", dir: "app/viewer/", name: "index.html", role: "ui", lines: 937,
-      summary: "The inspector you use in the browser: plays the road strip and draws every vehicle's box, ID and trail on top, frame by frame, for whichever tracker you pick.",
+    { id: "viewer", dir: "app/viewer/", name: "index.html", role: "ui", lines: 1376,
+      summary: "The desktop Inspector: plays the road strip and draws every vehicle's box, ID and trail on top, frame by frame, with the lane-speed verdict. On a phone it hands over to the phone app.",
       what: [
+        "<b>Phone switch</b>: on a touch screen ≤ 900 px wide it loads <code>m.html</code> instead (override with <code>?view=desktop</code> / <code>?view=phone</code>).",
+        "<b>Lane speeds</b>: foldable verdict cards per direction (closed by default), per-lane table with ranges, ground truth for MiTra, and an \"＋ Analyse your video\" link.",
         "<b>Lanes</b> layer (on by default): each lane band with its number and direction; the selected vehicle's lane is brighter. A Lanes panel counts vehicles per lane; the register has a Lane column.",
         "<b>Video selector</b> at the top when the site has more than one clip (<code>clips.json</code>): each clip loads its own video, trackers and tags from its folder.",
         "<b>Tracker switch</b> above the video, shown only when the bundle carries more than one tracker (<code>tracking.viewer_variants</code>; the default bundle has just the chosen one): one button per tracker with its ID count; <kbd>V</kbd> cycles; switching keeps the current frame.",
@@ -1046,9 +1262,10 @@ make test</div>
       inputs: [], outputs: [], fns: [], related: ["docs"], why: [] },
 
     // ------------------------------------------------------------- tests
-    { id: "tests", dir: "tests/", name: "conftest.py + 8 test files", role: "test", lines: 563,
-      summary: "Forty-eight automated checks, in about 7 seconds, on generated data, so they need neither the real videos nor the model.",
+    { id: "tests", dir: "tests/", name: "conftest.py + 10 test files", role: "test", lines: null,
+      summary: "93 automated checks, in about 15 seconds, on generated data, so they need neither the real videos nor the model.",
       what: [
+        "<code>test_lane_speed.py</code>: exact clipping, space-mean speed, a standing car adds time but no distance, a lane change split at the crossing, a double change (2 → 1 → 2) loses and repeats nothing, the sliding-box rule, the announcement rule and its hysteresis, far lanes equal in metres. <code>test_calibrate.py</code>: homography, drift and the vehicle-size scale. <code>test_upload.py</code>: every gate rule with its reason, boundaries, clip names as plain text.",
         "<code>test_tracking.py</code>, scenarios with known answers: a car hidden for 2 s splits into 2 IDs with a 1 s memory and keeps 1 ID with 4 s; a car that is faint for 2 s keeps its ID only when faint boxes reach the tracker; faint boxes alone never start a track. Plus variant inheritance and validation, break and restart classification, the identity-jump definition (a lane-width jump is caught, a shrinking box is not), the selection rule's guards, and the cross-check.",
         "<code>test_stitch.py</code>: joins a hidden car, and never across lanes, the image edge, opposite directions, different sizes or too-long gaps; chains; one-to-one choice. <code>test_lanes.py</code>: a straight two-way road, a curved road, a jammed lane found only from stopped cars, lane-1 numbering, assignment. <code>test_viewer_site.py</code>: a two-video site and per-camera thresholds.",
         "<code>test_export_viewer.py</code>: track summary (motion, majority class, break flags), a two-tracker bundle end to end, page wrapping. <code>test_video.py</code>: frame reading and windows. <code>test_serve.py</code>: range parsing and a live server.",
@@ -1057,7 +1274,7 @@ make test</div>
       why: ["detect.py has no unit test: it needs the model. Its output was checked on the real clip, and the baseline variant reproduces the original run exactly (386 IDs)."] },
 
     // ------------------------------------------------------------- notes
-    { id: "notes", dir: "notes/", name: "tracking.md, lanes.md, lane_speed*.md", role: "config", lines: 900,
+    { id: "notes", dir: "notes/", name: "tracking.md, lanes.md, lane_speed*.md, mobile_plan.md, upload_plan.md, lane_change_plan.md", role: "config", lines: null,
       summary: "The lab notebook: tracking (method, rules, results, the stitching audits, the second camera) and lanes (method, results, limits). Run reports in notes/runs/, audit cards and verdicts in notes/audits/.",
       what: ["Written like a lab notebook. The method and both rules were committed to git before the results they judge, so the choice of tracker could not be bent to fit the numbers."],
       inputs: [], outputs: [], fns: [], related: ["experiment", "crosscheck", "tvariants", "quality"], why: [] },
@@ -1095,25 +1312,28 @@ make test</div>
       fns: [["build_ground(cfg, cfg_path)", "All windows, stabilised, track ids unique across windows."],
             ["road_points(g, rf, lanes, lane_d, settings)", "s, d, lane, occlusion flag, segment id per box."]],
       related: ["stabilize", "calibrate", "lanepieces"], why: [] },
-    { id: "lanepieces", dir: "src/lane_intel/", name: "lane_pieces.py", role: "module", lines: 120,
+    { id: "lanepieces", dir: "src/lane_intel/", name: "lane_pieces.py", role: "module", lines: 156,
       summary: "A vehicle's lane can change: per-box lanes with a 0.5 s hysteresis, the change placed where it crosses the line.",
       what: ["Splits every track into lane pieces, so a car that changes lanes contributes to each lane exactly the distance and time it spent there; records lane-change events."],
       inputs: ["road points"], outputs: ["trajectory segments per lane", "lane changes"],
       fns: [["smooth_lanes(t, lane, min_dwell)", "Ignores flicker shorter than 0.5 s."],
             ["move_to_crossings(…)", "Places a confirmed change at the line crossing."],
-            ["build(road, lane_d, lane_dir, min_dwell)", "Segments and lane changes."]],
-      related: ["world", "lanespeed"], why: [] },
-    { id: "lanespeed", dir: "src/lane_intel/", name: "lane_speed.py", role: "module", lines: 309,
+            ["require_lateral(…)", "A7: keep a change only with real sideways movement. Tested and rejected; off by default (<code>lane_change.enabled</code>)."],
+            ["build(road, lane_d, lane_dir, min_dwell, lane_change)", "Segments and lane changes (time, road position, from, to)."]],
+      related: ["world", "lanespeed", "lscfg"], why: ["Lane changes vs MiTra ground truth: right-moving precision 0.71, recall 0.47; in the jam most detected changes are false (section 10)."] },
+    { id: "lanespeed", dir: "src/lane_intel/", name: "lane_speed.py", role: "module", lines: 402,
       summary: "Space-mean speed per lane: total distance ÷ total time over one stretch shared by all lanes (Edie's definitions).",
       what: [
         "Each piece of trajectory is clipped exactly to lane × stretch × time window. A vehicle split into two IDs, or changing lanes, counts exactly once; a standing car adds time but no distance.",
-        "The stretch is the longest well-covered run of road (it skips the tree zone on MiTra); windows are 60 s, every 5 s, plus the whole clip.",
+        "The stretch is the longest well-covered run of road (it skips the tree zone on MiTra); windows are 25 s (the owner's choice, so a 30 s clip gets an answer), every 5 s, plus the whole clip.",
       ],
       inputs: ["ground table", "lanes", "calibration"], outputs: ["data/out/lane_speed/&lt;camera&gt;/: lanes, vehicles, lane changes, announcements, summary"],
       fns: [["choose_stretch(…)", "Common, well-covered stretch per direction."],
             ["edie_vehicles(segs, s0, s1, T0, T1)", "Distance and time per vehicle piece inside the region."],
             ["compute(…)", "The whole measurement for one camera."],
-            ["viewer_payload(dir)", "Compact results for the viewer's Lane speeds panel."]],
+            ["track_moves(road, segs, changes)", "Per vehicle: lane pieces, and each change's speed 5 s before and after (\"Did it pay off?\")."],
+            ["track_lanes(dir, window) / moves_summary(dir, lanes)", "Per-car lane pieces for one clip; most common move and speed gain per target lane (≥ 5 cases)."],
+            ["viewer_payload(dir)", "Compact results for the apps: lanes, verdicts, timeline, lane-change summary, validation."]],
       related: ["lanepieces", "announce", "validate", "viewer"], why: [] },
     { id: "announce", dir: "src/lane_intel/", name: "announce.py", role: "module", lines: 146,
       summary: "Is the difference real? Fastest / slowest lane announced only with ≥ 90% rank probability and a ≥ 10% gap.",
@@ -1127,23 +1347,61 @@ make test</div>
       related: ["lanespeed", "validate"], why: [] },
     { id: "validate", dir: "src/lane_intel/", name: "validate.py", role: "module", lines: 225,
       summary: "Lane speeds against MiTra ground truth: the ground-truth trajectories go through the same measurement.",
-      what: ["Reports speed and ratio errors, ranking and announcement agreement, announcement precision, distance/time shares, an ablation, and development vs held-out windows separately."],
+      what: ["Reports speed and ratio errors, ranking and announcement agreement, announcement precision, distance/time shares, an ablation, and development vs held-out windows separately.",
+             "Lane changes: ours vs the ground truth's own lane labels (same hysteresis), matched one-to-one by from/to lane, ±1 s and ±15 m, inside the stretch; precision and recall per direction."],
       inputs: ["our measurement", "MiTra ground-truth CSV"], outputs: ["validation.json"],
-      fns: [["measure_gt(…)", "Ground truth through the same stretch, windows and rule."], ["compare(ours, ref, gap)", "All comparison tables."]],
+      fns: [["measure_gt(…)", "Ground truth through the same stretch, windows and rule."], ["compare(ours, ref, gap)", "All comparison tables."],
+             ["lane_change_check(ours, ref, t_from, t_to)", "Lane-change precision and recall."]],
       related: ["lanespeed", "announce", "calibrate"], why: [] },
+
+    { id: "lscfg", dir: "configs/", name: "lane_speed.json", role: "config", lines: null,
+      summary: "Every rule of the lane-speed measurement, fixed before the results, with each later change recorded as an amendment.",
+      what: ["Occlusion filter, stretch rule, lane hysteresis (0.5 s), window length (25 s) and step, the announcement rule (P ≥ 0.9, gap ≥ 10%, keep ≥ 5%), plausibility cuts (off, A6), lane-change rule (A7, rejected: <code>enabled: false</code>), and <code>_amendments</code> A2–A7 with dates and reasons."],
+      inputs: [], outputs: [], fns: [], related: ["lanespeed", "lanepieces", "announce", "validate"], why: [] },
+    { id: "mobile", dir: "app/mobile/", name: "index.html", role: "ui", lines: 1333,
+      summary: "The phone app, published as m.html and loaded at the same address on phones: video first, one tap to play, lanes and speeds on the video.",
+      what: [
+        "<b>Watch</b>: the video pinned at the top with a ride-along camera, road map, play bar; swipe to pan, pinch to zoom, tap a car to follow it; rotate for the whole road. Lane signs at the left edge point at their lanes.",
+        "<b>Lane speeds closed by default</b>, on every visit; opened with one tap for this visit only.",
+        "<b>Answer</b>: fastest and slowest per direction with the margin, the lane-change summary, lane cards. <b>Cars</b>: tiles, speed histogram, filters (on screen, lane changers, cars, trucks), list of every vehicle. <b>About</b>: five cards.",
+        "<b>Car card</b> (bottom sheet that never covers the video): live km/h, trend, speed graph with a moving dot, lane strip, lane changes and \"Did it pay off?\".",
+      ],
+      inputs: ["clips.json", "clips/&lt;id&gt;/meta.json, tags, video.mp4 (fetched with no-cache)"], outputs: ["nothing saved"],
+      fns: [["loadClip(id)", "Loads a clip's data and video."], ["draw()", "Boxes, the followed car's bubble (colour of its current lane), lane bands and signs."],
+            ["renderVerdict / movesLine", "Answer tab."], ["renderCars / renderCarList / goCar", "Cars tab."], ["openCar / laneStrip / carMoves / updateCarLive", "Car card."],
+            ["openLane(id)", "Lane card."], ["laneAt / recentChange", "The lane a car is in at a frame, and a change in the last 2 s."]],
+      related: ["viewer", "export", "site", "docs"], why: ["Plain HTML and JS, no build step, like the Inspector. Tested with emulated iPhone touch events."] },
+    { id: "upload", dir: "src/lane_intel/", name: "upload.py", role: "module", lines: 390,
+      summary: "Analyse an uploaded video, but only a good one: three gates, each failure with a plain reason.",
+      what: ["Stage A checks the file, stage B the camera and picture (steadiness, cuts, light, sharpness, enough and large enough vehicles), then the video is normalised and analysed with the standard pipeline; stage C checks the result before it is published to the site."],
+      inputs: ["the video", "configs/upload_rules.json"], outputs: ["configs/uploads/&lt;id&gt;.json", "docs/clips/&lt;id&gt;/", "docs/uploads.json", "the issue reply"],
+      fns: [["probe / check_file", "Stage A."], ["picture_stats / vehicle_sample / check_picture", "Stage B."], ["normalise", "≤ 10 fps (never more than the source), ≤ 1920 px."],
+            ["make_config / analyse", "A camera config for the clip, then detect, track, lanes, calibration, lane speeds."], ["check_result", "Stage C."],
+            ["publish / merge_clips_json", "Adds the clip to the site, keeps the newest 12."], ["clean_label", "Names shown as plain text."]],
+      related: ["uprules", "workflow", "docs", "lanespeed"], why: [] },
+    { id: "uprules", dir: "configs/", name: "upload_rules.json", role: "config", lines: 59,
+      summary: "The upload rules, written before any upload was processed.",
+      what: ["File: ≤ 10 MB, 30–60 s, ≥ 960 px, ≥ 4 fps. Picture: steady camera, no cuts, light and sharpness limits, ≥ 8 vehicles per frame, ≥ 20 px long. Result: ≥ 30 tracks, ≥ 2 lanes, ≥ 85% of boxes in lanes, ≥ 40 m stretch, plausible speeds."],
+      inputs: [], outputs: [], fns: [], related: ["upload"], why: [] },
+    { id: "workflow", dir: ".github/", name: "workflows/analyze.yml + ISSUE_TEMPLATE/analyze.yml", role: "entry", lines: 190,
+      summary: "The upload path: an issue form with the video attached starts a GitHub Actions run that analyses it and replies.",
+      what: ["Runs only when the issue author is the owner, a member or a collaborator, and the title starts with \"Analyse:\". Downloads the attachment, runs <code>python run.py analyze</code>, comments the result or the reason it was refused, and commits the new clip to the site branch.",
+             "GitHub runs issue forms and workflows only from the default branch, so both files must be on <code>main</code>."],
+      inputs: ["issue with an mp4"], outputs: ["issue comment", "commit to the site"], fns: [], related: ["upload", "docs"], why: [] },
 
     // ------------------------------------------------------------- docs + data
     { id: "docs", dir: "docs/", name: "(GitHub Pages site)", role: "data", lines: null,
       summary: "Generated public copy of the viewer bundle and this page, served by GitHub Pages.",
-      what: ["<code>index.html</code>, <code>clips.json</code>, <code>clips/&lt;id&gt;/</code> (video, tags, meta) for each video, <code>architecture.html</code>, <code>.nojekyll</code>. Written by <code>python run.py pages</code>; never edit by hand."],
-      inputs: ["data/out/viewer/", "app/architecture/index.html"], outputs: ["https://noamari.github.io/BestLaneDetactor/ once Pages is on"],
+      what: ["<code>index.html</code> (Inspector), <code>m.html</code> (phone app), <code>clips.json</code>, <code>clips/&lt;id&gt;/</code> (video, tags, meta) for each video, <code>architecture.html</code>, <code>uploads.json</code> and the uploaded clips, <code>.nojekyll</code>. Written by <code>python run.py pages</code> and the upload workflow; never edit by hand."],
+      inputs: ["data/out/viewer/", "app/architecture/index.html", "upload workflow"], outputs: ["https://noamari.github.io/BestLaneDetactor/"],
       fns: [], related: ["run", "export", "viewer"], why: [] },
 
     { id: "data", dir: "data/", name: "(not in git)", role: "data", lines: null,
       summary: "Everything large or generated. It exists only on the machine that ran the pipeline and can be rebuilt with run.py.",
       what: [
         "<code>raw/uploads/</code>: the uploaded clip.",
-        "<code>raw/</code>: the 3-minute 4K clip (2.26 GB) and the D1 ground truth (3.16 M rows: ID, type, time, UTM x/y, speed, lane, neighbours; not used yet).",
+        "<code>raw/</code>: the 3-minute 4K clip (2.26 GB) and the D1 ground truth (3.16 M rows: ID, type, time, UTM x/y, speed, lane, neighbours), used for MiTra's calibration and for validation.",
+        "<code>out/lane_speed/&lt;camera&gt;/</code>: lanes, vehicles, lane pieces, lane changes, announcements, summary, validation.",
         "<code>models/</code>: yolo26s.pt (used), yolo11s.pt and yolo26m.pt (compared, not chosen).",
         "<code>interim/</code>: <code>&lt;tag&gt;_detections.parquet</code> + provenance, <code>&lt;tag&gt;_points.parquet</code> + meta.",
         "<code>out/tracking/&lt;tag&gt;/</code>: experiment reports and per-variant diagnostics; <code>out/viewer/</code>: the bundle.",
