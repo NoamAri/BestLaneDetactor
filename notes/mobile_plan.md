@@ -185,3 +185,11 @@ About cards with page dots, reduced-motion support. Checked with real touch even
 
 The "guess the fastest lane" game was removed (not intuitive). Lane speeds stay **closed** by default per video and open with one
 action ("Lane speeds · Show" on the video, or "Show lane speeds" in the Answer / Lane race tabs); "Hide lane speeds" closes them.
+
+## 10. Cars tab (replaces the Lane race tab)
+
+The lane race repeated the Answer tab. The second tab is now **Cars**: overview tiles (vehicles, typical speed, fastest:
+tap to follow), a histogram of average speeds (tap a bar to filter), filters (All / On screen / Cars / Trucks & buses) and
+sorting (fastest / slowest / by lane), and a list of every vehicle followed >= 1.5 s with its lane, time in view, mini speed
+graph and average speed. Rows on screen get a live green dot; tapping a row jumps the video to that vehicle, follows it
+and opens its live card.

@@ -150,6 +150,49 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 .reveal-in { animation: revealIn .45s var(--ease) both; }
 @keyframes revealIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
+/* ---------------------------------------------------------------- Cars tab */
+.cstats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.tile { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 11px; text-align: left; min-width: 0; }
+.tile .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+.tile .v { font-size: 20px; font-weight: 600; margin-top: 2px; white-space: nowrap; }
+.tile .v small { font-size: 11px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+.tile .s { font-size: 11.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+button.tile:active { transform: scale(.98); }
+.hist { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 12px 8px; margin-bottom: 12px; }
+.hist .hh { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.hist .bars { display: flex; align-items: flex-end; gap: 4px; height: 64px; }
+.hist .bar { flex: 1; display: flex; flex-direction: column; justify-content: flex-end; height: 100%; min-width: 0; }
+.hist .bar i { display: block; border-radius: 4px 4px 2px 2px; background: color-mix(in srgb, var(--accent) 55%, transparent); min-height: 3px; transition: background .2s; }
+.hist .bar.on i { background: var(--accent); }
+.hist .bar.off i { background: color-mix(in srgb, var(--fg) 12%, transparent); }
+.hist .axis { display: flex; gap: 4px; margin-top: 4px; }
+.hist .axis span { flex: 1; text-align: center; font-size: 9.5px; color: var(--muted); font-family: var(--font-mono); }
+.cfilters { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; margin: 0 -16px 10px; padding: 0 16px; }
+.cfilters::-webkit-scrollbar { display: none; }
+.fchip { flex: none; min-height: 36px; padding: 0 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 13px; }
+.fchip[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+.fchip .n { opacity: .6; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.fsep { flex: none; width: 1px; background: var(--line); margin: 6px 2px; }
+.clist { display: grid; gap: 6px; }
+.crow { display: grid; grid-template-columns: 34px 1fr 64px 58px; gap: 10px; align-items: center; width: 100%; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px 9px 10px; position: relative; }
+.crow:active { transform: scale(.985); }
+.crow.on { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+.crow .cico { font-size: 22px; text-align: center; line-height: 1; }
+.crow .ct { display: block; font-weight: 600; font-size: 14.5px; }
+.crow .cs { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); margin-top: 2px; white-space: nowrap; }
+.crow .lsg { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; color: var(--fg); }
+.crow .lsg b { display: inline-grid; place-items: center; min-width: 15px; height: 15px; border-radius: 8px; font-size: 9.5px; padding: 0 3px; }
+.crow svg { width: 64px; height: 26px; display: block; }
+.crow .cv { text-align: right; font-size: 19px; font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; line-height: 1.05; }
+.crow .cv small { display: block; font-size: 10px; font-weight: 500; color: var(--muted); font-family: var(--font-sans); }
+.crow .now { position: absolute; left: 6px; top: 6px; width: 8px; height: 8px; border-radius: 50%; background: #2fbf71;
+  box-shadow: 0 0 0 2px var(--surface); opacity: 0; transition: opacity .25s; }
+.crow.inview .now { opacity: 1; }
+.cmore { width: 100%; min-height: 44px; border: 1px dashed var(--line); border-radius: 12px; color: var(--muted); font-size: 13px; margin-top: 2px; }
+.cempty { text-align: center; color: var(--muted); font-size: 13.5px; padding: 18px 0; }
+.cempty button { color: var(--accent); font-weight: 600; padding: 8px; }
+
 /* ---------------------------------------------------------------- bottom sheet with snap points */
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 25; height: 86svh; background: var(--surface);
   border-radius: 20px 20px 0 0; box-shadow: 0 -12px 34px rgba(0,0,0,.28); display: flex; flex-direction: column;
@@ -258,10 +301,13 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       <div id="verdict"></div>
       <p class="note">Tap a card for the lane's details. The timeline above is coloured by the lane that was fastest at each moment.</p>
     </section>
-    <section class="pane tab" id="tabRace" hidden>
-      <h2>Lane race · live with the video</h2>
-      <div id="race"></div>
-      <p class="note" id="raceNote"></p>
+    <section class="pane tab" id="tabCars" hidden>
+      <h2>Vehicles in this video</h2>
+      <div class="cstats" id="cStats"></div>
+      <div class="hist" id="cHist" aria-label="Average speeds of the vehicles; tap a bar to show only those"></div>
+      <div class="cfilters" id="cFilters"></div>
+      <div class="clist" id="cList"></div>
+      <p class="note" id="cNote"></p>
     </section>
     <section class="pane tab" id="tabAbout" hidden>
       <h2>How it works</h2>
@@ -273,7 +319,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
         <div class="card"><div class="n">5 · Verdict</div><h3>Fastest only when it's real</h3><p>A lane's speed is the total distance ÷ total time of all its cars. "Clearly fastest" needs a 10% lead in 90% of resamples; otherwise the app shows how small the lead is.</p></div>
       </div>
       <div class="dots" id="aboutDots"><i class="on"></i><i></i><i></i><i></i><i></i></div>
-      <p class="note" style="text-align:center">Version 2026-11-27 23:12 UTC</p>
+      <p class="note" style="text-align:center">Version 2026-11-28 11:15 UTC</p>
       <p class="note"><button class="linkbtn" id="toDesktop2">Every detail and the method: desktop view</button></p>
     </section>
   </main>
@@ -286,7 +332,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   <nav class="tabbar" aria-label="Sections">
     <span class="ind" id="tabInd" aria-hidden="true"></span>
     <button data-tab="tabAnswer" aria-current="page"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4.6 18.5a9 9 0 1 1 14.8 0"/><path d="M12 14.5l4.2-5"/><circle cx="12" cy="14.5" r="1.3" fill="currentColor"/></svg></span>Answer</button>
-    <button data-tab="tabRace"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6.5h9M4 12h16M4 17.5h6"/></svg></span>Lane race</button>
+    <button data-tab="tabCars"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 16V11.5l1.8-4.6A2 2 0 0 1 8.7 5.6h6.6a2 2 0 0 1 1.9 1.3l1.8 4.6V16"/><path d="M3.5 11.5h17v4.5a1 1 0 0 1-1 1h-15a1 1 0 0 1-1-1z"/><circle cx="7.5" cy="14.2" r="1" fill="currentColor"/><circle cx="16.5" cy="14.2" r="1" fill="currentColor"/><path d="M6 17v1.6M18 17v1.6"/></svg></span>Cars</button>
     <button data-tab="tabAbout"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5"/><circle cx="12" cy="7.6" r="1.1" fill="currentColor" stroke="none"/></svg></span>About</button>
   </nav>
   <div class="sr" aria-live="polite" id="live"></div>
@@ -329,7 +375,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
       S.followLane = on ? verdictLane(mainDirection(), "fastest") : null;
       S.followId = S.followLane ? pickCar(S.followLane) : pickAnyCar(); S.lostFrames = 0;
     }
-    renderVerdict(true); renderRace(); $("answer").dataset.html = ""; renderChips(); drawScrub(); draw();
+    renderVerdict(true); $("answer").dataset.html = ""; renderChips(); drawScrub(); draw();
     if (!quiet) buzz(on ? 8 : 5);
   }
   const lanes = () => (S.meta && S.meta.lanes) || [];
@@ -382,7 +428,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     vid.src = S.base + "video.mp4"; vid.playbackRate = RATES[S.rateIdx]; vid.load();
     history.replaceState(null, "", "#clip=" + id);
     $("tDur").textContent = (S.n / S.fps).toFixed(0) + " s";
-    renderVerdict(); renderRace(); layout();
+    renderVerdict(); C.band = null; C.filter = "all"; C.limit = 40; renderCars(); layout();
   }
   vid.addEventListener("loadeddata", () => { $("loading").hidden = true; syncPlay(); layout(); frame(); maybeCoach(); });
   vid.addEventListener("error", () => { $("loading").textContent = "The video could not be loaded. Check the connection and reload."; });
@@ -781,44 +827,105 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     $("hideRes").onclick = () => setRevealed(false);
   }
 
-  function renderRace() {
-    const L = ls(), box = $("race");
-    if (!L) { box.innerHTML = `<p class="note">Lane speeds are not computed for this video yet.</p>`; $("raceNote").textContent = ""; return; }
-    if (!shown()) { box.innerHTML = hiddenCard(); wireHidden(box); $("raceNote").textContent = ""; return; }
-    box.innerHTML = Object.keys(L.announcement).sort().reverse().map((d) => {
-      const rows = L.lanes.filter((l) => l.direction === d && l.v_kmh != null).sort((a, b) => a.number - b.number);
-      const tl = L.timeline[d]; let share = "";
-      if (tl && tl.t0.length) {
-        const wins = {}; tl.t0.forEach((_, i) => { const l = leaderAt(d, i); if (l) wins[l.lane] = (wins[l.lane] || 0) + 1; });
-        const top = Object.entries(wins).sort((a, b) => b[1] - a[1])[0];
-        if (top) share = ` Lane ${laneById(top[0]).number} led ${Math.round(100 * top[1] / tl.t0.length)}% of the time.`;
-      }
-      const f = laneById(verdictLane(d, "fastest")), s = laneById(verdictLane(d, "slowest"));
-      return `<div class="race" data-dir="${d}"><h3>${DIRW[d]}</h3><div class="sub">Average speed in each lane around this moment</div>
-        ${rows.map((l) => `<button class="rrow${l.auxiliary ? " aux" : ""}" data-lane="${l.lane}"><span class="nm">Lane ${l.number}${l.auxiliary ? " ramp" : ""}<span class="crown">▲</span></span>
-          <span class="track"><span class="fill" style="display:block;background:${laneCol(l.number)};width:0%"></span></span><span class="val mono">–</span></button>`).join("")}
-        <p class="sentence">Whole video: ▲ lane ${f ? f.number : "–"} fastest${closeCall(d, "fastest") ? ` (only ${margin(d, "fastest")})` : ""}, ▼ lane ${s ? s.number : "–"} slowest${closeCall(d, "slowest") ? ` (only ${margin(d, "slowest")})` : ""}.${share}</p></div>`;
-    }).join("");
-    for (const r of box.querySelectorAll(".rrow")) r.onclick = () => openLane(r.dataset.lane);
-    $("raceNote").textContent = L.validation ? `Checked against the official MiTra ground truth: within ${(L.validation.median_rel_err * 100).toFixed(1)}% (median).`
-      : "No ground truth for this video; distances use an assumed lane width (3.6 m) and car length (4.5 m).";
-    updateRace();
+  // ================================================================ Cars tab: every vehicle, live with the video
+  const CLS_ICON = { car: "🚗", truck: "🚚", bus: "🚌", motorcycle: "🏍" };
+  const HEAVY = new Set(["truck", "bus"]);
+  const C = { filter: "all", sort: "fast", band: null, limit: 40, nowKey: "" };
+  const carList = () => [...S.info.values()].filter((t) => t.kmh != null && (t.last - t.first) / S.fps >= 1.5);
+  const inView = (t) => { const f = S.f + S.meta.frame_first; return f >= t.first && f <= t.last; };
+  function laneSignMini(t) {
+    const ln = lanes()[t.lane];
+    if (!ln) return `<span>no lane</span>`;
+    const col = laneCol(ln.number);
+    return `<span class="lsg"><b style="background:${col};color:${inkOn(col)}">${ln.number}</b>${arrow(ln.direction)}</span>`;
   }
-  function updateRace() {
-    const L = ls(); if (!L || $("tabRace").hidden || !shown()) return;
-    const t = S.f / S.fps;
-    for (const blk of $("race").querySelectorAll(".race")) {
-      const d = blk.dataset.dir, tl = L.timeline[d]; if (!tl) continue;
-      const i = windowAt(tl, t), rows = [...blk.querySelectorAll(".rrow")];
-      const vals = rows.map((r) => (tl.v_kmh[r.dataset.lane] || [])[i]), vmax = Math.max(1, ...vals.filter((v) => v != null));
-      const lead = leaderAt(d, i);
-      rows.forEach((r, j) => {
-        r.classList.toggle("lead", !!lead && lead.lane === r.dataset.lane);
-        r.querySelector(".fill").style.width = vals[j] == null ? "0%" : (100 * vals[j] / vmax).toFixed(1) + "%";
-        r.querySelector(".val").textContent = vals[j] == null ? "–" : vals[j].toFixed(1);
-      });
+  function miniSpark(t) {
+    const k = (t.vs && t.vs.kmh) || [], vals = k.filter((x) => x != null);
+    if (vals.length < 3) return `<svg viewBox="0 0 64 26"></svg>`;
+    const vm = Math.max(10, ...vals) * 1.1, n = k.length, ln = lanes()[t.lane], col = ln ? laneCol(ln.number) : css("--muted");
+    const pts = k.map((x, i) => x == null ? null : `${(i / (n - 1) * 62 + 1).toFixed(1)},${(24 - x / vm * 22).toFixed(1)}`).filter(Boolean).join(" ");
+    return `<svg viewBox="0 0 64 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+  }
+  const BAND = 10;                                            // km/h per histogram bar
+  function renderCars() {
+    if (!S.meta) return;
+    const all = carList();
+    if (!all.length) { $("cStats").innerHTML = ""; $("cHist").hidden = true; $("cFilters").innerHTML = ""; $("cList").innerHTML = `<p class="cempty">No vehicles were followed long enough in this video.</p>`; return; }
+    const sp = all.map((t) => t.kmh).sort((x, y) => x - y), med = sp[sp.length >> 1];
+    const fastest = all.reduce((m, t) => (t.kmh > m.kmh ? t : m)), heavy = all.filter((t) => HEAVY.has(t.cls)).length;
+    $("cStats").innerHTML =
+      `<div class="tile"><div class="k">Vehicles</div><div class="v">${all.length}</div><div class="s">${Math.round(100 * heavy / all.length)}% trucks &amp; buses</div></div>` +
+      `<div class="tile"><div class="k">Typical</div><div class="v">${Math.round(med)}<small>km/h</small></div><div class="s">median speed</div></div>` +
+      `<button class="tile" id="cFast"><div class="k">Fastest</div><div class="v">${Math.round(fastest.kmh)}<small>km/h</small></div><div class="s">${CLS_ICON[fastest.cls] || "🚗"} tap to follow</div></button>`;
+    $("cFast").onclick = () => goCar(fastest.track_id);
+    // histogram of average speeds; tap a bar to filter
+    const nb = Math.max(1, Math.ceil((sp[sp.length - 1] + 0.01) / BAND)), counts = Array(nb).fill(0);
+    C.nb = nb;
+    all.forEach((t) => counts[Math.min(nb - 1, Math.floor(t.kmh / BAND))]++);
+    const cm = Math.max(...counts);
+    $("cHist").hidden = false;
+    $("cHist").innerHTML = `<div class="hh"><span>Average speed of each vehicle</span><span>${C.band != null ? `${C.band * BAND}–${C.band * BAND + BAND} km/h · <b>tap again to clear</b>` : "tap a bar to filter"}</span></div>
+      <div class="bars">${counts.map((c, i) => `<button class="bar${C.band == null ? "" : C.band === i ? " on" : " off"}" data-b="${i}" aria-label="${i * BAND} to ${i * BAND + BAND} km/h: ${c} vehicles"><i style="height:${c ? Math.max(6, 100 * c / cm) : 0}%"></i></button>`).join("")}</div>
+      <div class="axis">${counts.map((_, i) => `<span>${i % 2 === 0 || nb <= 7 ? i * BAND : ""}</span>`).join("")}</div>`;
+    for (const b of $("cHist").querySelectorAll(".bar")) b.onclick = () => { const i = +b.dataset.b; C.band = C.band === i ? null : i; C.limit = 40; buzz(4); renderCars(); };
+    // filters and sorting
+    const n = { all: all.length, now: all.filter(inView).length, car: all.filter((t) => !HEAVY.has(t.cls)).length, heavy };
+    const F = [["all", "All"], ["now", "On screen"], ["car", "Cars"], ["heavy", "Trucks & buses"]];
+    const O = [["fast", "Fastest"], ["slow", "Slowest"], ["lane", "By lane"]];
+    $("cFilters").innerHTML = F.map(([k, l]) => `<button class="fchip" data-f="${k}" aria-pressed="${C.filter === k}">${l}<span class="n">${n[k]}</span></button>`).join("") +
+      `<span class="fsep"></span>` + O.map(([k, l]) => `<button class="fchip" data-o="${k}" aria-pressed="${C.sort === k}">${l}</button>`).join("");
+    for (const b of $("cFilters").querySelectorAll("[data-f]")) b.onclick = () => { C.filter = b.dataset.f; C.limit = 40; buzz(4); renderCars(); };
+    for (const b of $("cFilters").querySelectorAll("[data-o]")) b.onclick = () => { C.sort = b.dataset.o; buzz(4); renderCars(); };
+    renderCarList(all);
+  }
+  function renderCarList(all) {
+    all = all || carList();
+    let rows = all.filter((t) => C.filter === "all" || (C.filter === "now" ? inView(t) : C.filter === "car" ? !HEAVY.has(t.cls) : HEAVY.has(t.cls)));
+    if (C.band != null) rows = rows.filter((t) => Math.min(C.nb - 1, Math.floor(t.kmh / BAND)) === C.band);   // same bars as the histogram
+    const laneKey = (t) => { const ln = lanes()[t.lane]; return ln ? (ln.direction === "right" ? 0 : 100) + ln.number : 999; };
+    rows.sort(C.sort === "fast" ? (x, y) => y.kmh - x.kmh : C.sort === "slow" ? (x, y) => x.kmh - y.kmh : (x, y) => laneKey(x) - laneKey(y) || y.kmh - x.kmh);
+    C.nowKey = all.filter(inView).map((t) => t.track_id).join(",");
+    if (!rows.length) {
+      $("cList").innerHTML = `<div class="cempty">No vehicles match.<br><button id="cReset">Show all vehicles</button></div>`;
+      $("cReset").onclick = () => { C.filter = "all"; C.band = null; renderCars(); };
+      $("cNote").textContent = ""; return;
     }
+    const shown_ = rows.slice(0, C.limit);
+    $("cList").innerHTML = shown_.map((t) => {
+      const a = (t.first - S.meta.frame_first) / S.fps, z = (t.last - S.meta.frame_first) / S.fps;
+      const name = t.cls[0].toUpperCase() + t.cls.slice(1);
+      return `<button class="crow${inView(t) ? " inview" : ""}${t.track_id === S.followId ? " on" : ""}" data-id="${t.track_id}">
+        <i class="now" aria-hidden="true"></i><span class="cico" aria-hidden="true">${CLS_ICON[t.cls] || "🚗"}</span>
+        <span><span class="ct">${name}</span><span class="cs">${laneSignMini(t)}<span>${a.toFixed(0)}–${z.toFixed(0)} s</span></span></span>
+        ${miniSpark(t)}<span class="cv">${Math.round(t.kmh)}<small>km/h avg</small></span></button>`;
+    }).join("") + (rows.length > C.limit ? `<button class="cmore" id="cMore">Show ${Math.min(40, rows.length - C.limit)} more of ${rows.length - C.limit}</button>` : "");
+    for (const r of $("cList").querySelectorAll(".crow")) r.onclick = () => goCar(+r.dataset.id);
+    if ($("cMore")) $("cMore").onclick = () => { C.limit += 40; renderCarList(); };
+    $("cNote").textContent = "Green dot: on screen now. Tap a vehicle to jump to it and follow it.";
   }
+  // tap a vehicle: jump in time if it is not on screen, follow it, open its card
+  function goCar(id) {
+    const t = S.info.get(id); if (!t) return;
+    buzz(6);
+    if (!inView(t)) {
+      const f = Math.min(t.last, t.first + Math.round(S.fps * 0.5)) - S.meta.frame_first;
+      vid.currentTime = (f + 0.5) / S.fps; S.f = f;
+    }
+    openCar(id);
+  }
+  // live updates while the video plays: green dots, the followed row, and the "On screen" list
+  function updateCars() {
+    if (!S.meta || $("tabCars").hidden) return;
+    const all = carList(), key = all.filter(inView).map((t) => t.track_id).join(",");
+    if (C.filter === "now" && key !== C.nowKey) { renderCarList(all); return; }
+    C.nowKey = key;
+    for (const r of $("cList").querySelectorAll(".crow")) {
+      const t = S.info.get(+r.dataset.id); if (!t) continue;
+      r.classList.toggle("inview", inView(t)); r.classList.toggle("on", t.track_id === S.followId);
+    }
+    const nb = $("cFilters").querySelector('[data-f="now"] .n'); if (nb) nb.textContent = key ? key.split(",").length : 0;
+  }
+
 
   // ================================================================ bottom sheet with snap points (half / full / closed)
   const sheet = $("sheet");
@@ -1084,7 +1191,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     if (!S.meta) return;
     S.f = Math.max(0, Math.min(S.n - 1, Math.round(vid.currentTime * S.fps)));
     updateFollow(); draw(); drawMini(); renderChips(); updateCarLive();
-    if (S.f !== lastF) { drawScrub(); updateRace(); $("tNow").textContent = (S.f / S.fps).toFixed(1) + " s"; lastF = S.f; }
+    if (S.f !== lastF) { drawScrub(); updateCars(); $("tNow").textContent = (S.f / S.fps).toFixed(1) + " s"; lastF = S.f; }
   }
   function loop(ts) {
     const dt = Math.min(0.1, (ts - S.lastT) / 1000 || 0.016); S.lastT = ts;
@@ -1110,7 +1217,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
     TABS.forEach((b, j) => { if (j === i) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current"); });
     $("tabInd").style.transform = `translateX(${i * 100}%)`;
     for (const t of document.querySelectorAll(".tab")) t.hidden = t.id !== id;
-    updateRace();
+    updateCars();
     if (pinned) scrollTo({ top: py + (tabScroll[id] || 0), behavior: "auto" });   // same frame as the swap: no flash, video stays put
     const pane = $(id);
     if (!reduced && pane.animate) pane.animate([{ opacity: 0, transform: "translateY(8px)" }, { opacity: 1, transform: "none" }],
